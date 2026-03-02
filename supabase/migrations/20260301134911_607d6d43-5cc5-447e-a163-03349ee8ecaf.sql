@@ -1,0 +1,1 @@
+ALTER TABLE public.sph ADD COLUMN IF NOT EXISTS designs jsonb NOT NULL DEFAULT '{}'::jsonb;
