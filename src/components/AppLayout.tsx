@@ -22,7 +22,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-sidebar flex flex-col border-r border-sidebar-border transition-all duration-300 shrink-0`}>
         {/* Logo */}
         <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
-          <img src="/logo.png" alt="Belift" className="w-9 h-9 rounded-lg object-contain bg-primary-foreground/10" />
+          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center">
+            <img src="/favicon.ico" alt="Belift" className="w-7 h-7 object-contain" />
+          </div>
           {!collapsed && (
             <div className="overflow-hidden">
               <h1 className="text-sm font-bold text-sidebar-foreground leading-tight font-sans">PT. Belift Amanah Indonesia</h1>
