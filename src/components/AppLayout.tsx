@@ -25,7 +25,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <img src="/logo.png" alt="Belift" className="w-9 h-9 rounded-lg object-contain bg-primary-foreground/10" />
           {!collapsed && (
             <div className="overflow-hidden">
-              <h1 className="text-sm font-bold text-sidebar-foreground leading-tight font-sans">PT. Belift Amanah</h1>
+              <h1 className="text-sm font-bold text-sidebar-foreground leading-tight font-sans">PT. Belift Amanah Indonesia</h1>
               <p className="text-[10px] text-sidebar-foreground/50">SPH Management System</p>
             </div>
           )}
