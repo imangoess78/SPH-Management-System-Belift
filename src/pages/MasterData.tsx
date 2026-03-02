@@ -147,7 +147,7 @@ export default function MasterData() {
       </div>
 
       <Tabs defaultValue="lift" className="space-y-4">
-        <TabsList>
+        <TabsList className="w-full overflow-x-auto px-1 pb-1 flex-nowrap">
           <TabsTrigger value="lift">Jenis Lift</TabsTrigger>
           <TabsTrigger value="kapasitas">Kapasitas</TabsTrigger>
           <TabsTrigger value="desain">Desain</TabsTrigger>
@@ -156,7 +156,7 @@ export default function MasterData() {
 
         <TabsContent value="lift" className="bg-card rounded-xl border shadow-sm p-6">
           <h2 className="section-title mb-4">Jenis Lift</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {JENIS_LIFT.map(j => (
               <div key={j} className="p-3 rounded-lg border bg-muted/30 text-sm font-medium">{j}</div>
             ))}
@@ -165,7 +165,7 @@ export default function MasterData() {
 
         <TabsContent value="kapasitas" className="bg-card rounded-xl border shadow-sm p-6">
           <h2 className="section-title mb-4">Kapasitas Lift</h2>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
             {KAPASITAS_LIFT.map(k => (
               <div key={k} className="p-3 rounded-lg border bg-muted/30 text-sm font-medium text-center">{k} Kg</div>
             ))}
@@ -193,7 +193,7 @@ export default function MasterData() {
                     {items.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">Belum ada data desain untuk {category}.</p>
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {items.map(item => (
                           <div key={item.id} className="rounded-lg border bg-muted/20 overflow-hidden group relative">
                             {item.image_url ? (

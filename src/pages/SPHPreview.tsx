@@ -33,15 +33,15 @@ export default function SPHPreview() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6 no-print">
+      <div className="flex items-center gap-3 mb-6 no-print px-1">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4" /></Button>
         <h1 className="text-xl font-bold text-foreground flex-1">Preview SPH</h1>
         <Button variant="outline" onClick={handlePrint} className="gap-2"><Printer className="w-4 h-4" /> Cetak / PDF</Button>
       </div>
 
-      <div ref={printRef} className="bg-card rounded-xl border shadow-sm p-4 md:p-12 max-w-4xl mx-auto text-sm print:shadow-none print:border-none print:p-0" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div ref={printRef} className="bg-card rounded-xl border shadow-sm p-3 md:p-10 max-w-4xl mx-auto text-sm print:shadow-none print:border-none print:p-0" style={{ fontFamily: 'Inter, sans-serif' }}>
         {/* Header */}
-        <div className="flex items-start justify-between mb-8 border-b-2 border-primary pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8 border-b-2 border-primary pb-6">
           <div className="flex items-center gap-4">
             <img src="/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
             <div>
@@ -57,7 +57,7 @@ export default function SPHPreview() {
 
         <h3 className="text-center text-base font-bold text-foreground mb-6 uppercase tracking-wide font-sans">SURAT PENAWARAN HARGA</h3>
 
-        <div className="mb-6 text-sm">
+        <div className="mb-6 text-sm space-y-1">
           <p>Kepada Yth,</p>
           <p className="font-semibold">{sph.kepada}</p>
           {sph.namaPIC && <p>Up. {sph.namaPIC}</p>}
@@ -75,7 +75,7 @@ export default function SPHPreview() {
         {/* Pricing Table */}
         <div className="mb-6 overflow-x-auto">
           <h4 className="font-bold text-sm mb-2 font-sans">A. RINCIAN HARGA</h4>
-          <table className="w-full min-w-[640px] border text-xs">
+          <table className="w-full min-w-[620px] border text-xs">
             <thead>
               <tr className="bg-primary text-primary-foreground">
                 <th className="border p-2 text-left">No</th>

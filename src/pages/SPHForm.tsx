@@ -444,26 +444,28 @@ export default function SPHForm() {
 
         {/* Pembayaran */}
         <section className="bg-card rounded-xl border shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
             <h2 className="section-title">Sistem Pembayaran</h2>
-            <Button variant="outline" size="sm" onClick={addPaymentTerm} className="gap-1">
+            <Button variant="outline" size="sm" onClick={addPaymentTerm} className="gap-1 w-full sm:w-auto justify-center">
               <Plus className="w-3.5 h-3.5" /> Tambah Termin
             </Button>
           </div>
           <div className="space-y-3">
             {form.payments.map((term, idx) => (
-              <div key={term.id} className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-16 shrink-0">Termin {idx + 1}</span>
-                <Input type="number" className="w-20 h-8 text-center" value={term.percentage} onChange={e => updatePayment(term.id, 'percentage', Number(e.target.value))} />
-                <span className="text-xs text-muted-foreground">%</span>
+              <div key={term.id} className="grid grid-cols-1 sm:grid-cols-[90px_1fr_auto] md:grid-cols-[120px_120px_1fr_auto] gap-2 sm:items-center">
+                <span className="text-xs text-muted-foreground">Termin {idx + 1}</span>
+                <div className="flex items-center gap-2">
+                  <Input type="number" className="h-9 w-24 text-center" value={term.percentage} onChange={e => updatePayment(term.id, 'percentage', Number(e.target.value))} />
+                  <span className="text-xs text-muted-foreground">%</span>
+                </div>
                 <Select value={term.condition} onValueChange={v => updatePayment(term.id, 'condition', v)}>
-                  <SelectTrigger className="h-8 flex-1"><SelectValue placeholder="Pilih kondisi" /></SelectTrigger>
+                  <SelectTrigger className="h-9 w-full"><SelectValue placeholder="Pilih kondisi" /></SelectTrigger>
                   <SelectContent>
                     {PAYMENT_CONDITIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {form.payments.length > 1 && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => removePaymentTerm(term.id)}>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive justify-self-end" onClick={() => removePaymentTerm(term.id)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 )}
