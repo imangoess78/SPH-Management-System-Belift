@@ -39,7 +39,7 @@ export default function SPHPreview() {
         <Button variant="outline" onClick={handlePrint} className="gap-2"><Printer className="w-4 h-4" /> Cetak / PDF</Button>
       </div>
 
-      <div ref={printRef} className="bg-card rounded-xl border shadow-sm p-8 md:p-12 max-w-4xl mx-auto text-sm print:shadow-none print:border-none print:p-0" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div ref={printRef} className="bg-card rounded-xl border shadow-sm p-4 md:p-12 max-w-4xl mx-auto text-sm print:shadow-none print:border-none print:p-0" style={{ fontFamily: 'Inter, sans-serif' }}>
         {/* Header */}
         <div className="flex items-start justify-between mb-8 border-b-2 border-primary pb-6">
           <div className="flex items-center gap-4">
@@ -73,9 +73,9 @@ export default function SPHPreview() {
         </p>
 
         {/* Pricing Table */}
-        <div className="mb-6">
+        <div className="mb-6 overflow-x-auto">
           <h4 className="font-bold text-sm mb-2 font-sans">A. RINCIAN HARGA</h4>
-          <table className="w-full border text-xs">
+          <table className="w-full min-w-[640px] border text-xs">
             <thead>
               <tr className="bg-primary text-primary-foreground">
                 <th className="border p-2 text-left">No</th>
@@ -132,23 +132,25 @@ export default function SPHPreview() {
         {/* Specs */}
         <div className="mb-6">
           <h4 className="font-bold text-sm mb-2 font-sans">B. SPESIFIKASI TEKNIS</h4>
-          <table className="w-full border text-xs">
-            <tbody>
-              {sph.specs.filter(s => s.value).map(spec => (
-                <tr key={spec.key}>
-                  <td className="border p-2 bg-muted/30 w-44 font-medium">{spec.label}</td>
-                  <td className="border p-2">{spec.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] border text-xs">
+              <tbody>
+                {sph.specs.filter(s => s.value).map(spec => (
+                  <tr key={spec.key}>
+                    <td className="border p-2 bg-muted/30 w-44 font-medium">{spec.label}</td>
+                    <td className="border p-2">{spec.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Designs */}
         {selectedDesigns.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-8 overflow-x-auto">
             <h4 className="font-bold text-sm mb-2 font-sans">E. OPSI DESAIN</h4>
-            <table className="w-full border text-xs">
+            <table className="w-full min-w-[520px] border text-xs">
               <thead>
                 <tr className="bg-primary text-primary-foreground">
                   <th className="border p-2 text-left">Kategori</th>
@@ -194,9 +196,9 @@ export default function SPHPreview() {
         </div>
 
         {/* Payment */}
-        <div className="mb-8">
+        <div className="mb-8 overflow-x-auto">
           <h4 className="font-bold text-sm mb-2 font-sans">D. SISTEM PEMBAYARAN</h4>
-          <table className="w-full border text-xs">
+          <table className="w-full min-w-[520px] border text-xs">
             <thead>
               <tr className="bg-primary text-primary-foreground">
                 <th className="border p-2 text-left">Termin</th>

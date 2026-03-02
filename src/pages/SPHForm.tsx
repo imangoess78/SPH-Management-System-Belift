@@ -163,20 +163,20 @@ export default function SPHForm() {
 
   return (
     <div className="max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{isEdit ? 'Edit SPH' : 'Buat SPH Baru'}</h1>
           <p className="text-sm text-muted-foreground mt-1">{form.nomorSPH}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => handleSave('draft')} className="gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button variant="outline" onClick={() => handleSave('draft')} className="gap-2 w-full sm:w-auto">
             <Save className="w-4 h-4" /> Simpan Draft
           </Button>
-          <Button onClick={() => handleSave('final')} className="gap-2">
+          <Button onClick={() => handleSave('final')} className="gap-2 w-full sm:w-auto">
             <FileDown className="w-4 h-4" /> Simpan & Finalisasi
           </Button>
           {isEdit && (
-            <Button variant="outline" onClick={() => navigate(`/sph/${form.id}/preview`)} className="gap-2">
+            <Button variant="outline" onClick={() => navigate(`/sph/${form.id}/preview`)} className="gap-2 w-full sm:w-auto">
               <Eye className="w-4 h-4" /> Preview PDF
             </Button>
           )}

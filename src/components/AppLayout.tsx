@@ -70,7 +70,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <main className="flex-1 overflow-auto">
-        <div className="p-6 max-w-7xl mx-auto animate-fade-in">
+        <div className="p-4 md:p-6 max-w-7xl mx-auto animate-fade-in">
           {children}
         </div>
       </main>
