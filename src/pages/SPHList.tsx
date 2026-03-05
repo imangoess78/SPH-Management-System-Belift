@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, PlusCircle, Trash2, Copy } from 'lucide-react';
+import { FileText, PlusCircle, Trash2, Copy, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 
 export default function SPHList() {
   const [sphList, setSphList] = useState<SPH[]>([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -52,16 +54,33 @@ export default function SPHList() {
     }
   };
 
+  const filteredList = sphList.filter(s => {
+    const q = search.toLowerCase();
+    return (
+      s.nomorSPH.toLowerCase().includes(q) ||
+      s.kepada.toLowerCase().includes(q) ||
+      s.jenisLift.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-foreground">Riwayat SPH</h1>
-          <p className="text-sm text-muted-foreground mt-1">{sphList.length} surat penawaran</p>
+          <p className="text-sm text-muted-foreground mt-1">{filteredList.length} surat penawaran</p>
         </div>
-        <Link to="/sph/new">
-          <Button className="gap-2 w-full sm:w-auto"><PlusCircle className="w-4 h-4" /> Buat SPH Baru</Button>
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center">
+          <Input
+            className="w-full sm:w-64"
+            placeholder="Cari nomor, perusahaan, jenis lift..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <Link to="/sph/new">
+            <Button className="gap-2 w-full sm:w-auto"><PlusCircle className="w-4 h-4" /> Buat SPH Baru</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
@@ -86,7 +105,7 @@ export default function SPHList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {sphList.map(sph => (
+                {filteredList.map(sph => (
                   <tr key={sph.id} className="hover:bg-muted/30 transition-colors">
                     <td className="p-4">
                       <Link to={`/sph/${sph.id}`} className="font-medium text-primary hover:underline">{sph.nomorSPH}</Link>
@@ -101,6 +120,11 @@ export default function SPHList() {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Link to={`/sph/${sph.id}/preview`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Preview PDF">
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                        </Link>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDuplicate(sph)}>
                           <Copy className="w-3.5 h-3.5" />
                         </Button>

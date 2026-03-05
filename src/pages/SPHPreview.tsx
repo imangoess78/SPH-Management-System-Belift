@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { loadSPHById, formatCurrency, formatDate, calculateItemTotal } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, Fragment } from 'react';
 
 export default function SPHPreview() {
   const { id } = useParams();
@@ -26,7 +26,13 @@ export default function SPHPreview() {
   if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;
   if (!sph) return <div className="text-center py-20 text-muted-foreground">SPH tidak ditemukan</div>;
 
-  const totals = calculateItemTotal(sph.items, sph.includePPN !== false);
+  const totals = calculateItemTotal({
+    items: sph.items,
+    includePPN: sph.includePPN !== false,
+    priceMode: sph.priceMode || 'harga_satuan',
+    lumpSumTotal: sph.lumpSumTotal || 0,
+  });
+  const isLumpSum = sph.priceMode === 'lump_sum';
   const checkedItems = sph.items.filter(i => i.checked);
   const selectedDesigns = Object.values(sph.designs || {});
   const handlePrint = () => window.print();
@@ -75,58 +81,95 @@ export default function SPHPreview() {
         {/* Pricing Table */}
         <div className="mb-6 overflow-x-auto">
           <h4 className="font-bold text-sm mb-2 font-sans">A. RINCIAN HARGA</h4>
-          <table className="w-full min-w-[620px] border text-xs">
-            <thead>
-              <tr className="bg-primary text-primary-foreground">
-                <th className="border p-2 text-left">No</th>
-                <th className="border p-2 text-left">Item Pekerjaan</th>
-                <th className="border p-2 text-center">Qty</th>
-                <th className="border p-2 text-right">Harga Pengadaan</th>
-                <th className="border p-2 text-right">Harga Pemasangan</th>
-                <th className="border p-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {checkedItems.map((item, idx) => (
-                <>
-                  <tr key={item.id}>
-                    <td className="border p-2">{idx + 1}</td>
-                    <td className="border p-2 font-medium">{item.name}</td>
-                    <td className="border p-2 text-center">{item.qty}</td>
-                    <td className="border p-2 text-right">{item.isInclude ? 'Include' : formatCurrency(item.hargaPengadaan)}</td>
-                    <td className="border p-2 text-right">{item.isInclude ? 'Include' : formatCurrency(item.hargaPemasangan)}</td>
-                    <td className="border p-2 text-right">{item.isInclude ? 'Include' : formatCurrency((item.hargaPengadaan + item.hargaPemasangan) * item.qty)}</td>
+          {isLumpSum ? (
+            <>
+              <table className="w-full min-w-[520px] border text-xs">
+                <thead>
+                  <tr className="bg-primary text-primary-foreground">
+                    <th className="border p-2 text-left">No</th>
+                    <th className="border p-2 text-left">Item Pekerjaan</th>
+                    <th className="border p-2 text-center">Qty</th>
                   </tr>
-                  {item.children?.filter(c => c.checked).map(child => (
-                    <tr key={child.id} className="text-muted-foreground">
-                      <td className="border p-2"></td>
-                      <td className="border p-2 pl-6">• {child.name}</td>
-                      <td className="border p-2 text-center">{child.qty}</td>
-                      <td className="border p-2 text-right">{child.isInclude ? 'Include' : formatCurrency(child.hargaPengadaan)}</td>
-                      <td className="border p-2 text-right">{child.isInclude ? 'Include' : formatCurrency(child.hargaPemasangan)}</td>
-                      <td className="border p-2 text-right">{child.isInclude ? 'Include' : formatCurrency((child.hargaPengadaan + child.hargaPemasangan) * child.qty)}</td>
-                    </tr>
+                </thead>
+                <tbody>
+                  {checkedItems.map((item, idx) => (
+                    <Fragment key={item.id}>
+                      <tr>
+                        <td className="border p-2">{idx + 1}</td>
+                        <td className="border p-2 font-medium">{item.name}</td>
+                        <td className="border p-2 text-center">{item.qty}</td>
+                      </tr>
+                      {item.children?.filter(c => c.checked).map(child => (
+                        <tr key={child.id} className="text-muted-foreground">
+                          <td className="border p-2"></td>
+                          <td className="border p-2 pl-6">• {child.name}</td>
+                          <td className="border p-2 text-center">{child.qty}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
                   ))}
-                </>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-semibold bg-muted/50">
-                <td colSpan={5} className="border p-2 text-right">SUBTOTAL</td>
-                <td className="border p-2 text-right">{formatCurrency(totals.subtotal)}</td>
-              </tr>
-              {sph.includePPN !== false && (
-                <tr className="bg-muted/50">
-                  <td colSpan={5} className="border p-2 text-right">PPN 11%</td>
-                  <td className="border p-2 text-right">{formatCurrency(totals.ppn)}</td>
+                </tbody>
+              </table>
+              <div className="text-right text-xs space-y-1 mt-3">
+                <p><span className="font-semibold">Subtotal (Lump Sum): </span>{formatCurrency(totals.subtotal)}</p>
+                {sph.includePPN !== false && <p><span className="font-semibold">PPN 11%: </span>{formatCurrency(totals.ppn)}</p>}
+                <p className="font-bold text-primary text-sm">Grand Total: {formatCurrency(totals.grandTotal)}</p>
+              </div>
+            </>
+          ) : (
+            <table className="w-full min-w-[620px] border text-xs">
+              <thead>
+                <tr className="bg-primary text-primary-foreground">
+                  <th className="border p-2 text-left">No</th>
+                  <th className="border p-2 text-left">Item Pekerjaan</th>
+                  <th className="border p-2 text-center">Qty</th>
+                  <th className="border p-2 text-right">Harga Pengadaan</th>
+                  <th className="border p-2 text-right">Harga Pemasangan</th>
+                  <th className="border p-2 text-right">Total</th>
                 </tr>
-              )}
-              <tr className="font-bold bg-primary/5">
-                <td colSpan={5} className="border p-2 text-right">GRAND TOTAL</td>
-                <td className="border p-2 text-right text-primary">{formatCurrency(totals.grandTotal)}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {checkedItems.map((item, idx) => (
+                  <Fragment key={item.id}>
+                    <tr>
+                      <td className="border p-2">{idx + 1}</td>
+                      <td className="border p-2 font-medium">{item.name}</td>
+                      <td className="border p-2 text-center">{item.qty}</td>
+                      <td className="border p-2 text-right">{item.isInclude ? 'Include' : formatCurrency(item.hargaPengadaan)}</td>
+                      <td className="border p-2 text-right">{item.isInclude ? 'Include' : formatCurrency(item.hargaPemasangan)}</td>
+                      <td className="border p-2 text-right">{item.isInclude ? 'Include' : formatCurrency((item.hargaPengadaan + item.hargaPemasangan) * item.qty)}</td>
+                    </tr>
+                    {item.children?.filter(c => c.checked).map(child => (
+                      <tr key={child.id} className="text-muted-foreground">
+                        <td className="border p-2"></td>
+                        <td className="border p-2 pl-6">• {child.name}</td>
+                        <td className="border p-2 text-center">{child.qty}</td>
+                        <td className="border p-2 text-right">{child.isInclude ? 'Include' : formatCurrency(child.hargaPengadaan)}</td>
+                        <td className="border p-2 text-right">{child.isInclude ? 'Include' : formatCurrency(child.hargaPemasangan)}</td>
+                        <td className="border p-2 text-right">{child.isInclude ? 'Include' : formatCurrency((child.hargaPengadaan + child.hargaPemasangan) * child.qty)}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold bg-muted/50">
+                  <td colSpan={5} className="border p-2 text-right">SUBTOTAL</td>
+                  <td className="border p-2 text-right">{formatCurrency(totals.subtotal)}</td>
+                </tr>
+                {sph.includePPN !== false && (
+                  <tr className="bg-muted/50">
+                    <td colSpan={5} className="border p-2 text-right">PPN 11%</td>
+                    <td className="border p-2 text-right">{formatCurrency(totals.ppn)}</td>
+                  </tr>
+                )}
+                <tr className="font-bold bg-primary/5">
+                  <td colSpan={5} className="border p-2 text-right">GRAND TOTAL</td>
+                  <td className="border p-2 text-right text-primary">{formatCurrency(totals.grandTotal)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
         </div>
 
         {/* Specs */}
@@ -226,7 +269,11 @@ export default function SPHPreview() {
           <div className="flex justify-end">
             <div className="text-center">
               <p>Hormat kami,</p>
-              <p className="font-bold mt-16">PT. BELIFT AMANAH INDONESIA</p>
+              <p className="font-bold mt-1">PT. BELIFT AMANAH INDONESIA</p>
+              <div className="mt-14">
+                <p className="font-semibold">{sph.namaSales || '____________'}</p>
+                <p className="text-xs text-muted-foreground">Sales</p>
+              </div>
             </div>
           </div>
         </div>

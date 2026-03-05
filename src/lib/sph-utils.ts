@@ -27,20 +27,34 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
 }
 
-export function calculateItemTotal(items: SPHItem[], includePPN: boolean = true): { subtotal: number; ppn: number; grandTotal: number } {
+export function calculateItemTotal({
+  items,
+  includePPN = true,
+  priceMode = 'harga_satuan',
+  lumpSumTotal = 0,
+}: {
+  items: SPHItem[];
+  includePPN?: boolean;
+  priceMode?: 'lump_sum' | 'harga_satuan';
+  lumpSumTotal?: number;
+}): { subtotal: number; ppn: number; grandTotal: number } {
   let subtotal = 0;
-  items.forEach(item => {
-    if (item.checked && !item.isInclude) {
-      subtotal += (item.hargaPengadaan + item.hargaPemasangan) * item.qty;
-    }
-    if (item.children) {
-      item.children.forEach(child => {
-        if (child.checked && !child.isInclude) {
-          subtotal += (child.hargaPengadaan + child.hargaPemasangan) * child.qty;
-        }
-      });
-    }
-  });
+  if (priceMode === 'lump_sum') {
+    subtotal = lumpSumTotal || 0;
+  } else {
+    items.forEach(item => {
+      if (item.checked && !item.isInclude) {
+        subtotal += (item.hargaPengadaan + item.hargaPemasangan) * item.qty;
+      }
+      if (item.children) {
+        item.children.forEach(child => {
+          if (child.checked && !child.isInclude) {
+            subtotal += (child.hargaPengadaan + child.hargaPemasangan) * child.qty;
+          }
+        });
+      }
+    });
+  }
   const ppn = includePPN ? subtotal * 0.11 : 0;
   return { subtotal, ppn, grandTotal: subtotal + ppn };
 }
@@ -60,6 +74,7 @@ function sphToRow(sph: SPH, userId: string) {
     tanggal: sph.tanggal,
     kepada: sph.kepada,
     nama_pic: sph.namaPIC,
+    nama_sales: sph.namaSales,
     alamat_proyek: sph.alamatProyek,
     perihal: sph.perihal,
     jenis_lift: sph.jenisLift,
@@ -68,6 +83,8 @@ function sphToRow(sph: SPH, userId: string) {
     stops: sph.stops,
     doors: sph.doors,
     waktu_pelaksanaan: sph.waktuPelaksanaan,
+    price_mode: sph.priceMode,
+    lump_sum_total: sph.lumpSumTotal,
     items: sph.items as any,
     specs: sph.specs as any,
     terms: sph.terms as any,
@@ -86,6 +103,7 @@ function rowToSPH(row: any): SPH {
     tanggal: row.tanggal,
     kepada: row.kepada,
     namaPIC: row.nama_pic,
+    namaSales: row.nama_sales || '',
     alamatProyek: row.alamat_proyek,
     perihal: row.perihal,
     jenisLift: row.jenis_lift,
@@ -94,6 +112,8 @@ function rowToSPH(row: any): SPH {
     stops: row.stops,
     doors: row.doors,
     waktuPelaksanaan: row.waktu_pelaksanaan,
+    priceMode: (row.price_mode as 'lump_sum' | 'harga_satuan') || 'harga_satuan',
+    lumpSumTotal: row.lump_sum_total ?? 0,
     items: row.items as SPHItem[],
     specs: row.specs,
     terms: row.terms,

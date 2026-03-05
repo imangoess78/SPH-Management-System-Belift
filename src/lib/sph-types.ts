@@ -35,6 +35,7 @@ export interface SPH {
   tanggal: string;
   kepada: string;
   namaPIC: string;
+  namaSales: string;
   alamatProyek: string;
   perihal: string;
   jenisLift: string;
@@ -45,6 +46,8 @@ export interface SPH {
   waktuPelaksanaan: string;
   items: SPHItem[];
   specs: SPHSpec[];
+  priceMode: 'lump_sum' | 'harga_satuan';
+  lumpSumTotal: number;
   terms: {
     masaBerlaku: string;
     garansiSparepart: string;

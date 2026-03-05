@@ -84,10 +84,13 @@ export type Database = {
           jenis_lift: string
           kapasitas: number
           kepada: string
+          nama_sales: string | null
           nama_pic: string
           nomor_sph: string
           payments: Json
           perihal: string
+          price_mode: string | null
+          lump_sum_total: number | null
           specs: Json
           status: string
           stops: number
@@ -109,10 +112,13 @@ export type Database = {
           jenis_lift?: string
           kapasitas?: number
           kepada?: string
+          nama_sales?: string | null
           nama_pic?: string
           nomor_sph: string
           payments?: Json
           perihal?: string
+          price_mode?: string | null
+          lump_sum_total?: number | null
           specs?: Json
           status?: string
           stops?: number
@@ -134,10 +140,13 @@ export type Database = {
           jenis_lift?: string
           kapasitas?: number
           kepada?: string
+          nama_sales?: string | null
           nama_pic?: string
           nomor_sph?: string
           payments?: Json
           perihal?: string
+          price_mode?: string | null
+          lump_sum_total?: number | null
           specs?: Json
           status?: string
           stops?: number

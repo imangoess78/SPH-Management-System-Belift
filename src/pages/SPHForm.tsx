@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ function createDefaultSPH(nomorSPH: string): SPH {
     tanggal: new Date().toISOString().split('T')[0],
     kepada: '',
     namaPIC: '',
+    namaSales: '',
     alamatProyek: '',
     perihal: 'Penawaran Harga Pengadaan & Pemasangan Lift',
     jenisLift: 'Passenger Lift',
@@ -30,6 +31,8 @@ function createDefaultSPH(nomorSPH: string): SPH {
     stops: 5,
     doors: 5,
     waktuPelaksanaan: '90 Hari Kerja',
+    priceMode: 'harga_satuan',
+    lumpSumTotal: 0,
     items: JSON.parse(JSON.stringify(DEFAULT_ITEMS)),
     specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
     terms: {
@@ -90,7 +93,12 @@ export default function SPHForm() {
     return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;
   }
 
-  const totals = calculateItemTotal(form.items, form.includePPN);
+  const totals = calculateItemTotal({
+    items: form.items,
+    includePPN: form.includePPN,
+    priceMode: form.priceMode,
+    lumpSumTotal: form.lumpSumTotal,
+  });
 
   const updateField = (key: keyof SPH, value: any) => {
     setForm(prev => prev ? { ...prev, [key]: value } : prev);
@@ -212,6 +220,10 @@ export default function SPHForm() {
               <Label>Perihal</Label>
               <Input value={form.perihal} onChange={e => updateField('perihal', e.target.value)} />
             </div>
+            <div className="md:col-span-2">
+              <Label>Nama Sales</Label>
+              <Input value={form.namaSales} onChange={e => updateField('namaSales', e.target.value)} placeholder="Nama sales yang menangani" />
+            </div>
           </div>
         </section>
 
@@ -258,58 +270,123 @@ export default function SPHForm() {
 
         {/* Tabel Harga */}
         <section className="bg-card rounded-xl border shadow-sm p-6">
-          <h2 className="section-title mb-4">Tabel Harga</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="p-3 text-left w-8"></th>
-                  <th className="p-3 text-left">Item Pekerjaan</th>
-                  <th className="p-3 text-center w-16">Qty</th>
-                  <th className="p-3 text-right w-40">Harga Pengadaan</th>
-                  <th className="p-3 text-right w-40">Harga Pemasangan</th>
-                  <th className="p-3 text-center w-20">Include</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {form.items.map(item => (
-                  <>
-                    <tr key={item.id} className="hover:bg-muted/30">
-                      <td className="p-3">
-                        <Checkbox checked={item.checked} onCheckedChange={v => updateItem(item.id, 'checked', v)} />
-                      </td>
-                      <td className="p-3 font-medium">{item.name}</td>
-                      <td className="p-3"><Input type="number" className="w-16 text-center h-8" value={item.qty} onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} /></td>
-                      <td className="p-3"><Input type="number" className="text-right h-8" value={item.hargaPengadaan} onChange={e => updateItem(item.id, 'hargaPengadaan', Number(e.target.value))} disabled={item.isInclude} /></td>
-                      <td className="p-3"><Input type="number" className="text-right h-8" value={item.hargaPemasangan} onChange={e => updateItem(item.id, 'hargaPemasangan', Number(e.target.value))} disabled={item.isInclude} /></td>
-                      <td className="p-3 text-center">
-                        <Checkbox checked={item.isInclude} onCheckedChange={v => updateItem(item.id, 'isInclude', v)} />
-                      </td>
-                    </tr>
-                    {item.children?.map(child => (
-                      <tr key={child.id} className="hover:bg-muted/30 bg-muted/20">
-                        <td className="p-3 pl-8">
-                          <Checkbox checked={child.checked} onCheckedChange={v => updateItem(child.id, 'checked', v, item.id)} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="section-title">Tabel Harga</h2>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Mode Harga:</span>
+              <Select value={form.priceMode} onValueChange={v => updateField('priceMode', v as SPH['priceMode'])}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Pilih mode" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lump_sum">Lump Sum</SelectItem>
+                  <SelectItem value="harga_satuan">Harga Satuan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto mt-2">
+            {form.priceMode === 'harga_satuan' ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="p-3 text-left w-8"></th>
+                    <th className="p-3 text-left">Item Pekerjaan</th>
+                    <th className="p-3 text-center w-16">Qty</th>
+                    <th className="p-3 text-right w-40">Harga Pengadaan</th>
+                    <th className="p-3 text-right w-40">Harga Pemasangan</th>
+                    <th className="p-3 text-center w-20">Include</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {form.items.map(item => (
+                    <Fragment key={item.id}>
+                      <tr className="hover:bg-muted/30">
+                        <td className="p-3">
+                          <Checkbox checked={item.checked} onCheckedChange={v => updateItem(item.id, 'checked', v)} />
                         </td>
-                        <td className="p-3 pl-8 text-muted-foreground">↳ {child.name}</td>
-                        <td className="p-3"><Input type="number" className="w-16 text-center h-8" value={child.qty} onChange={e => updateItem(child.id, 'qty', Number(e.target.value), item.id)} /></td>
-                        <td className="p-3"><Input type="number" className="text-right h-8" value={child.hargaPengadaan} onChange={e => updateItem(child.id, 'hargaPengadaan', Number(e.target.value), item.id)} disabled={child.isInclude} /></td>
-                        <td className="p-3"><Input type="number" className="text-right h-8" value={child.hargaPemasangan} onChange={e => updateItem(child.id, 'hargaPemasangan', Number(e.target.value), item.id)} disabled={child.isInclude} /></td>
+                        <td className="p-3 font-medium">{item.name}</td>
+                        <td className="p-3"><Input type="number" className="w-16 text-center h-8" value={item.qty} onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} /></td>
+                        <td className="p-3"><Input type="number" className="text-right h-8" value={item.hargaPengadaan} onChange={e => updateItem(item.id, 'hargaPengadaan', Number(e.target.value))} disabled={item.isInclude} /></td>
+                        <td className="p-3"><Input type="number" className="text-right h-8" value={item.hargaPemasangan} onChange={e => updateItem(item.id, 'hargaPemasangan', Number(e.target.value))} disabled={item.isInclude} /></td>
                         <td className="p-3 text-center">
-                          <Checkbox checked={child.isInclude} onCheckedChange={v => updateItem(child.id, 'isInclude', v, item.id)} />
+                          <Checkbox checked={item.isInclude} onCheckedChange={v => updateItem(item.id, 'isInclude', v)} />
                         </td>
                       </tr>
-                    ))}
-                  </>
-                ))}
-              </tbody>
-            </table>
+                      {item.children?.map(child => (
+                        <tr key={child.id} className="hover:bg-muted/30 bg-muted/20">
+                          <td className="p-3 pl-8">
+                            <Checkbox checked={child.checked} onCheckedChange={v => updateItem(child.id, 'checked', v, item.id)} />
+                          </td>
+                          <td className="p-3 pl-8 text-muted-foreground">↳ {child.name}</td>
+                          <td className="p-3"><Input type="number" className="w-16 text-center h-8" value={child.qty} onChange={e => updateItem(child.id, 'qty', Number(e.target.value), item.id)} /></td>
+                          <td className="p-3"><Input type="number" className="text-right h-8" value={child.hargaPengadaan} onChange={e => updateItem(child.id, 'hargaPengadaan', Number(e.target.value), item.id)} disabled={child.isInclude} /></td>
+                          <td className="p-3"><Input type="number" className="text-right h-8" value={child.hargaPemasangan} onChange={e => updateItem(child.id, 'hargaPemasangan', Number(e.target.value), item.id)} disabled={child.isInclude} /></td>
+                          <td className="p-3 text-center">
+                            <Checkbox checked={child.isInclude} onCheckedChange={v => updateItem(child.id, 'isInclude', v, item.id)} />
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="p-3 text-left w-8"></th>
+                    <th className="p-3 text-left">Item Pekerjaan</th>
+                    <th className="p-3 text-center w-16">Qty</th>
+                    <th className="p-3 text-center w-20">Include</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {form.items.map(item => (
+                    <Fragment key={item.id}>
+                      <tr className="hover:bg-muted/30">
+                        <td className="p-3">
+                          <Checkbox checked={item.checked} onCheckedChange={v => updateItem(item.id, 'checked', v)} />
+                        </td>
+                        <td className="p-3 font-medium">{item.name}</td>
+                        <td className="p-3"><Input type="number" className="w-16 text-center h-8" value={item.qty} onChange={e => updateItem(item.id, 'qty', Number(e.target.value))} /></td>
+                        <td className="p-3 text-center">
+                          <Checkbox checked={item.isInclude} onCheckedChange={v => updateItem(item.id, 'isInclude', v)} />
+                        </td>
+                      </tr>
+                      {item.children?.map(child => (
+                        <tr key={child.id} className="hover:bg-muted/30 bg-muted/20">
+                          <td className="p-3 pl-8">
+                            <Checkbox checked={child.checked} onCheckedChange={v => updateItem(child.id, 'checked', v, item.id)} />
+                          </td>
+                          <td className="p-3 pl-8 text-muted-foreground">↳ {child.name}</td>
+                          <td className="p-3"><Input type="number" className="w-16 text-center h-8" value={child.qty} onChange={e => updateItem(child.id, 'qty', Number(e.target.value), item.id)} /></td>
+                          <td className="p-3 text-center">
+                            <Checkbox checked={child.isInclude} onCheckedChange={v => updateItem(child.id, 'isInclude', v, item.id)} />
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <Separator className="my-4" />
 
           <div className="flex justify-end">
             <div className="w-72 space-y-2 text-sm">
+              {form.priceMode === 'lump_sum' && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Total Lump Sum</Label>
+                  <Input
+                    type="number"
+                    className="h-9 text-right"
+                    value={form.lumpSumTotal}
+                    onChange={e => updateField('lumpSumTotal', Number(e.target.value))}
+                  />
+                </div>
+              )}
               <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="font-medium">{formatCurrency(totals.subtotal)}</span></div>
               <div className="flex justify-between items-center">
                 <label className="flex items-center gap-2 text-muted-foreground cursor-pointer">
