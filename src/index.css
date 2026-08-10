@@ -310,7 +310,7 @@
   letter-spacing: .02em; line-height: 1; margin-top: 14mm;
 }
 .co { text-align: right; font-size: 8.5pt; color: #4A3A2E; line-height: 1.45; margin-top: 2mm; }
-.co .mark { font-family: 'Barlow Condensed', sans-serif; font-size: 26pt; font-weight: 700; color: var(--brown); }
+.co .mark { font-family: 'Barlow Condensed', sans-serif; font-size: 26pt; font-weight: 700; color: var(--orange); }
 .co .mark i { font-style: normal; color: var(--orange); }
 .co .ent { font-size: 11pt; color: var(--burnt); font-weight: 500; margin-bottom: 1mm; }
 .docno {
@@ -386,8 +386,7 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .plabel {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 13px; letter-spacing: .14em; color: var(--muted-color);
-  text-transform: uppercase; align-self: flex-start;
-  margin-left: calc(50% - var(--pageW) / 2);
+  text-transform: uppercase;
 }
 
 /* ===== GENERATOR SPLIT-PANEL LAYOUT ===== */
@@ -405,7 +404,7 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
   padding: 22px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 18px;
   overflow-y: auto;
   height: calc(100vh - 55px);
@@ -561,21 +560,23 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
   .preview-panel {
     height: calc(100svh - 92px);
     overflow-x: hidden;
-    padding: 12px 8px;
+    padding: 12px 0;
     gap: 0;
-    /* align content to top so scaled pages start at the top */
+    /* center scaled pages horizontally */
+    align-items: center;
     justify-content: flex-start;
   }
 
   /* Wrap all A4 pages in a scaler div rendered by PreviewPanel.
      JS sets --preview-scale and --preview-natural-h via inline style. */
   .preview-scaler {
-    transform-origin: top left;
+    /* Scale from top-center so the page stays horizontally centered */
+    transform-origin: top center;
     transform: scale(var(--preview-scale, 1));
     /* Collapse the blank space left after scaling:
        margin-bottom = (scale - 1) * totalHeight  →  negative value */
     margin-bottom: calc((var(--preview-scale, 1) - 1) * var(--preview-natural-h, 4000px));
-    /* Keep page width fixed; centering is handled by the panel's align-items:center */
+    /* Keep A4 width; centering handled by transform-origin + align-items:center */
     width: 210mm;
     flex-shrink: 0;
   }

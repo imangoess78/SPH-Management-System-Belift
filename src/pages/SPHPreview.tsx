@@ -10,11 +10,13 @@ import { pageSPH, pageSPK } from '@/lib/sph-generator';
 const GEN_CSS = `
 :root{--orange:#D95103;--burnt:#A63F04;--brown:#592203;--ink:#2B1B10;--line:#DFD8D1;--muted:#7A6E66}
 *{box-sizing:border-box}
-body{margin:0;padding:22px;background:#F0EDE9;font-family:'Barlow',system-ui,sans-serif}
+body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system-ui,sans-serif}
 @import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap');
+/* .page-wrap is injected by JS — centres each scaled page */
+.page-wrap{width:100%;overflow:hidden;display:flex;justify-content:center}
 .page{width:210mm;min-height:297mm;background:#fff;box-shadow:0 2px 18px rgba(89,34,3,.16);
   padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;
-  font-family:'Barlow',sans-serif;margin:0 auto 18px;transform-origin:top center}
+  font-family:'Barlow',sans-serif;flex-shrink:0;transform-origin:top center}
 .page.cont{padding-top:22mm}
 .page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:#D95103;border-bottom-right-radius:9mm}
 .page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}
@@ -23,7 +25,7 @@ body{margin:0;padding:22px;background:#F0EDE9;font-family:'Barlow',system-ui,san
 .lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
 .doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
-.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#592203}
+.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#D95103}
 .co .mark i{font-style:normal;color:#D95103}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
 .docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:#D95103;letter-spacing:.08em;margin:9mm 0 6mm}
@@ -68,31 +70,48 @@ h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 @media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}}
 `;
 
-// Script injected into iframe to scale A4 pages to fit mobile viewport
+// Script injected into iframe: wraps each .page in a centering .page-wrap div,
+// then scales the .page using top-center origin so it stays horizontally centred
+// on any viewport width including mobile (no manual margin math needed).
 const SCALE_SCRIPT = `
 <script>
 (function(){
-  function scalePages(){
-    var pages=document.querySelectorAll('.page');
-    if(!pages.length) return;
-    var vw=window.innerWidth;
-    var bodyPad=vw<600?8:22;
-    document.body.style.padding=bodyPad+'px';
-    var avail=vw-(bodyPad*2);
-    // A4 page is 210mm ≈ 794px at 96dpi
-    var pageW=pages[0].offsetWidth||794;
-    var scale=avail/pageW;
-    if(scale>=1){scale=1;}
-    pages.forEach(function(p){
-      p.style.transform='scale('+scale+')';
-      p.style.marginBottom=(-(pageW*(1-scale)))+'px';
+  function wrapPages(){
+    document.querySelectorAll('.page').forEach(function(p){
+      if(p.parentElement&&p.parentElement.classList.contains('page-wrap'))return;
+      var w=document.createElement('div');
+      w.className='page-wrap';
+      p.parentNode.insertBefore(w,p);
+      w.appendChild(p);
     });
-    document.body.style.paddingBottom='24px';
   }
-  window.addEventListener('load',scalePages);
+  function scalePages(){
+    var pages=document.querySelectorAll('.page-wrap .page');
+    if(!pages.length){wrapPages();pages=document.querySelectorAll('.page-wrap .page');}
+    if(!pages.length)return;
+    var vw=window.innerWidth;
+    var pageW=pages[0].offsetWidth||794;
+    var scale=vw/pageW;
+    if(scale>=1)scale=1;
+    pages.forEach(function(p){
+      // Scale from top-center: the .page-wrap flex centres the page, so no
+      // manual marginLeft is needed — scaling keeps it centred automatically.
+      p.style.transformOrigin='top center';
+      p.style.transform='scale('+scale+')';
+      p.style.marginLeft='';
+      var ph=p.offsetHeight||1122;
+      p.parentElement.style.height=(ph*scale)+'px';
+      p.parentElement.style.marginBottom='8px';
+    });
+  }
+  // Run immediately (script is at end of body so DOM exists)
+  wrapPages();
+  // Defer scale until layout is complete
+  requestAnimationFrame(function(){
+    requestAnimationFrame(scalePages);
+  });
   window.addEventListener('resize',scalePages);
-  // Also run after fonts load
-  if(document.fonts){document.fonts.ready.then(scalePages);}
+  if(document.fonts)document.fonts.ready.then(scalePages);
 })();
 </script>
 `;

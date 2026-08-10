@@ -231,7 +231,7 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     '<li>Cara pembayaran:'+terminDoc(items,termin,mode)+'</li></ol>'+
     '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>'+
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">'+
-    '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#592203">B<span style="color:#D95103">ELIFT</span></div>'+
+    '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#D95103">BELIFT</div>'+
     ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd)+'</div></div><div class="pgnum">·</div></div>';
 }
 
@@ -348,7 +348,7 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 .lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
 .doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
-.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#592203}
+.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#D95103}
 .co .mark i{font-style:normal;color:#D95103}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
 .docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:#D95103;letter-spacing:.08em;margin:9mm 0 6mm}
@@ -959,19 +959,28 @@ function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, s
         </div>
         {/* Mobile: action buttons row (right side) — hidden on desktop via CSS */}
         <div className="mobile-actions" style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
-          <button onClick={onSave} disabled={saving} title="Simpan" style={{
+          <button onClick={onSave} disabled={saving} title={saving ? 'Menyimpan…' : 'Simpan'} style={{
             border:'1px solid rgba(255,255,255,.45)',background:'none',color:'#fff',
-            padding:'6px 10px',borderRadius:3,cursor:'pointer',fontSize:13,fontWeight:500,
-            opacity:saving?0.6:1,whiteSpace:'nowrap',
-          }}>{saving?'…':'Simpan'}</button>
-          <button onClick={onPrint} title="Cetak / PDF" style={{
+            padding:'7px 9px',borderRadius:3,cursor:'pointer',lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center',
+            opacity:saving?0.6:1,
+          }}>
+            {saving
+              ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            }
+          </button>
+          <button onClick={onPrint} title="Cetak / Simpan PDF" style={{
             background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',
-            padding:'6px 10px',borderRadius:3,cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap',
-          }}>PDF</button>
+            padding:'7px 9px',borderRadius:3,cursor:'pointer',lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </button>
           <button onClick={onSignOut} title="Keluar" style={{
             border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#E8DCD3',
-            padding:'6px 8px',borderRadius:3,cursor:'pointer',fontSize:13,whiteSpace:'nowrap',
-          }}>Keluar</button>
+            padding:'7px 9px',borderRadius:3,cursor:'pointer',lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
         </div>
       </div>
 
