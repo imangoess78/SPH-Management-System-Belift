@@ -9,6 +9,7 @@ import { JENIS_LIFT, KAPASITAS_LIFT } from '@/lib/sph-types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const DESIGN_CATEGORIES = ['Cabin', 'Floor', 'Ceiling', 'Door', 'COP', 'LOP', 'Struktur', 'Add On'];
 
@@ -36,6 +37,10 @@ export default function MasterData() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Confirm delete dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<DesignItem | null>(null);
 
   const fetchDesignItems = async () => {
     setLoading(true);
@@ -140,8 +145,18 @@ export default function MasterData() {
     fetchDesignItems();
   };
 
-  const handleDelete = async (item: DesignItem) => {
-    if (!confirm(`Hapus desain "${item.name}"?`)) return;
+  // Step 1: open confirm dialog
+  const requestDelete = (item: DesignItem) => {
+    setPendingDeleteItem(item);
+    setConfirmOpen(true);
+  };
+
+  // Step 2: confirmed — actually delete
+  const handleDelete = async () => {
+    if (!pendingDeleteItem) return;
+    const item = pendingDeleteItem;
+    setPendingDeleteItem(null);
+    setConfirmOpen(false);
     const { error } = await supabase.from('design_items').delete().eq('id', item.id);
     if (error) {
       console.error('[MasterData] delete error:', error);
@@ -241,7 +256,7 @@ export default function MasterData() {
                                 <Button variant="secondary" size="icon" className="h-7 w-7" onClick={() => openEdit(item)}>
                                   <Pencil className="w-3 h-3" />
                                 </Button>
-                                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDelete(item)}>
+                                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => requestDelete(item)}>
                                   <Trash2 className="w-3 h-3" />
                                 </Button>
                               </div>
@@ -278,6 +293,19 @@ export default function MasterData() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Hapus Desain?"
+        description={
+          pendingDeleteItem
+            ? `Desain "${pendingDeleteItem.name}" akan dihapus permanen dan tidak bisa dikembalikan.`
+            : 'Desain ini akan dihapus permanen dan tidak bisa dikembalikan.'
+        }
+        confirmLabel="Ya, Hapus"
+        onConfirm={handleDelete}
+      />
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

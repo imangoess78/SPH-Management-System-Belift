@@ -7,6 +7,7 @@ import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorS
 import { SPH } from '@/lib/sph-types';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function SPHList() {
   const [searchParams] = useSearchParams();
@@ -18,6 +19,10 @@ export default function SPHList() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
+  // Confirm dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
   const fetchList = async () => {
     setLoading(true);
     const list = await loadSPHList();
@@ -27,7 +32,18 @@ export default function SPHList() {
 
   useEffect(() => { fetchList(); }, []);
 
-  const handleDelete = async (id: string) => {
+  // Step 1: open confirm dialog
+  const requestDelete = (id: string) => {
+    setPendingDeleteId(id);
+    setConfirmOpen(true);
+  };
+
+  // Step 2: confirmed — actually delete
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    setPendingDeleteId(null);
+    setConfirmOpen(false);
     const ok = await deleteSPH(id);
     if (ok) {
       setSphList(prev => prev.filter(s => s.id !== id));
@@ -78,6 +94,9 @@ export default function SPHList() {
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  // Find the name of the item pending deletion for the dialog description
+  const pendingItem = pendingDeleteId ? sphList.map(norm).find(s => s.id === pendingDeleteId) : null;
 
   return (
     <div>
@@ -149,10 +168,10 @@ export default function SPHList() {
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDuplicate(sph)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Duplikasi" onClick={() => handleDuplicate(sph)}>
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(sph.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Hapus" onClick={() => requestDelete(sph.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
@@ -164,6 +183,19 @@ export default function SPHList() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Hapus SPH?"
+        description={
+          pendingItem
+            ? `SPH "${pendingItem.nomorSPH}" akan dihapus permanen dan tidak bisa dikembalikan.`
+            : 'SPH ini akan dihapus permanen dan tidak bisa dikembalikan.'
+        }
+        confirmLabel="Ya, Hapus"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

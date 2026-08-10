@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { loadDocumentList, deleteDocument, saveDocument, formatDate, generateId } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function SPKList() {
   const [searchParams] = useSearchParams();
@@ -16,6 +17,10 @@ export default function SPKList() {
   );
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+
+  // Confirm dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const fetchList = async () => {
     setLoading(true);
@@ -39,8 +44,18 @@ export default function SPKList() {
 
   useEffect(() => { fetchList(); }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Hapus SPK ini?')) return;
+  // Step 1: open confirm dialog
+  const requestDelete = (id: string) => {
+    setPendingDeleteId(id);
+    setConfirmOpen(true);
+  };
+
+  // Step 2: confirmed — actually delete
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    setPendingDeleteId(null);
+    setConfirmOpen(false);
     const ok = await deleteDocument(id);
     if (ok) {
       setList(prev => prev.filter(s => s.id !== id));
@@ -86,6 +101,9 @@ export default function SPKList() {
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  // Find item pending deletion for dialog description
+  const pendingItem = pendingDeleteId ? list.map(norm).find(s => s.id === pendingDeleteId) : null;
 
   return (
     <div>
@@ -166,13 +184,12 @@ export default function SPKList() {
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"
-                          onClick={() => handleDuplicate(list.find(d => d.id === spk.id))}
-                          title="Duplikasi">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Duplikasi"
+                          onClick={() => handleDuplicate(list.find(d => d.id === spk.id))}>
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"
-                          onClick={() => handleDelete(spk.id)} title="Hapus">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Hapus"
+                          onClick={() => requestDelete(spk.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
@@ -184,6 +201,19 @@ export default function SPKList() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Hapus SPK?"
+        description={
+          pendingItem
+            ? `SPK "${pendingItem.nomorSPK || pendingItem.id}" akan dihapus permanen dan tidak bisa dikembalikan.`
+            : 'SPK ini akan dihapus permanen dan tidak bisa dikembalikan.'
+        }
+        confirmLabel="Ya, Hapus"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
