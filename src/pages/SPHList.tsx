@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FileText, PlusCircle, Trash2, Copy, Eye } from 'lucide-react';
+import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement } from '@/lib/sph-utils';
+import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement, updateDocumentStatus } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -71,6 +71,16 @@ export default function SPHList() {
       toast.success('SPH berhasil diduplikasi');
     } else {
       toast.error('Gagal menduplikasi SPH');
+    }
+  };
+
+  const handleFinalize = async (id: string) => {
+    const ok = await updateDocumentStatus(id, 'final');
+    if (ok) {
+      setSphList(prev => prev.map(s => s.id === id ? { ...s, status: 'final' } : s));
+      toast.success('SPH difinalisasi');
+    } else {
+      toast.error('Gagal memfinalisasi SPH');
     }
   };
 
@@ -168,6 +178,11 @@ export default function SPHList() {
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </Link>
+                        {sph.status === 'draft' && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" title="Finalisasi" onClick={() => handleFinalize(sph.id)}>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8" title="Duplikasi" onClick={() => handleDuplicate(sph)}>
                           <Copy className="w-3.5 h-3.5" />
                         </Button>

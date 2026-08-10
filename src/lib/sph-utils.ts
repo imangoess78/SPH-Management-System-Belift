@@ -218,6 +218,15 @@ export async function deleteDocument(id: string): Promise<boolean> {
   return true;
 }
 
+export async function updateDocumentStatus(id: string, status: 'draft' | 'final'): Promise<boolean> {
+  const { error } = await (supabase as any)
+    .from('sph')
+    .update({ status })
+    .eq('id', id);
+  if (error) { console.error('Error updating document status:', error); return false; }
+  return true;
+}
+
 // ============================================================
 //  LEGACY HELPERS (for SPHList compatibility)
 // ============================================================

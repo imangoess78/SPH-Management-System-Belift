@@ -14,7 +14,7 @@ import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords, fmtID,
   parseDate, pad3, noSuratSPH, noSuratSPK,
   totalKel, grandTotal, kelAktif, sumTermin,
-  saveDocument, generateId, getNextNoUrut,
+  saveDocument, generateId, getNextNoUrut, updateDocumentStatus,
 } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -528,15 +528,14 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
 
   const [docId] = useState(() => generateId());
   const [saving, setSaving] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
 
-  async function handleSave() {
-    if (!user) { toast.error('Login diperlukan untuk menyimpan'); return; }
-    setSaving(true);
-    // Generate the full A4 HTML so SPHPreview can render it directly
+  async function buildAndSave(status: 'draft' | 'final') {
+    if (!user) { toast.error('Login diperlukan untuk menyimpan'); return false; }
     const renderedHtml = mode === 'SPH'
       ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
       : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
-    const ok = await saveDocument({
+    return saveDocument({
       id: docId,
       mode,
       noUrut: s.noUrut,
@@ -550,7 +549,7 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
       ppn: s.ppn,
       modeHarga,
       sales: s.sales,
-      status: 'draft',
+      status,
       // full state for re-editing
       state: s,
       items,
@@ -559,9 +558,23 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
       // rendered HTML for fast preview
       renderedHtml,
     }, user.id);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const ok = await buildAndSave('draft');
     setSaving(false);
-    if (ok) toast.success('Dokumen berhasil disimpan');
+    if (ok) toast.success('Dokumen disimpan sebagai draft');
     else toast.error('Gagal menyimpan dokumen');
+  }
+
+  async function handleFinalize() {
+    if (!user) { toast.error('Login diperlukan'); return; }
+    setFinalizing(true);
+    const ok = await buildAndSave('final');
+    setFinalizing(false);
+    if (ok) toast.success('Dokumen berhasil difinalisasi');
+    else toast.error('Gagal memfinalisasi dokumen');
   }
 
   function handlePrint() {
@@ -577,6 +590,7 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
       <TopBar mode={mode} setMode={setMode}
         fullName={fullName} onBack={() => navigate('/')} onSignOut={signOut}
         onPrint={handlePrint} onSave={handleSave} saving={saving}
+        onFinalize={handleFinalize} finalizing={finalizing}
         mobileTab={mobileTab} setMobileTab={setMobileTab} />
 
       {/* SPLIT LAYOUT — desktop: side-by-side | mobile: tab-switched single panel */}
@@ -922,10 +936,11 @@ function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesa
 }
 
 // ── Top Bar ─────────────────────────────────────────────────
-function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, saving, mobileTab, setMobileTab }:
+function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, saving, onFinalize, finalizing, mobileTab, setMobileTab }:
   { mode:Mode; setMode:(m:Mode)=>void; fullName:string|null;
     onBack:()=>void; onSignOut:()=>void; onPrint:()=>void;
     onSave:()=>void; saving:boolean;
+    onFinalize:()=>void; finalizing:boolean;
     mobileTab:'form'|'preview'; setMobileTab:(t:'form'|'preview')=>void; }) {
   return (
     <div className="topbar-app no-print" style={{
@@ -954,6 +969,7 @@ function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, s
         <div className="desktop-topbar-actions" style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
           {fullName && <span style={{fontSize:12,opacity:.7}}>{fullName}</span>}
           <button onClick={onSave} disabled={saving} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13,opacity:saving?0.6:1}}>{saving?'Menyimpan…':'Simpan'}</button>
+          <button onClick={onFinalize} disabled={finalizing} style={{border:'1px solid #4ade80',background:'rgba(74,222,128,.15)',color:'#4ade80',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:600,fontSize:13,opacity:finalizing?0.6:1}}>{finalizing?'Memfinalisasi…':'✓ Finalisasi'}</button>
           <button onClick={onPrint} style={{background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13}}>Cetak / Simpan PDF</button>
           <button onClick={onSignOut} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontSize:13}}>Keluar</button>
         </div>

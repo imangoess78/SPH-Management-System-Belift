@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FileText, PlusCircle, Trash2, Copy, Eye } from 'lucide-react';
+import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { loadDocumentList, deleteDocument, saveDocument, formatDate, generateId } from '@/lib/sph-utils';
+import { loadDocumentList, deleteDocument, saveDocument, formatDate, generateId, updateDocumentStatus } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -79,6 +79,16 @@ export default function SPKList() {
       toast.success('SPK berhasil diduplikasi');
     } else {
       toast.error('Gagal menduplikasi SPK');
+    }
+  };
+
+  const handleFinalize = async (id: string) => {
+    const ok = await updateDocumentStatus(id, 'final');
+    if (ok) {
+      setList(prev => prev.map(s => s.id === id ? { ...s, status: 'final' } : s));
+      toast.success('SPK difinalisasi');
+    } else {
+      toast.error('Gagal memfinalisasi SPK');
     }
   };
 
@@ -184,6 +194,12 @@ export default function SPKList() {
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </Link>
+                        {spk.status === 'draft' && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" title="Finalisasi"
+                            onClick={() => handleFinalize(spk.id)}>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8" title="Duplikasi"
                           onClick={() => handleDuplicate(list.find(d => d.id === spk.id))}>
                           <Copy className="w-3.5 h-3.5" />
