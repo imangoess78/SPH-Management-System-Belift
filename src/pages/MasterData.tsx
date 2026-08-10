@@ -210,7 +210,7 @@ export default function MasterData() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Database Desain</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -226,7 +226,7 @@ export default function MasterData() {
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={fetchDesignItems} disabled={loading}>
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <span className="hidden xs:inline">Refresh</span>
           </Button>
           {canManageDesign && (
             <Button size="sm" className="gap-1.5" onClick={openAdd}>
@@ -272,12 +272,12 @@ export default function MasterData() {
       {/* Content area */}
       <div className="bg-card rounded-xl border shadow-sm">
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3 p-4 border-b">
+        <div className="flex flex-col gap-2 p-4 border-b sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-foreground">{activeCategory}</h2>
             <Badge variant="secondary" className="text-xs">{filteredItems.length} item</Badge>
           </div>
-          <div className="relative w-52">
+          <div className="relative w-full sm:w-52">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               placeholder="Cari nama / SKU..."
@@ -352,9 +352,9 @@ export default function MasterData() {
                     )}
                   </div>
 
-                  {/* Action buttons — visible on hover */}
+                  {/* Action buttons — always visible on touch, hover on desktop */}
                   {canManageDesign && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="secondary"
                         size="icon"
