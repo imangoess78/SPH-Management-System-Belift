@@ -1,0 +1,280 @@
+// ============================================================
+//  SPH DOCUMENT HTML GENERATOR
+//  Diekstrak dari SPHForm.tsx agar bisa diimport dari mana saja
+//  (termasuk SPHPreview untuk regenerate dari docstate)
+// ============================================================
+import {
+  KatalogItem, TerminItem, DesainPilihan,
+  ASET, DESAIN, DESAIN_LABEL, KEL_LABEL, HARI_ID,
+} from './sph-types';
+import {
+  num, rupiah, ribu, terbilangRp, terbilang, capWords,
+  parseDate, fmtID, noSuratSPH, noSuratSPK,
+  totalKel, grandTotal, kelAktif,
+} from './sph-utils';
+
+// ── Interface matching SPHForm S state ───────────────────────
+export interface GenState {
+  noUrut: string; tanggal: string; kota: string; alamatKantor: string; formatNoSPK: 'standar' | 'lama';
+  sapaan: string; namaCustomer: string; namaPerusahaan: string; nikCustomer: string; alamatCustomer: string; kotaProyek: string;
+  jenisLift: string; tipeKabin: string; kapasitas: string; penumpang: string; kecepatan: string; mpm: string; sfd: string;
+  tipeMesin: string; traksi: string; dayaMesin: string; power: string; pintu: string; bukaanPintu: string;
+  tinggiKabin: string; shaftSize: string; cabinSize: string; pitDepth: string; namaLantai: string; baseFloor: string;
+  ppn: 'exclude' | 'include'; masaBerlaku: string; freeMtn: string; garSpare: string; garMesin: string;
+  waktuPengadaan: string; waktuInstalasi: string;
+  tampilTtd: boolean; tampilDesain: boolean;
+  sales: string; jabatanTtd: string; direktur: string; rekening: string;
+}
+
+export type ModeHarga = 'satuan' | 'lumpsum';
+export type DocMode = 'SPH' | 'SPK';
+
+// ── Helpers ──────────────────────────────────────────────────
+function esc(s: unknown): string {
+  return String(s == null ? '' : s).replace(/[<>"]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}
+
+function tujuan(s: GenState): string {
+  return (s.namaPerusahaan || ((s.sapaan === '—' ? '' : s.sapaan + ' ') + (s.namaCustomer || '…'))).trim();
+}
+
+function namaDesain(k: string, pilihDesain: DesainPilihan): string {
+  const list = DESAIN[k] || [];
+  const o = list.find(x => x.kode === pilihDesain[k as keyof DesainPilihan]);
+  return o ? o.nama : '';
+}
+
+function kop(t: string, alamatKantor: string): string {
+  return '<div class="lethead"><div class="doctype">' + t + '</div><div class="co">' +
+    '<div class="mark">B<i>ELIFT</i></div>' +
+    '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>' +
+    esc(alamatKantor).replace(/, /g, ',<br>') + '<br>info@belift.co.id</div></div>';
+}
+
+function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean): string {
+  const img = ASET.ttd[nama] || '';
+  const cap = (pakaiCap && ASET.capPerusahaan) ? '<img class="cap" src="' + ASET.capPerusahaan + '" alt="">' : '';
+  const sig = img ? '<img class="ttd" src="' + img + '" alt="">' : '';
+  return '<div class="sigbox">' + (tampilTtd ? cap + sig : '') + '</div>' +
+    '<div class="sig-nm">' + esc(nama) + '</div><div>' + esc(jabatan) + '</div>';
+}
+
+function specRows(s: GenState, pilihDesain: DesainPilihan): string {
+  const d: [string, string, boolean?][] = [
+    ['Type', s.tipeMesin], ['Loading Capacity', s.kapasitas], ['Speed', s.kecepatan],
+    ['Stops/Floors/Doors', s.sfd], ['Floor Name', s.namaLantai], ['Base Floor', s.baseFloor],
+    ['Rate of Traction Machine', s.dayaMesin], ['Traction Ratio', s.traksi],
+    ['Power Supply', s.power, true], ['Lighting Power', '220V 50HZ'],
+    ['Shaft Size', s.shaftSize, true], ['Floor height', 'After Survey', true],
+    ['Overhead', 'After Survey', true], ['Travelling Height', '(Custom)', true],
+    ['Pit Depth', s.pitDepth, true], ['Door opening Type', s.pintu, true],
+    ['Door opening Size', s.bukaanPintu, true], ['Cabin Size', s.cabinSize, true],
+    ['Height of Cabin', s.tinggiKabin, true],
+    ['Cabin decoration', namaDesain('cabin', pilihDesain) || 'As in pic'],
+    ['Handrail', 'Yes'], ['Floor', namaDesain('floor', pilihDesain) || '—'],
+    ['Ceiling', namaDesain('ceiling', pilihDesain) || 'As at Pict'],
+    ['Door', namaDesain('door', pilihDesain) || 'As at Pict'],
+    ['COP', namaDesain('cop', pilihDesain) || 'As at Pict'],
+    ['LOP', namaDesain('lop', pilihDesain) || 'As at Pict'],
+    ['Struktur', namaDesain('struktur', pilihDesain) || '—'],
+    ['Language', 'English'], ['Brand', 'BELIFT'],
+  ];
+  return d.map((r, i) =>
+    '<tr><td>' + String(i + 1).padStart(3, '0') + '</td><td>' + esc(r[0]) + '</td><td' + (r[2] ? ' class="hl"' : '') + '>' + esc(r[1]) + '</td></tr>'
+  ).join('');
+}
+
+function tabelHargaDoc(items: KatalogItem[], modeH: ModeHarga): string {
+  const aktif = kelAktif(items);
+  if (!aktif.length) return '';
+  const q = modeH === 'satuan';
+  let rows = '', no = 0;
+  aktif.forEach(kel => {
+    rows += '<tr class="grp2"><td colspan="' + (q ? 6 : 5) + '">' + KEL_LABEL[kel] + '</td></tr>';
+    items.filter(i => i.kel === kel && i.on).forEach(it => {
+      const sub = it.par ? 'subrow' : '';
+      if (it.inc) {
+        rows += '<tr class="' + sub + '"><td class="c">' + (it.par ? '' : ++no) + '</td><td>' + it.nama + '</td>' +
+          (q ? '<td class="c">' + it.qty + ' ' + it.sat + '</td>' : '') + '<td class="inc" colspan="3">Include</td></tr>';
+      } else {
+        const tp = q ? num(it.hp) * num(it.qty) : num(it.hp);
+        const ti = q ? num(it.hi) * num(it.qty) : num(it.hi);
+        rows += '<tr class="' + sub + '"><td class="c">' + (it.par ? '' : ++no) + '</td><td>' + it.nama + '</td>' +
+          (q ? '<td class="c">' + it.qty + ' ' + it.sat + '</td>' : '') +
+          '<td class="n">' + (tp ? ribu(tp) : '—') + '</td><td class="n">' + (ti ? ribu(ti) : '—') + '</td>' +
+          '<td class="n">' + ribu(tp + ti) + '</td></tr>';
+      }
+    });
+    rows += '<tr><td colspan="' + (q ? 5 : 4) + '" class="rt" style="font-weight:600">Sub Total ' +
+      KEL_LABEL[kel].split('· ')[1] + '</td><td class="n" style="font-weight:600">' + ribu(totalKel(items, kel, modeH)) + '</td></tr>';
+  });
+  return '<table class="doc"><thead><tr><th style="width:9mm">No</th><th>Item Pekerjaan</th>' +
+    (q ? '<th style="width:18mm">Qty</th>' : '') +
+    '<th style="width:26mm">Pengadaan (Rp)</th><th style="width:26mm">Pemasangan (Rp)</th>' +
+    '<th style="width:28mm">Total (Rp)</th></tr></thead><tbody>' + rows +
+    '<tr class="total"><td colspan="' + (q ? 5 : 4) + '" class="rt">TOTAL PRICE</td><td class="n">' +
+    ribu(grandTotal(items, modeH)) + '</td></tr></tbody></table>';
+}
+
+function terminDoc(items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga): string {
+  return kelAktif(items).filter(k => totalKel(items, k, modeH) > 0).map(kel => {
+    const dasar = totalKel(items, kel, modeH);
+    return '<h4>' + KEL_LABEL[kel] + ' — ' + rupiah(dasar) + '</h4><ul class="ul">' +
+      termin[kel].map((t, i) =>
+        '<li>Angsuran ke-' + (i + 1) + ' : <strong>' + t.p + '%</strong> (' + rupiah(dasar * num(t.p) / 100) + ') ' + t.s + '</li>'
+      ).join('') + '</ul>';
+  }).join('');
+}
+
+function desainDoc(s: GenState, pilihDesain: DesainPilihan): string {
+  const dipilih = Object.keys(DESAIN_LABEL).filter(k => pilihDesain[k as keyof DesainPilihan]);
+  if (!s.tampilDesain || !dipilih.length) return '';
+  const cards = dipilih.map(k => {
+    const o = (DESAIN[k] || []).find(x => x.kode === pilihDesain[k as keyof DesainPilihan]);
+    if (!o) return '';
+    return '<div class="dcard"><div class="box">' +
+      (o.img ? '<img src="' + o.img + '" alt="' + esc(o.nama) + '">' : '<div class="ph">Gambar ' + DESAIN_LABEL[k] + '<br>' + esc(o.kode) + '</div>') +
+      '</div><div class="cap"><b>' + DESAIN_LABEL[k] + '</b>' + esc(o.nama) + '</div></div>';
+  }).join('');
+  return '<div class="page cont"><h3 class="secttl">Opsi Desain — ' + esc(s.tipeKabin) + '</h3>' +
+    '<div class="dgrid">' + cards + '</div>' +
+    '<p style="margin-top:6mm;font-size:9pt;font-style:italic">Gambar bersifat ilustrasi. Warna dan tekstur final ' +
+    'mengikuti sampel material yang disetujui saat survey final.</p><div class="pgnum">·</div></div>';
+}
+
+// ── Main generators ─────────────────────────────────────────
+export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan): string {
+  const d = parseDate(s.tanggal);
+  const hariMap: Record<string, number> = { '2 Minggu': 14, '3 Minggu': 21, '1 Bulan': 31, '2 Bulan': 61 };
+  const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku] || 21) * 864e5);
+  const adaSipil = totalKel(items, 'SIPIL', modeH) > 0;
+  const gt = grandTotal(items, modeH);
+  return '' +
+    '<div class="page">' + kop('INQUIRY', s.alamatKantor) +
+    '<div class="docno">' + noSuratSPH(s.noUrut, s.tanggal) + '</div>' +
+    '<div class="place">' + esc(s.kota) + ', ' + fmtID(d) + '</div>' +
+    '<div class="to">Kepada Yth:<br><strong>' + esc(tujuan(s)) + '</strong><br>di ' + esc(s.kotaProyek) + '</div>' +
+    '<div class="subject">Hal: Penawaran Harga Pengadaan &amp; Pemasangan 1 unit ' + esc(s.tipeKabin) + ' ' + esc(s.jenisLift) + ' di ' + esc(s.kotaProyek) + '</div>' +
+    '<div class="body ind"><p>Dengan hormat,<br>Berdasarkan data yang kami terima, bersama ini kami sampaikan ' +
+    'penawaran harga pekerjaan (pengadaan &amp; pemasangan Elevator merk <strong>BELIFT</strong>) untuk proyek ' +
+    'tersebut di atas dengan ruang lingkup sebagai berikut:</p>' +
+    '<h4>1. Pengadaan ' + esc(s.jenisLift) + '</h4><p>Harga pengadaan material Elevator dan transportasi sampai di ' +
+    'lokasi proyek 1 (satu) unit <strong>Lift Elevator-' + esc(s.kapasitas) + '</strong> / ' + esc(s.penumpang) +
+    ' – ' + esc(s.mpm) + ' – Floors/Stops/Doors ' + esc(s.sfd) + '.</p>' +
+    '<h4>2. Pemasangan</h4><p>Biaya pemasangan termasuk Mobilisasi, Test-Commissioning, Mob-demobilisasi, ' +
+    '<strong>Free Maintenance ' + esc(s.freeMtn) + ', Garansi Spare Part ' + esc(s.garSpare) + ', Garansi Mesin ' + esc(s.garMesin) + '</strong>.</p>' +
+    (adaSipil ? '<h4>3. Pekerjaan Sipil</h4><p>Pekerjaan sipil dikerjakan oleh PT Belift Amanah Indonesia berdasarkan SPK tersendiri.</p>' : '') +
+    '<p><strong>*</strong> Semua Harga <strong>' + (s.ppn === 'exclude' ? 'Exclude' : 'Include') + '</strong> PPN 11%</p>' +
+    '<h4>Waktu Pelaksanaan:</h4><p>Maksimal 3,5 Bulan sudah test commissioning sejak Kontrak ditanda tangani dan pembayaran pertama diterima.</p></div><div class="pgnum">1</div></div>' +
+
+    '<div class="page cont"><h3 class="secttl">Rincian Harga Pekerjaan</h3>' + tabelHargaDoc(items, modeH) +
+    '<div class="terbilang">' + terbilangRp(gt) + '</div>' +
+    '<p style="font-size:9.5pt"><strong>*</strong> Harga <strong>' + (s.ppn === 'exclude' ? 'Exclude' : 'Include') +
+    '</strong> PPN 11%. Baris bertanda <em>Include</em> sudah tercakup dalam harga item induknya.</p>' +
+    '<div class="pgnum">2</div></div>' +
+
+    desainDoc(s, pilihDesain) +
+
+    '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator ' + esc(s.tipeKabin) +
+    ' With Traction Description</th></tr>' + specRows(s, pilihDesain) + '</table><div class="pgnum">·</div></div>' +
+
+    '<div class="page cont"><p style="font-weight:700;text-decoration:underline;margin-bottom:5mm">Syarat dan Kondisi Penawaran :</p>' +
+    '<ol class="ol">' +
+    '<li>Penawaran berlaku sampai dengan <strong>' + fmtID(berlaku) + '</strong> (' + esc(s.masaBerlaku) + ').</li>' +
+    (adaSipil
+      ? '<li><strong>Termasuk</strong> pekerjaan sipil sesuai rincian.</li>'
+      : '<li><strong>Tidak termasuk</strong> dalam penawaran yaitu, <strong>Struktur dan pekerjaan sipil</strong>, instalasi dan daya listrik ke ruang mesin elevator.</li>') +
+    '<li><strong>Masa pemeliharaan cuma-cuma berlaku selama ' + esc(s.freeMtn) + ' sejak Serah Terima Pekerjaan.</strong></li>' +
+    '<li><strong>Garansi peralatan dan pemasangan berlaku ' + esc(s.garSpare) + ' sejak Serah Terima Pekerjaan</strong>.</li>' +
+    '<li><strong>Garansi Motor Mesin berlaku ' + esc(s.garMesin) + ' sejak Serah Terima Pekerjaan.</strong></li>' +
+    '<li>Cara pembayaran:' + terminDoc(items, termin, modeH) + '</li></ol>' +
+    '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>' +
+    '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">' +
+    '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#592203">B<span style="color:#D95103">ELIFT</span></div>' +
+    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd) + '</div></div><div class="pgnum">·</div></div>';
+}
+
+export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan): string {
+  const d = parseDate(s.tanggal);
+  const hari = HARI_ID[d.getDay()];
+  const adaSipil = totalKel(items, 'SIPIL', modeH) > 0;
+  const gt = grandTotal(items, modeH);
+
+  function P(n: number, t: string, b: string) {
+    return '<div class="page cont"><p style="text-align:center;font-weight:700;text-decoration:underline;margin-bottom:1mm">PASAL ' + n +
+      '</p><p style="text-align:center;font-weight:700;margin-bottom:5mm">' + t + '</p>' + b +
+      '<div class="pgnum">' + (n + 1) + '</div><div class="paraf">_______ Paraf _______</div></div>';
+  }
+
+  return '' +
+    '<div class="page">' + kop('CONTRACT', s.alamatKantor) + '<div class="docno">' + noSuratSPK(s.noUrut, s.tanggal, s.formatNoSPK) + '</div>' +
+    '<p>Pada hari ini, <strong>' + hari + '</strong> tanggal <strong>' + capWords(terbilang(d.getDate())) + '</strong> bulan ' +
+    '<strong>' + fmtID(d).split(' ')[1] + '</strong> tahun <strong>' + capWords(terbilang(d.getFullYear())) + '</strong>, kami yang bertanda tangan dibawah ini:</p>' +
+    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td>: <strong>' + esc(s.namaCustomer || '…') + '</strong></td></tr>' +
+    '<tr><td>NIK</td><td>: ' + esc(s.nikCustomer || '…') + '</td></tr>' +
+    '<tr><td style="vertical-align:top">Alamat</td><td>: ' + esc(s.alamatCustomer || '…') + '</td></tr></table>' +
+    '<p>Dalam hal ini bertindak untuk dan atas nama <strong>' + esc(s.namaPerusahaan || s.namaCustomer || '…') + '</strong> ' +
+    'untuk selanjutnya disebut <strong>PIHAK PERTAMA</strong></p>' +
+    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td>: <strong>' + esc(s.direktur) + '</strong></td></tr>' +
+    '<tr><td>Jabatan</td><td>: Direktur PT Belift Amanah Indonesia</td></tr>' +
+    '<tr><td style="vertical-align:top">Alamat</td><td>: ' + esc(s.alamatKantor) + '</td></tr></table>' +
+    '<p>Dalam hal ini bertindak untuk dan atas nama <strong>PT. Belift Amanah Indonesia</strong> untuk selanjutnya ' +
+    'disebut sebagai <strong>PIHAK KEDUA</strong></p>' +
+    '<p>Selanjutnya kedua belah pihak mengadakan Surat Perjanjian Kerja sebagai berikut:</p>' +
+    '<div class="pgnum">1</div><div class="paraf">_______ Paraf _______</div></div>' +
+
+    P(1, 'DEFINISI ISTILAH DAN KETENTUAN',
+      '<p><strong>1. SPK</strong> — dokumen resmi dasar pelaksanaan pekerjaan.</p>' +
+      '<p><strong>2. MOS (Material On Site)</strong> — material telah tiba dan tersimpan di lokasi proyek.</p>' +
+      '<p><strong>3. BAST</strong> — dokumen resmi serah terima pekerjaan; dasar dimulainya masa garansi.</p>' +
+      '<p><strong>4. Commissioning</strong> — pengujian dan verifikasi fungsi, keselamatan, dan performa unit.</p>' +
+      '<p><strong>5. Masa Garansi</strong> — Free Maintenance ' + esc(s.freeMtn) + ' · Garansi Spare Part ' + esc(s.garSpare) +
+      ' · Garansi Mesin/Motor ' + esc(s.garMesin) + ', dihitung sejak tanggal BAST.</p>') +
+
+    P(2, 'LINGKUP PEKERJAAN',
+      '<p>PIHAK PERTAMA memberi tugas kepada PIHAK KEDUA untuk mengerjakan pekerjaan dengan rincian sebagai berikut:</p>' +
+      tabelHargaDoc(items, modeH) +
+      (adaSipil ? '' : '<p><strong>Di luar lingkup PIHAK KEDUA:</strong> pekerjaan sipil, instalasi daya listrik, grounding, dan pembuatan pit.</p>')) +
+
+    P(3, 'LOKASI PEKERJAAN', '<p>Lokasi pekerjaan berada di ' + esc(s.alamatCustomer || '…') + '.</p>') +
+
+    P(4, 'NILAI KONTRAK',
+      '<p>Nilai pekerjaan yang disepakati adalah <strong>' + rupiah(gt) + '</strong>,- (' + terbilangRp(gt) + ') dengan rincian:</p><ul class="ul">' +
+      kelAktif(items).filter(k => totalKel(items, k, modeH) > 0).map(k =>
+        '<li>' + KEL_LABEL[k] + ' sebesar <strong>' + rupiah(totalKel(items, k, modeH)) + '</strong></li>'
+      ).join('') + '</ul><p style="font-size:9.5pt">Harga ' + (s.ppn === 'exclude' ? 'belum' : 'sudah') + ' termasuk PPN 11%.</p>') +
+
+    P(5, 'WAKTU PELAKSANAAN',
+      '<ul class="ul"><li>Maksimal <strong>' + esc(s.waktuPengadaan) + '</strong> sejak kontrak ditandatangani untuk Material On Site.</li>' +
+      '<li>Maksimal <strong>' + esc(s.waktuInstalasi) + '</strong> sejak Material On Site.</li></ul>') +
+
+    P(6, 'PINALTY',
+      '<ol class="ol"><li>Keterlambatan produksi melebihi 2,5 bulan: penalty <strong>0,05% per hari kerja (maks 1%)</strong>.</li>' +
+      '<li>Keterlambatan pemasangan lebih dari 30 hari: penalty <strong>0,05% per hari kerja (maks 2%)</strong>.</li>' +
+      '<li>Penalty tidak berlaku jika keterlambatan karena gangguan sipil, keterlambatan termin, atau gangguan listrik.</li></ol>') +
+
+    P(7, 'CARA PEMBAYARAN',
+      '<p>Pembayaran dilakukan terpisah untuk setiap lingkup pekerjaan:</p>' + terminDoc(items, termin, modeH) +
+      '<p>Transfer ke rekening:</p><p style="margin-left:8mm"><strong>PT. BELIFT AMANAH INDONESIA</strong><br>' +
+      '<strong>' + esc(s.rekening) + '</strong></p>') +
+
+    P(8, 'FORCE MAJEURE',
+      '<p>Force Majeure adalah keadaan di luar kemampuan para pihak seperti bencana alam, kebakaran, kerusuhan, kebijakan pemerintah. ' +
+      'Pihak yang mengalami wajib memberitahu tertulis dalam 7 hari kalender.</p>') +
+
+    P(9, 'PENYELESAIAN',
+      '<p>Sengketa diselesaikan secara musyawarah. Jika tidak tercapai, diselesaikan melalui Pengadilan Negeri sesuai domisili PIHAK KEDUA.</p>') +
+
+    P(10, 'PENUTUP',
+      '<p>Hal-hal yang belum tercantum akan dibicarakan kemudian sebagai addendum perjanjian ini.</p>' +
+      '<div class="sign"><div>PIHAK PERTAMA<div class="sigbox"></div><div class="sig-nm">' + esc(s.namaCustomer || '…') + '</div>Pemilik Bangunan</div>' +
+      '<div>PIHAK KEDUA<br><strong>PT BELIFT AMANAH INDONESIA</strong>' +
+      ttdBlok(s.direktur, 'Direktur', true, s.tampilTtd) + '</div></div>') +
+
+    desainDoc(s, pilihDesain) +
+
+    '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator ' + esc(s.tipeKabin) +
+    ' With Traction Description</th></tr>' + specRows(s, pilihDesain) + '</table>' +
+    '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>' +
+    '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>';
+}

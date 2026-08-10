@@ -7,6 +7,8 @@ const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/sph/new', icon: PlusCircle, label: 'Buat SPH Baru' },
   { to: '/sph', icon: FileText, label: 'Riwayat SPH' },
+  { to: '/spk/new', icon: PlusCircle, label: 'Buat SPK Baru' },
+  { to: '/spk', icon: FileText, label: 'Riwayat SPK' },
   { to: '/master', icon: Database, label: 'Master Data' },
   { to: '/settings', icon: Settings, label: 'Pengaturan' },
 ];
@@ -36,7 +38,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1">
           {NAV_ITEMS.map(item => {
-            const active = location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to));
+            const active = location.pathname === item.to ||
+              (item.to !== '/' && item.to !== '/sph/new' && item.to !== '/spk/new' && location.pathname.startsWith(item.to));
             return (
               <Link key={item.to} to={item.to} className={`nav-item ${active ? 'nav-item-active' : ''}`}>
                 <item.icon className="w-4 h-4 shrink-0" />

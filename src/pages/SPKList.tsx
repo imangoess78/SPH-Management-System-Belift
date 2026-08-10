@@ -3,71 +3,79 @@ import { Link } from 'react-router-dom';
 import { FileText, PlusCircle, Trash2, Copy, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement } from '@/lib/sph-utils';
-import { SPH } from '@/lib/sph-types';
+import { loadDocumentList, deleteDocument, saveDocument, formatDate, generateId } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-export default function SPHList() {
-  const [sphList, setSphList] = useState<any[]>([]);
+export default function SPKList() {
+  const [list, setList] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   const fetchList = async () => {
     setLoading(true);
-    const list = await loadSPHList();
-    setSphList(list);
+    const all = await loadDocumentList();
+    // Filter hanya dokumen SPK — dicek dari specs.__docstate
+    const spkOnly = all.filter(doc => {
+      const specs: any[] = doc.specs || [];
+      const ds = specs.find((s: any) => s.key === '__docstate');
+      if (ds) {
+        try {
+          const parsed = JSON.parse(ds.value);
+          return parsed.mode === 'SPK';
+        } catch { /* ignore */ }
+      }
+      // Fallback: cek perihal
+      return String(doc.perihal || '').includes('SPK');
+    });
+    setList(spkOnly);
     setLoading(false);
   };
 
   useEffect(() => { fetchList(); }, []);
 
   const handleDelete = async (id: string) => {
-    const ok = await deleteSPH(id);
+    if (!window.confirm('Hapus SPK ini?')) return;
+    const ok = await deleteDocument(id);
     if (ok) {
-      setSphList(prev => prev.filter(s => s.id !== id));
-      toast.success('SPH berhasil dihapus');
+      setList(prev => prev.filter(s => s.id !== id));
+      toast.success('SPK berhasil dihapus');
     } else {
-      toast.error('Gagal menghapus SPH');
+      toast.error('Gagal menghapus SPK');
     }
   };
 
-  const handleDuplicate = async (sph: any) => {
+  const handleDuplicate = async (doc: any) => {
     if (!user) return;
-    const increment = await getNextIncrement();
-    const newSPH: SPH = {
-      ...JSON.parse(JSON.stringify(sph)),
+    const newDoc = {
+      ...JSON.parse(JSON.stringify(doc)),
       id: generateId(),
-      nomorSPH: generateNomorSPH(increment),
       tanggal: new Date().toISOString().split('T')[0],
-      status: 'draft' as const,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      status: 'draft',
     };
-    const ok = await saveSPH(newSPH, user.id);
+    const ok = await saveDocument(newDoc, user.id);
     if (ok) {
-      setSphList(prev => [newSPH, ...prev]);
-      toast.success('SPH berhasil diduplikasi');
+      setList(prev => [newDoc, ...prev]);
+      toast.success('SPK berhasil diduplikasi');
     } else {
-      toast.error('Gagal menduplikasi SPH');
+      toast.error('Gagal menduplikasi SPK');
     }
   };
 
-  // Normalize both camelCase (legacy) and snake_case (DB) field names
   const norm = (s: any) => ({
     id: s.id,
-    nomorSPH: s.nomorSPH || s.nomor_sph || '',
+    nomorSPK: s.nomor_sph || s.nomorSPH || '',
     tanggal: s.tanggal || '',
     kepada: s.kepada || '',
-    jenisLift: s.jenisLift || s.jenis_lift || '',
+    jenisLift: s.jenis_lift || s.jenisLift || '',
     status: s.status || 'draft',
   });
 
-  const filteredList: any[] = sphList.map(norm).filter(s => {
+  const filtered = list.map(norm).filter(s => {
     const q = search.toLowerCase();
     return (
-      s.nomorSPH.toLowerCase().includes(q) ||
+      s.nomorSPK.toLowerCase().includes(q) ||
       s.kepada.toLowerCase().includes(q) ||
       s.jenisLift.toLowerCase().includes(q)
     );
@@ -77,8 +85,8 @@ export default function SPHList() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-foreground">Riwayat SPH</h1>
-          <p className="text-sm text-muted-foreground mt-1">{filteredList.length} surat penawaran</p>
+          <h1 className="text-2xl font-bold text-foreground">Riwayat SPK</h1>
+          <p className="text-sm text-muted-foreground mt-1">{filtered.length} surat perjanjian kerja</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center">
           <Input
@@ -87,8 +95,10 @@ export default function SPHList() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <Link to="/sph/new">
-            <Button className="gap-2 w-full sm:w-auto"><PlusCircle className="w-4 h-4" /> Buat SPH Baru</Button>
+          <Link to="/spk/new">
+            <Button className="gap-2 w-full sm:w-auto">
+              <PlusCircle className="w-4 h-4" /> Buat SPK Baru
+            </Button>
           </Link>
         </div>
       </div>
@@ -96,17 +106,22 @@ export default function SPHList() {
       <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-muted-foreground text-sm">Memuat data...</div>
-        ) : sphList.length === 0 ? (
+        ) : list.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
             <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Belum ada SPH.</p>
+            <p className="text-sm">Belum ada SPK.</p>
+            <Link to="/spk/new">
+              <Button variant="outline" className="mt-4 gap-2">
+                <PlusCircle className="w-4 h-4" /> Buat SPK Pertama
+              </Button>
+            </Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left p-4 font-medium text-muted-foreground">No. SPH</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">No. SPK</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Tanggal</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Kepada</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Jenis Lift</th>
@@ -115,30 +130,35 @@ export default function SPHList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredList.map(sph => (
-                  <tr key={sph.id} className="hover:bg-muted/30 transition-colors">
+                {filtered.map(spk => (
+                  <tr key={spk.id} className="hover:bg-muted/30 transition-colors">
                     <td className="p-4">
-                      <Link to={`/sph/${sph.id}`} className="font-medium text-primary hover:underline">{sph.nomorSPH}</Link>
+                      <Link to={`/spk/${spk.id}/edit`} className="font-medium text-primary hover:underline">
+                        {spk.nomorSPK || spk.id.slice(0, 8)}
+                      </Link>
                     </td>
-                    <td className="p-4 text-muted-foreground">{formatDate(sph.tanggal)}</td>
-                    <td className="p-4">{sph.kepada}</td>
-                    <td className="p-4 text-muted-foreground">{sph.jenisLift}</td>
+                    <td className="p-4 text-muted-foreground">{formatDate(spk.tanggal)}</td>
+                    <td className="p-4">{spk.kepada}</td>
+                    <td className="p-4 text-muted-foreground">{spk.jenisLift}</td>
                     <td className="p-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${sph.status === 'draft' ? 'badge-draft' : 'badge-final'}`}>
-                        {sph.status === 'draft' ? 'Draft' : 'Final'}
+                      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${spk.status === 'draft' ? 'badge-draft' : 'badge-final'}`}>
+                        {spk.status === 'draft' ? 'Draft' : 'Final'}
                       </span>
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Link to={`/sph/${sph.id}/preview`}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Preview PDF">
+                        <Link to={`/spk/${spk.id}/edit`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit SPK">
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDuplicate(sph)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => handleDuplicate(list.find(d => d.id === spk.id))}
+                          title="Duplikasi">
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(sph.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"
+                          onClick={() => handleDelete(spk.id)} title="Hapus">
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>

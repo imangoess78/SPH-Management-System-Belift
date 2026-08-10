@@ -3,29 +3,111 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { loadSPHById, formatCurrency, formatDate, calculateItemTotal } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
-import { useRef, useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
+import { pageSPH, pageSPK } from '@/lib/sph-generator';
 
-export default function SPHPreview() {
-  const { id } = useParams();
+// CSS for generator A4 pages rendered inside the preview
+const GEN_CSS = `
+:root{--orange:#D95103;--burnt:#A63F04;--brown:#592203;--ink:#2B1B10;--line:#DFD8D1;--muted:#7A6E66}
+*{box-sizing:border-box}
+body{margin:0;padding:22px;background:#F0EDE9;font-family:'Barlow',system-ui,sans-serif}
+@import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap');
+.page{width:210mm;min-height:297mm;background:#fff;box-shadow:0 2px 18px rgba(89,34,3,.16);
+  padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;
+  font-family:'Barlow',sans-serif;margin:0 auto 18px}
+.page.cont{padding-top:22mm}
+.page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:#D95103;border-bottom-right-radius:9mm}
+.page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}
+.pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:#7A6E66}
+.paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:#7A6E66}
+.lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
+.doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
+.co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
+.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#592203}
+.co .mark i{font-style:normal;color:#D95103}
+.co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
+.docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:#D95103;letter-spacing:.08em;margin:9mm 0 6mm}
+.place{text-align:right;font-size:10pt;margin-bottom:5mm}
+.to{margin-bottom:6mm}
+.subject{font-weight:700;margin:0 0 4mm 8mm}
+.body p{margin:0 0 3.4mm}.body h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
+.ind{margin-left:8mm}
+.secttl{font-family:'Barlow Condensed',sans-serif;font-size:17pt;font-weight:500;margin:0 0 4mm}
+table.doc{width:100%;border-collapse:collapse;font-size:9pt;margin:3mm 0}
+table.doc th,table.doc td{border:.6pt solid #4A3A2E;padding:1.8mm 2.2mm;vertical-align:middle}
+table.doc th{font-weight:600;text-align:center}
+table.doc td.n{text-align:right;white-space:nowrap}
+table.doc td.c{text-align:center}
+tr.grp2 td{background:#F5F1ED;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;text-transform:uppercase;font-size:9.5pt}
+tr.subrow td:nth-child(2){padding-left:6mm;font-style:italic;color:#5A4A3E}
+tr.subrow td:nth-child(2)::before{content:"↳ "}
+.inc{text-align:center;font-style:italic;color:#5A4A3E}
+.spec th.head{background:#D95103;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:12pt;letter-spacing:.05em;text-transform:uppercase}
+.spec td:first-child{text-align:center;width:16mm}
+.spec td:nth-child(2){width:62mm}
+.hl{color:#C0392B}
+.total td{font-weight:700;background:#FBE9DF}
+.terbilang{font-weight:700;margin-top:3mm}
+.ol{margin:0;padding-left:6mm}.ol li{margin-bottom:2.6mm}
+.ul{margin:1mm 0 3mm;padding-left:6mm}.ul li{margin-bottom:1.4mm}
+.dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm 5mm;margin-top:5mm}
+.dcard{text-align:center}
+.dcard .box{height:44mm;border:.6pt solid #DFD8D1;border-radius:2mm;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#FBF9F7}
+.dcard .box img{max-width:100%;max-height:100%;object-fit:contain}
+.dcard .box .ph{font-size:8pt;color:#B5AAA1;padding:4mm;line-height:1.4}
+.dcard .cap{font-size:8.5pt;margin-top:1.5mm;font-style:italic}
+.dcard .cap b{font-style:normal;display:block;font-size:9pt}
+.sign{display:flex;justify-content:space-between;margin-top:10mm;text-align:center;font-size:10pt}
+.sign>div{width:74mm}
+.sigbox{position:relative;height:30mm;margin-top:2mm}
+.sigbox img.cap{position:absolute;left:50%;top:50%;transform:translate(-58%,-50%) rotate(-8deg);height:26mm;opacity:.85}
+.sigbox img.ttd{position:absolute;left:50%;top:50%;transform:translate(-42%,-50%);height:20mm}
+.sig-nm{font-weight:700;border-top:.6pt solid #2B1B10;padding-top:1.5mm;display:inline-block;min-width:52mm}
+.rt{text-align:right}
+h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
+@media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}}
+`;
+
+// ── Generator preview renderer ──────────────────────────────
+function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
   const navigate = useNavigate();
-  const printRef = useRef<HTMLDivElement>(null);
-  const [sph, setSph] = useState<SPH | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      if (id) {
-        const data = await loadSPHById(id);
-        setSph(data);
-      }
-      setLoading(false);
-    };
-    load();
-  }, [id]);
+  function handlePrint() {
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) { alert('Pop-up diblokir. Izinkan pop-up untuk mencetak.'); return; }
+    win.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Belift</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+      <style>${GEN_CSS}</style></head><body>${html}</body></html>`);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+  }
 
-  if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;
-  if (!sph) return <div className="text-center py-20 text-muted-foreground">SPH tidak ditemukan</div>;
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-4 px-1 no-print">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4" /></Button>
+        <h1 className="text-lg font-bold text-foreground flex-1">Preview {mode}</h1>
+        <Button onClick={handlePrint} className="gap-2">
+          <Printer className="w-4 h-4" /> Cetak / PDF
+        </Button>
+      </div>
+      {/* Render A4 pages inside a scoped iframe so styles don't bleed */}
+      <iframe
+        title="preview"
+        style={{ width: '100%', height: 'calc(100vh - 80px)', border: 'none', background: '#F0EDE9' }}
+        srcDoc={`<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+          <style>${GEN_CSS}</style></head><body>${html}</body></html>`}
+      />
+    </div>
+  );
+}
 
+// ── Legacy preview (old SPHForm format) ─────────────────────
+function LegacyPreview({ sph }: { sph: SPH }) {
+  const navigate = useNavigate();
   const totals = calculateItemTotal({
     items: sph.items,
     includePPN: sph.includePPN !== false,
@@ -33,19 +115,20 @@ export default function SPHPreview() {
     lumpSumTotal: sph.lumpSumTotal || 0,
   });
   const isLumpSum = sph.priceMode === 'lump_sum';
-  const checkedItems = sph.items.filter(i => i.checked);
-  const selectedDesigns = Object.values(sph.designs || {});
-  const handlePrint = () => window.print();
+  const checkedItems = (sph.items as any[]).filter((i: any) => i.checked);
+  const selectedDesigns = Object.values(sph.designs || {}) as any[];
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-6 no-print px-1">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4" /></Button>
         <h1 className="text-xl font-bold text-foreground flex-1">Preview SPH</h1>
-        <Button variant="outline" onClick={handlePrint} className="gap-2"><Printer className="w-4 h-4" /> Cetak / PDF</Button>
+        <Button variant="outline" onClick={() => window.print()} className="gap-2">
+          <Printer className="w-4 h-4" /> Cetak / PDF
+        </Button>
       </div>
 
-      <div ref={printRef} className="bg-card rounded-xl border shadow-sm p-3 md:p-10 max-w-4xl mx-auto text-sm print:shadow-none print:border-none print:p-0" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div className="bg-card rounded-xl border shadow-sm p-3 md:p-10 max-w-4xl mx-auto text-sm print:shadow-none print:border-none print:p-0" style={{ fontFamily: 'Inter, sans-serif' }}>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8 border-b-2 border-primary pb-6">
           <div className="flex items-center gap-4">
@@ -178,7 +261,7 @@ export default function SPHPreview() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] border text-xs">
               <tbody>
-                {sph.specs.filter(s => s.value).map(spec => (
+                {(sph.specs as any[]).filter((s: any) => s.value && s.key !== '__docstate').map((spec: any) => (
                   <tr key={spec.key}>
                     <td className="border p-2 bg-muted/30 w-44 font-medium">{spec.label}</td>
                     <td className="border p-2">{spec.value}</td>
@@ -203,18 +286,14 @@ export default function SPHPreview() {
                 </tr>
               </thead>
               <tbody>
-                {selectedDesigns.map(d => (
+                {selectedDesigns.map((d: any) => (
                   <tr key={d.designItemId}>
                     <td className="border p-2 font-medium">{d.category}</td>
                     <td className="border p-2">{d.designName}</td>
                     <td className="border p-2">{d.designSku || '-'}</td>
                     <td className="border p-2 text-center">
                       {d.designImageUrl ? (
-                        <img
-                          src={d.designImageUrl}
-                          alt={d.designName}
-                          className="inline-block w-16 h-16 object-cover rounded border"
-                        />
+                        <img src={d.designImageUrl} alt={d.designName} className="inline-block w-16 h-16 object-cover rounded border" />
                       ) : (
                         <span className="text-muted-foreground">Tidak ada gambar</span>
                       )}
@@ -280,4 +359,65 @@ export default function SPHPreview() {
       </div>
     </div>
   );
+}
+
+// ── Main component ───────────────────────────────────────────
+export default function SPHPreview() {
+  const { id } = useParams();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (id) {
+        const raw = await loadSPHById(id);
+        setData(raw);
+      }
+      setLoading(false);
+    };
+    load();
+  }, [id]);
+
+  if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;
+  if (!data)   return <div className="text-center py-20 text-muted-foreground">SPH tidak ditemukan</div>;
+
+  // Detect generator document: loadSPHById already tries to parse __docstate.
+  // If the returned object has a `mode` field (SPH/SPK) and `state` sub-object,
+  // it came from the new generator — use GeneratorPreview.
+  const isGenerator = (data.mode === 'SPH' || data.mode === 'SPK') && data.state;
+
+  if (isGenerator) {
+    // Try stored __html first (saved by handleSave after this fix was deployed)
+    const rawSpecs: any[] = data.specs || [];
+    const htmlSpec = rawSpecs.find((s: any) => s.key === '__html');
+    let html: string = htmlSpec?.value || '';
+
+    // Fallback: regenerate from __docstate when __html is missing (old saves)
+    if (!html && data.state) {
+      try {
+        const st = data.state;
+        const docMode: string = data.mode || 'SPH';
+        // Normalise tampilTtd / tampilDesain — stored as string "true"/"false" or boolean
+        const normState = {
+          ...st,
+          tampilTtd: st.tampilTtd === true || st.tampilTtd === 'true',
+          tampilDesain: st.tampilDesain === true || st.tampilDesain === 'true',
+        };
+        const items = data.items || [];
+        const termin = data.termin || {};
+        const modeHarga = data.modeHarga || 'satuan';
+        const pilihDesain = data.pilihDesain || { cabin:'',floor:'',ceiling:'',door:'',cop:'',lop:'',struktur:'',addon:'' };
+        html = docMode === 'SPH'
+          ? pageSPH(normState, items, termin, modeHarga, pilihDesain)
+          : pageSPK(normState, items, termin, modeHarga, pilihDesain);
+      } catch (e) {
+        console.error('Regenerate HTML failed:', e);
+      }
+    }
+
+    return <GeneratorPreview html={html} mode={String(data.mode || 'SPH')} />;
+  }
+
+  // Legacy format — must have items array and nomorSPH
+  return <LegacyPreview sph={data as SPH} />;
 }

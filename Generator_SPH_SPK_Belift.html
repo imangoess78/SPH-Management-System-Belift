@@ -1,0 +1,840 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Generator SPH &amp; SPK — Belift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --orange:#D95103; --burnt:#A63F04; --brown:#592203; --ink:#2B1B10;
+  --paper:#fff; --shell:#F0EDE9; --line:#DFD8D1; --muted:#7A6E66;
+  --ok:#1E6B3A; --warn:#B8860B; --bad:#9C0006; --sub:#8A7A6E;
+  --pageW:210mm; --pageH:297mm;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:Barlow,system-ui,sans-serif;background:var(--shell);color:var(--ink);font-size:14px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+
+.topbar{position:sticky;top:0;z-index:60;background:var(--brown);color:#fff;display:flex;align-items:center;
+  gap:18px;padding:0 16px;height:56px;border-bottom:3px solid var(--orange)}
+.brand{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:26px;letter-spacing:.06em}
+.brand span{color:var(--orange)}
+.tabs{display:flex;gap:2px}
+.tab{background:none;border:0;color:#E8DCD3;padding:8px 18px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;font-size:17px;letter-spacing:.08em;border-bottom:3px solid transparent;margin-bottom:-3px}
+.tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--orange)}
+.topActions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{border:1px solid rgba(255,255,255,.35);background:none;color:#fff;padding:7px 13px;border-radius:3px;
+  cursor:pointer;font-weight:500;font-size:13px;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.12)}
+.btn.primary{background:var(--orange);border-color:var(--orange)}
+.btn.primary:hover{background:#c04802}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.topbar .btn:focus-visible{outline-color:#fff}
+
+.layout{display:grid;grid-template-columns:430px 1fr}
+@media(max-width:1180px){.layout{grid-template-columns:1fr}}
+.form{background:var(--paper);border-right:1px solid var(--line);height:calc(100vh - 56px);
+  overflow-y:auto;position:sticky;top:56px;padding-bottom:60px}
+@media(max-width:1180px){.form{height:auto;position:static}}
+.grp{border-bottom:1px solid var(--line)}
+.grp>summary{cursor:pointer;list-style:none;padding:11px 16px;background:#FAF8F6;font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;font-size:15px;letter-spacing:.07em;text-transform:uppercase;color:var(--burnt);
+  display:flex;align-items:center;gap:8px}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary::before{content:"\25B8";color:var(--orange);font-size:12px}
+.grp[open]>summary::before{content:"\25BE"}
+.fields{padding:12px 16px 16px;display:grid;gap:11px}
+.f{display:grid;gap:4px}
+.f label{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.f input,.f select,.f textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:3px;background:#fff}
+.f textarea{min-height:54px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.hint{font-size:11px;color:var(--muted);line-height:1.45}
+.flag{font-size:11.5px;line-height:1.5;padding:8px 10px;border-left:3px solid var(--warn);background:#FDF7E7;
+  color:#5C4708;border-radius:0 3px 3px 0}
+.computed{font-family:'Barlow Semi Condensed',sans-serif;font-size:13px;background:#F5F1ED;border:1px dashed var(--line);
+  border-radius:3px;padding:8px 10px;color:var(--brown);line-height:1.6}
+.computed b{font-weight:600}
+.computed .big{font-size:16px;font-weight:600;color:var(--orange)}
+
+.ptbl{width:100%;border-collapse:collapse;font-size:12px}
+.ptbl th{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:600;
+  text-align:left;padding:4px 3px;border-bottom:1px solid var(--line)}
+.ptbl td{padding:3px;border-bottom:1px solid #F0EBE6;vertical-align:middle}
+.ptbl tr.kel td{background:#F5F1ED;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--burnt);font-size:11.5px;padding:6px 4px}
+.ptbl tr.sub td:nth-child(2){padding-left:16px;color:var(--sub);font-size:11.5px}
+.ptbl tr.sub td:nth-child(2)::before{content:"\21B3 ";color:var(--orange)}
+.ptbl input[type=number],.ptbl input[type=text]{width:100%;padding:4px 5px;border:1px solid var(--line);
+  border-radius:3px;text-align:right;font-size:11.5px}
+.ptbl input:disabled{background:#F7F4F1;color:#B5AAA1}
+.ptbl input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange)}
+.ptbl td.c{text-align:center}
+.off td:nth-child(n+2){opacity:.4}
+
+.chipbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:4px 11px;font-size:11.5px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--brown);color:#fff;border-color:var(--brown)}
+.tblk{border:1px solid var(--line);border-radius:4px;padding:10px}
+.tblk h5{margin:0 0 7px;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--burnt)}
+.trow{display:grid;grid-template-columns:52px 1fr 92px 26px;gap:6px;align-items:center;margin-bottom:5px}
+.trow input,.trow select{padding:5px 6px;border:1px solid var(--line);border-radius:3px;font-size:11.5px;width:100%}
+.trow .del{border:0;background:none;color:var(--bad);cursor:pointer;font-size:15px;line-height:1}
+.mini{border:1px dashed var(--line);background:#fff;border-radius:3px;padding:4px 9px;font-size:11.5px;
+  cursor:pointer;color:var(--burnt)}
+.sumline{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;margin-top:4px}
+.sumline b.bad{color:var(--bad)} .sumline b.ok{color:var(--ok)}
+
+.preview{padding:22px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.page{width:var(--pageW);min-height:var(--pageH);background:#fff;box-shadow:0 2px 18px rgba(89,34,3,.16);
+  padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5}
+.page.cont{padding-top:22mm}
+.page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:var(--orange);border-bottom-right-radius:9mm}
+.page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;
+  border-bottom-right-radius:8mm}
+.pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:var(--muted)}
+.paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:var(--muted)}
+.lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
+.doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:var(--burnt);letter-spacing:.02em;line-height:1;margin-top:14mm}
+.co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
+.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:var(--brown)}
+.co .mark i{font-style:normal;color:var(--orange)}
+.co .ent{font-size:11pt;color:var(--burnt);font-weight:500;margin-bottom:1mm}
+.docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:var(--orange);
+  letter-spacing:.08em;margin:9mm 0 6mm}
+.place{text-align:right;font-size:10pt;margin-bottom:5mm}
+.to{margin-bottom:6mm}
+.subject{font-weight:700;margin:0 0 4mm 8mm}
+.body p{margin:0 0 3.4mm}
+.body h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
+.ind{margin-left:8mm}
+.secttl{font-family:'Barlow Condensed',sans-serif;font-size:17pt;font-weight:500;margin:0 0 4mm}
+table.doc{width:100%;border-collapse:collapse;font-size:9pt;margin:3mm 0}
+table.doc th,table.doc td{border:.6pt solid #4A3A2E;padding:1.8mm 2.2mm;vertical-align:middle}
+table.doc th{font-weight:600;text-align:center}
+table.doc td.n{text-align:right;white-space:nowrap}
+table.doc td.c{text-align:center}
+tr.grp2 td{background:#F5F1ED;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;
+  text-transform:uppercase;font-size:9.5pt}
+tr.subrow td:nth-child(2){padding-left:6mm;font-style:italic;color:#5A4A3E}
+tr.subrow td:nth-child(2)::before{content:"\21B3 "}
+.inc{text-align:center;font-style:italic;color:#5A4A3E}
+.spec th.head{background:var(--orange);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:12pt;
+  letter-spacing:.05em;text-transform:uppercase}
+.spec td:first-child{text-align:center;width:16mm}
+.spec td:nth-child(2){width:62mm}
+.hl{color:#C0392B}
+.total td{font-weight:700;background:#FBE9DF}
+.terbilang{font-weight:700;margin-top:3mm}
+.ol{margin:0;padding-left:6mm} .ol li{margin-bottom:2.6mm}
+.ul{margin:1mm 0 3mm;padding-left:6mm} .ul li{margin-bottom:1.4mm}
+.dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm 5mm;margin-top:5mm}
+.dcard{text-align:center}
+.dcard .box{height:44mm;border:.6pt solid var(--line);border-radius:2mm;display:flex;align-items:center;
+  justify-content:center;overflow:hidden;background:#FBF9F7}
+.dcard .box img{max-width:100%;max-height:100%;object-fit:contain}
+.dcard .box .ph{font-size:8pt;color:#B5AAA1;padding:4mm;line-height:1.4}
+.dcard .cap{font-size:8.5pt;margin-top:1.5mm;font-style:italic}
+.dcard .cap b{font-style:normal;display:block;font-size:9pt}
+.sign{display:flex;justify-content:space-between;margin-top:10mm;text-align:center;font-size:10pt}
+.sign>div{width:74mm}
+.sigbox{position:relative;height:30mm;margin-top:2mm}
+.sigbox img.cap{position:absolute;left:50%;top:50%;transform:translate(-58%,-50%) rotate(-8deg);height:26mm;opacity:.85}
+.sigbox img.ttd{position:absolute;left:50%;top:50%;transform:translate(-42%,-50%);height:20mm}
+.sig-nm{font-weight:700;border-top:.6pt solid var(--ink);padding-top:1.5mm;display:inline-block;min-width:52mm}
+.rt{text-align:right}
+.plabel{font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.14em;color:var(--muted);
+  text-transform:uppercase;align-self:flex-start;margin-left:calc(50% - var(--pageW)/2)}
+
+@page{size:A4;margin:0}
+@media print{
+  .topbar,.form,.plabel{display:none!important}
+  body{background:#fff}
+  .layout{display:block} .preview{padding:0;gap:0;display:block}
+  .page{box-shadow:none;margin:0;width:210mm;min-height:297mm;page-break-after:always;break-after:page}
+  .page:last-child{page-break-after:auto;break-after:auto}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="topbar">
+  <div class="brand">BEL<span>IFT</span></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabSPH" aria-selected="true" onclick="setMode('SPH')">SPH · Penawaran</button>
+    <button class="tab" role="tab" id="tabSPK" aria-selected="false" onclick="setMode('SPK')">SPK · Kontrak</button>
+  </div>
+  <div class="topActions">
+    <button class="btn" onclick="copyRegister()" id="btnReg">Salin baris register</button>
+    <button class="btn primary" onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="form" id="form"></div>
+  <div class="preview" id="preview"></div>
+</div>
+
+<script>
+/* =====================================================================================
+   1. ASET TANDA TANGAN & CAP — ISI DI SINI SAAT MASTER SUDAH JADI
+   Tempel data URI (base64 PNG latar transparan) atau URL file di server.
+   Contoh: capPerusahaan: "data:image/png;base64,iVBORw0KGgo..."
+   ===================================================================================== */
+var ASET = {
+  capPerusahaan : "",
+  ttd: {
+    "Adhie Kurnia"  : "",
+    "Imam Solikhin" : "",
+    "Firman"        : "",
+    "Dewo"          : "",
+    "Arif"          : "",
+    "Jihad"         : "",
+    "Izzu"          : ""
+  }
+};
+
+/* =====================================================================================
+   2. DATABASE OPSI DESAIN — TAMBAH DI SINI
+   Tiap opsi: {kode, nama, img}. img boleh "" dulu; dokumen akan mencetak kotak
+   placeholder sampai gambarnya diisi.
+   ===================================================================================== */
+var DESAIN = {
+  cabin: [
+    {kode:"CB-PSTL", nama:"Premium Stainless Hairline", img:""},
+    {kode:"CB-FSTL", nama:"Full Stainless Mirror",      img:""},
+    {kode:"CB-PANO", nama:"Panoramic Kaca Tempered",    img:""},
+    {kode:"CB-LUX",  nama:"Luxury Gold Hairline",       img:""}
+  ],
+  floor: [
+    {kode:"FL-MIV", nama:"Marmer Ivory", img:""},
+    {kode:"FL-MBK", nama:"Marmer Black", img:""},
+    {kode:"FL-PVC", nama:"PVC",          img:""},
+    {kode:"FL-GRN", nama:"Granit",       img:""}
+  ],
+  ceiling: [
+    {kode:"CL-LED", nama:"LED Panel Stainless", img:""},
+    {kode:"CL-SPT", nama:"Spotlight Downlight", img:""}
+  ],
+  door: [
+    {kode:"DR-NRW", nama:"Narrow Frame Door",   img:""},
+    {kode:"DR-STL", nama:"Stainless Hairline",  img:""},
+    {kode:"DR-KCA", nama:"Pintu Kaca Tempered", img:""}
+  ],
+  cop: [{kode:"COP-BLK", nama:"COP Black Panel LCD", img:""},{kode:"COP-STL", nama:"COP Stainless", img:""}],
+  lop: [{kode:"LOP-BLK", nama:"LOP Black Panel", img:""},{kode:"LOP-STL", nama:"LOP Stainless", img:""}],
+  struktur: [{kode:"ST-ALU", nama:"Aluminium Alloy + Kaca Tempered", img:""},
+             {kode:"ST-STL", nama:"Structure Steel (Hollow)", img:""}],
+  addon: [{kode:"AD-ARD", nama:"ARD (Auto Rescue Device)", img:""},
+          {kode:"AD-HND", nama:"Handrail Stainless", img:""},
+          {kode:"AD-CCTV",nama:"CCTV Kabin", img:""},
+          {kode:"AD-INT", nama:"Interphone", img:""}]
+};
+var DESAIN_LABEL = {cabin:"Cabin", floor:"Floor", ceiling:"Ceiling", door:"Door",
+                    cop:"COP", lop:"LOP", struktur:"Struktur", addon:"Add On"};
+
+/* =====================================================================================
+   3. KATALOG ITEM PEKERJAAN — dikelompokkan per SPK
+   kel: PENGADAAN (SPK 1) · INSTALASI (SPK 2) · SIPIL (SPK 3)
+   inc:true -> baris tercetak "Include", tidak menambah nilai
+   ===================================================================================== */
+var KATALOG = [
+  {id:"P1",  kel:"PENGADAAN", nama:"Pengadaan Lift",             sat:"Unit", on:true,  inc:false},
+  {id:"P1a", kel:"PENGADAAN", nama:"Unit Elevator + Mesin",      sat:"Unit", on:true,  inc:true,  par:"P1"},
+  {id:"P1b", kel:"PENGADAAN", nama:"ARD (Auto Rescue Device)",   sat:"Unit", on:true,  inc:true,  par:"P1"},
+  {id:"P1c", kel:"PENGADAAN", nama:"Panel Kontrol",              sat:"Unit", on:true,  inc:true,  par:"P1"},
+  {id:"P2",  kel:"PENGADAAN", nama:"Pengiriman Lift",            sat:"Ls",   on:true,  inc:false},
+  {id:"P2a", kel:"PENGADAAN", nama:"Transport ke Lokasi Proyek", sat:"Ls",   on:true,  inc:true,  par:"P2"},
+  {id:"P2b", kel:"PENGADAAN", nama:"Bongkar Muat / MOS",         sat:"Ls",   on:true,  inc:true,  par:"P2"},
+  {id:"P3",  kel:"PENGADAAN", nama:"Perijinan SLO",              sat:"Ls",   on:true,  inc:true},
+
+  {id:"I1",  kel:"INSTALASI", nama:"Instalasi",                  sat:"Unit", on:true,  inc:false},
+  {id:"I1a", kel:"INSTALASI", nama:"Mekanikal",                  sat:"Ls",   on:true,  inc:true,  par:"I1"},
+  {id:"I1b", kel:"INSTALASI", nama:"Elektrikal",                 sat:"Ls",   on:true,  inc:true,  par:"I1"},
+  {id:"I1c", kel:"INSTALASI", nama:"Struktur Steel",             sat:"Ls",   on:true,  inc:true,  par:"I1"},
+  {id:"I2",  kel:"INSTALASI", nama:"Testing &amp; Commissioning",sat:"Ls",   on:true,  inc:true},
+  {id:"I3",  kel:"INSTALASI", nama:"Mob - Demobilisasi",         sat:"Ls",   on:true,  inc:true},
+  {id:"I4",  kel:"INSTALASI", nama:"Free Maintenance",           sat:"Ls",   on:true,  inc:true},
+
+  {id:"S1",  kel:"SIPIL", nama:"Pekerjaan Sipil",                sat:"Ls", on:false, inc:false},
+  {id:"S1a", kel:"SIPIL", nama:"Pembuatan Pit",                  sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1b", kel:"SIPIL", nama:"Struktur Beton / Baja",          sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1c", kel:"SIPIL", nama:"Arsitektural Opening Pintu",     sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1d", kel:"SIPIL", nama:"Control Panel / Jamb Pintu",     sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1e", kel:"SIPIL", nama:"Sirkulasi Udara Ruang Mesin",    sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1f", kel:"SIPIL", nama:"Finishing Sill",                 sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S2",  kel:"SIPIL", nama:"Elektrikal / Kelistrikan",       sat:"Ls", on:false, inc:false},
+  {id:"S2a", kel:"SIPIL", nama:"Daya Listrik &amp; Sub Panel",   sat:"Ls", on:false, inc:true,  par:"S2"},
+  {id:"S2b", kel:"SIPIL", nama:"Grounding Khusus Lift",          sat:"Ls", on:false, inc:true,  par:"S2"}
+];
+var KEL_LABEL = {PENGADAAN:"SPK 1 · Pengadaan Lift",
+                 INSTALASI:"SPK 2 · Instalasi &amp; Maintenance",
+                 SIPIL:"SPK 3 · Pekerjaan Sipil"};
+
+var SYARAT = {
+  PENGADAAN:["Setelah Kontrak Ditandatangani","Setelah Barang Siap Dikirim","Setelah BL Keluar",
+             "Setelah Barang Sampai Gudang","Setelah Material On Site","Setelah BAST","Setelah Retensi"],
+  INSTALASI:["Setelah Kontrak Ditandatangani","Setelah Material On Site","Setelah Mekanikal Selesai",
+             "Setelah Elektrikal Selesai","Setelah Testing dan Commissioning","Setelah BAST","Setelah Retensi"],
+  SIPIL:    ["Setelah Kontrak Ditandatangani","Setelah Pekerjaan Pit Selesai","Setelah Struktur Selesai",
+             "Setelah Finishing Sipil Selesai","Setelah Serah Terima Pekerjaan Sipil","Setelah Retensi"]
+};
+var TERMIN_AWAL = {
+  PENGADAAN:[{p:30,s:"Setelah Kontrak Ditandatangani"},{p:30,s:"Setelah BL Keluar"},
+             {p:30,s:"Setelah Material On Site"},{p:10,s:"Setelah BAST"}],
+  INSTALASI:[{p:50,s:"Setelah Material On Site"},{p:40,s:"Setelah Mekanikal Selesai"},{p:10,s:"Setelah BAST"}],
+  SIPIL:    [{p:40,s:"Setelah Kontrak Ditandatangani"},{p:40,s:"Setelah Struktur Selesai"},
+             {p:20,s:"Setelah Serah Terima Pekerjaan Sipil"}]
+};
+
+var M = {
+  jenisLift:["Home Lift","Passenger Lift","Elevator","Dumbwaiter","Cargo Lift","Hydraulic Cargo Lift","Car Lift","Bed Lift","Platform Lift"],
+  tipeKabin:["Premium Cabin","Premium Stainless","Premium Pintu Kaca","Premium Pintu Stainless","Premium Throught Door",
+             "Full Stainless","Stainless Pintu Kaca","Stainless Custom","Full Panoramic","Semi Panoramic",
+             "Panoramic Pintu Stainless","Luxury","Luxury Pintu Kaca","Luxury Pintu Stainless"],
+  kapasitas:["100 Kg","320 Kg","400 Kg","450 Kg","550 Kg","630 Kg","800 Kg","1000 Kg","1300 Kg","1350 Kg","1600 Kg","3000 Kg"],
+  penumpang:["1-2 orang","3-4 orang","3-5 orang","5-6 orang","6-8 orang","8-10 orang","Barang (non-penumpang)"],
+  kecepatan:["0,3 m/s","0,4 m/s","0,5 m/s","1,0 m/s"],
+  mpm:["18 mpm","24 mpm","30 mpm","60 mpm"],
+  sfd:["2/2/2","3/3/3","4/4/4","5/5/5","6/6/6","3/3/4","4/4/5"],
+  tipeMesin:["MRL Lift","MR Lift (dengan ruang mesin)","Hydraulic"],
+  traksi:["2:1","1:1"],
+  dayaMesin:["1,2 kw","1,5 kw","2,2 kw","3,7 kw","5,5 kw"],
+  power:["380V 50HZ (3 phase)","220V 50HZ (1 phase)","Custom"],
+  pintu:["Center Opening","Side Opening","Two Panel Side Opening","Swing Door"],
+  bukaanPintu:["700 mm","750 mm","800 mm","900 mm","1000 mm","Custom"],
+  tinggiKabin:["2100 mm","2200 mm","2300 mm"],
+  sales:["Imam Solikhin","Firman","Dewo","Arif","Jihad","Izzu"],
+  jabatanTtd:["Sales","Sales Manager","Direktur Operasional","Direktur"],
+  alamatKantor:["Komplek Pelni, Jalan Gama Setia Raya No. B3/8, Bakti Jaya, Kec. Sukmajaya, Kota Depok",
+                "Central Duta Graha, Jl. Raya Pd. Duta No.6A, Tugu, Cimanggis, Kota Depok"],
+  masaBerlaku:["2 Minggu","3 Minggu","1 Bulan","2 Bulan"],
+  freeMtn:["3 (tiga) bulan","6 (enam) bulan","12 (dua belas) bulan"],
+  garSpare:["1 (satu) tahun","2 (dua) tahun","3 (tiga) tahun"],
+  garMesin:["3 (tiga) tahun","5 (lima) tahun","10 (sepuluh) tahun"],
+  roman:["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"],
+  bulanID:["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"],
+  hariID:["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"]
+};
+
+/* ===================================== STATE ===================================== */
+var mode="SPH", modeHarga="satuan", tabTermin="PENGADAAN";
+var S={
+  noUrut:"438", tanggal:new Date().toISOString().slice(0,10), kota:"Depok",
+  alamatKantor:M.alamatKantor[1], formatNoSPK:"standar",
+  sapaan:"Bapak", namaCustomer:"", namaPerusahaan:"", nikCustomer:"", alamatCustomer:"", kotaProyek:"Bandung",
+  jenisLift:"Home Lift", tipeKabin:"Full Panoramic", kapasitas:"400 Kg", penumpang:"3-4 orang",
+  kecepatan:"0,4 m/s", mpm:"24 mpm", sfd:"4/4/4", tipeMesin:"MRL Lift", traksi:"2:1", dayaMesin:"1,2 kw",
+  power:"380V 50HZ (3 phase)", pintu:"Center Opening", bukaanPintu:"750 mm", tinggiKabin:"2200 mm",
+  shaftSize:"2000 * 2000", cabinSize:"1200*1300 (Custom)", namaLantai:"1.2.3.4", baseFloor:"1", pitDepth:"(Custom)",
+  ppn:"exclude", masaBerlaku:"3 Minggu", freeMtn:M.freeMtn[1], garSpare:M.garSpare[1], garMesin:M.garMesin[1],
+  waktuPengadaan:"2 Bulan", waktuInstalasi:"1,5 Bulan",
+  sales:"Imam Solikhin", jabatanTtd:"Sales", direktur:"Adhie Kurnia",
+  rekening:"BANK BCA : 1662996330 - KCP Cimanggis, Depok",
+  tampilTtd:"true", tampilDesain:"true"
+};
+var ITEMS = KATALOG.map(function(k){var o={};for(var p in k)o[p]=k[p];o.qty=1;o.hp=0;o.hi=0;return o});
+var TERMIN = JSON.parse(JSON.stringify(TERMIN_AWAL));
+var PILIH_DESAIN = {cabin:"",floor:"",ceiling:"",door:"",cop:"",lop:"",struktur:"",addon:""};
+
+/* ===================================== HITUNG ===================================== */
+function num(v){return Number(v)||0}
+function subKel(kel,field){
+  return ITEMS.filter(function(i){return i.kel===kel&&i.on&&!i.inc}).reduce(function(a,i){
+    var h=num(i[field]); return a + (modeHarga==="satuan" ? h*num(i.qty) : h);},0);
+}
+function totalKel(kel){return subKel(kel,"hp")+subKel(kel,"hi")}
+function grandTotal(){return totalKel("PENGADAAN")+totalKel("INSTALASI")+totalKel("SIPIL")}
+function kelAktif(){return ["PENGADAAN","INSTALASI","SIPIL"].filter(function(k){
+  return ITEMS.some(function(i){return i.kel===k&&i.on})})}
+function sumTermin(kel){return TERMIN[kel].reduce(function(a,t){return a+num(t.p)},0)}
+
+function D(){return new Date(S.tanggal+"T00:00:00")}
+function fmtID(d){return d.getDate()+" "+M.bulanID[d.getMonth()+1]+" "+d.getFullYear()}
+function rupiah(n){return "Rp "+Math.round(num(n)).toLocaleString('id-ID')}
+function ribu(n){return Math.round(num(n)).toLocaleString('id-ID')}
+function pad3(v){return String(v).replace(/\D/g,"").padStart(3,"0")}
+function noSurat(){
+  var d=D(), rom=M.roman[d.getMonth()+1], th=d.getFullYear(), n=pad3(S.noUrut);
+  if(mode==="SPH") return n+"/SPH/LIFT/BAI/"+rom+"/"+th;
+  return S.formatNoSPK==="standar" ? n+"/SPK/LIFT/BAI/"+rom+"/"+th : n+"/LIFT/BAI/"+rom+"/"+th;
+}
+function namaFile(){
+  var th=String(D().getFullYear()).slice(2);
+  return pad3(S.noUrut)+th+"."+mode+"_"+((S.namaPerusahaan||S.namaCustomer||"Customer").trim())+
+         "_"+S.tipeKabin+"_"+S.kapasitas.replace(/\s/g,"")+"_"+S.kotaProyek;
+}
+var SATUAN=["","satu","dua","tiga","empat","lima","enam","tujuh","delapan","sembilan","sepuluh","sebelas"];
+function terbilang(n){
+  n=Math.floor(Math.abs(num(n)));
+  if(n<12) return SATUAN[n]||"nol";
+  if(n<20) return terbilang(n-10)+" belas";
+  if(n<100) return terbilang(Math.floor(n/10))+" puluh"+(n%10?" "+terbilang(n%10):"");
+  if(n<200) return "seratus"+(n%100?" "+terbilang(n%100):"");
+  if(n<1000) return terbilang(Math.floor(n/100))+" ratus"+(n%100?" "+terbilang(n%100):"");
+  if(n<2000) return "seribu"+(n%1000?" "+terbilang(n%1000):"");
+  if(n<1e6) return terbilang(Math.floor(n/1e3))+" ribu"+(n%1e3?" "+terbilang(n%1e3):"");
+  if(n<1e9) return terbilang(Math.floor(n/1e6))+" juta"+(n%1e6?" "+terbilang(n%1e6):"");
+  return terbilang(Math.floor(n/1e9))+" miliar"+(n%1e9?" "+terbilang(n%1e9):"");
+}
+function terbilangRp(n){var t=terbilang(n).trim();return t.charAt(0).toUpperCase()+t.slice(1)+" Rupiah"}
+function esc(s){return String(s==null?"":s).replace(/[<>"]/g,function(c){
+  return {"<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function isTrue(v){return v===true||v==="true"}
+
+/* ===================================== FORM ===================================== */
+function optList(l,v){return l.map(function(x){return "<option"+(x===v?" selected":"")+">"+x+"</option>"}).join("")}
+function fSel(k,lb,l,h){return '<div class="f"><label for="i_'+k+'">'+lb+'</label><select id="i_'+k+
+  '" onchange="upd(\''+k+'\',this.value)">'+optList(l,S[k])+'</select>'+(h?'<div class="hint">'+h+'</div>':'')+'</div>'}
+function fTxt(k,lb,t,h){return '<div class="f"><label for="i_'+k+'">'+lb+'</label><input id="i_'+k+'" type="'+(t||"text")+
+  '" value="'+esc(S[k])+'" oninput="upd(\''+k+'\',this.value)">'+(h?'<div class="hint">'+h+'</div>':'')+'</div>'}
+function fArea(k,lb){return '<div class="f"><label for="i_'+k+'">'+lb+'</label><textarea id="i_'+k+
+  '" oninput="upd(\''+k+'\',this.value)">'+esc(S[k])+'</textarea></div>'}
+
+function tabelHargaForm(){
+  var q = modeHarga==="satuan";
+  var out = '<div class="f"><label for="mh">Mode harga</label><select id="mh" onchange="modeHarga=this.value;render()">'+
+    '<option value="satuan"'+(q?" selected":"")+'>Harga Satuan (dikali Qty)</option>'+
+    '<option value="lumpsum"'+(!q?" selected":"")+'>Lumpsum (harga total langsung)</option></select></div>'+
+    '<table class="ptbl"><thead><tr><th style="width:24px"></th><th>Item Pekerjaan</th>'+
+    '<th style="width:44px">'+(q?"Qty":"")+'</th><th style="width:78px">Pengadaan</th>'+
+    '<th style="width:78px">Pemasangan</th><th style="width:46px">Include</th></tr></thead><tbody>';
+  var lastKel=null;
+  ITEMS.forEach(function(it,idx){
+    if(it.kel!==lastKel){out+='<tr class="kel"><td colspan="6">'+KEL_LABEL[it.kel]+'</td></tr>';lastKel=it.kel}
+    var d=it.inc?"disabled":"";
+    out+='<tr class="'+(it.par?"sub":"")+' '+(it.on?"":"off")+'">'+
+      '<td class="c"><input type="checkbox" '+(it.on?"checked":"")+' onchange="setItem('+idx+',\'on\',this.checked)"></td>'+
+      '<td>'+it.nama+'</td>'+
+      '<td>'+(q?'<input type="number" min="0" value="'+it.qty+'" '+d+' onchange="setItem('+idx+',\'qty\',this.value)">':'')+'</td>'+
+      '<td><input type="number" min="0" value="'+it.hp+'" '+d+' onchange="setItem('+idx+',\'hp\',this.value)"></td>'+
+      '<td><input type="number" min="0" value="'+it.hi+'" '+d+' onchange="setItem('+idx+',\'hi\',this.value)"></td>'+
+      '<td class="c"><input type="checkbox" '+(it.inc?"checked":"")+' onchange="setItem('+idx+',\'inc\',this.checked)"></td></tr>';
+  });
+  out+='</tbody></table>'+
+    '<div class="hint" style="margin-top:8px">Centang <b>Include</b> kalau item sudah tercakup di harga induknya. '+
+    'Barisnya tetap tercetak sebagai bukti lingkup kerja, tapi tidak menambah nilai.</div>'+
+    '<button class="mini" onclick="isiCepat()">Isi cepat 87/13 dari satu nilai kontrak</button>'+
+    '<div class="computed">Pengadaan (SPK 1): <b>'+rupiah(totalKel("PENGADAAN"))+'</b><br>'+
+    'Instalasi (SPK 2): <b>'+rupiah(totalKel("INSTALASI"))+'</b><br>'+
+    'Pekerjaan Sipil (SPK 3): <b>'+rupiah(totalKel("SIPIL"))+'</b><br>'+
+    '<span class="big">Total: '+rupiah(grandTotal())+'</span><br>'+
+    '<span style="font-size:11.5px">'+terbilangRp(grandTotal())+'</span></div>';
+  return out;
+}
+
+function terminForm(){
+  var kels=kelAktif();
+  if(kels.indexOf(tabTermin)<0) tabTermin=kels[0]||"PENGADAAN";
+  var out='<div class="chipbar">'+kels.map(function(k){
+    return '<button class="chip" aria-pressed="'+(tabTermin===k)+'" onclick="tabTermin=\''+k+'\';render()">'+
+      KEL_LABEL[k].split("· ")[1]+'</button>'}).join("")+'</div>';
+  var kel=tabTermin, dasar=totalKel(kel), tot=sumTermin(kel);
+  out+='<div class="tblk"><h5>'+KEL_LABEL[kel]+' — dasar '+rupiah(dasar)+'</h5>';
+  TERMIN[kel].forEach(function(t,i){
+    out+='<div class="trow"><input type="number" min="0" value="'+t.p+'" onchange="setT(\''+kel+'\','+i+',\'p\',this.value)">'+
+      '<select onchange="setT(\''+kel+'\','+i+',\'s\',this.value)">'+optList(SYARAT[kel],t.s)+'</select>'+
+      '<input type="text" value="'+ribu(dasar*num(t.p)/100)+'" readonly tabindex="-1">'+
+      '<button class="del" title="Hapus" onclick="delT(\''+kel+'\','+i+')">&times;</button></div>';
+  });
+  out+='<button class="mini" onclick="addT(\''+kel+'\')">+ Tambah termin</button>'+
+    '<div class="sumline"><span>Total persentase</span><b class="'+(tot===100?"ok":"bad")+'">'+tot+'%</b></div></div>';
+  return out;
+}
+
+function desainForm(){
+  return Object.keys(DESAIN_LABEL).map(function(k){
+    var list=DESAIN[k]||[];
+    if(!list.length) return '<div class="f"><label>'+DESAIN_LABEL[k]+
+      '</label><div class="hint" style="font-style:italic">Belum ada data desain</div></div>';
+    return '<div class="f"><label for="d_'+k+'">'+DESAIN_LABEL[k]+'</label><select id="d_'+k+
+      '" onchange="setDesain(\''+k+'\',this.value)"><option value="">Pilih desain…</option>'+
+      list.map(function(o){return '<option value="'+o.kode+'"'+(PILIH_DESAIN[k]===o.kode?" selected":"")+'>'+o.nama+'</option>'}).join("")+
+      '</select></div>';
+  }).join("");
+}
+
+function renderForm(){
+  var isSPK = mode==="SPK";
+  document.getElementById("form").innerHTML =
+  '<details class="grp" open><summary>Nomor &amp; tanggal</summary><div class="fields">'+
+    '<div class="row2">'+fTxt("noUrut","No urut")+fTxt("tanggal","Tanggal","date")+'</div>'+
+    '<div class="computed">Nomor surat: <b>'+noSurat()+'</b><br>Nama file: <b>'+esc(namaFile())+'</b></div>'+
+    (isSPK?fSel("formatNoSPK","Format nomor SPK",["standar","lama"],
+      "‘standar’ = 068/SPK/LIFT/BAI/VIII/2026 sesuai judul register. ‘lama’ = 068/LIFT/BAI/VIII/2026 seperti dokumen yang beredar."):"")+
+    fSel("alamatKantor","Alamat kantor di kop",M.alamatKantor)+
+  '</div></details>'+
+
+  '<details class="grp" open><summary>Customer</summary><div class="fields">'+
+    '<div class="row2">'+fSel("sapaan","Sapaan",["Bapak","Ibu","Bapak/Ibu","—"])+fTxt("namaCustomer","Nama customer")+'</div>'+
+    fTxt("namaPerusahaan","Nama perusahaan / yayasan","text","Kosongkan untuk perorangan.")+
+    (isSPK?fTxt("nikCustomer","NIK"):"")+
+    (isSPK?fArea("alamatCustomer","Alamat lengkap (lokasi pekerjaan)"):"")+
+    fTxt("kotaProyek","Kota lokasi proyek")+
+  '</div></details>'+
+
+  '<details class="grp" open><summary>Tabel harga</summary><div class="fields">'+tabelHargaForm()+'</div></details>'+
+
+  '<details class="grp" open><summary>Termin pembayaran</summary><div class="fields">'+terminForm()+
+    '<div class="flag">Tiap SPK punya termin sendiri. Termin pengadaan menempel pada milestone barang (BL, MOS), '+
+    'termin instalasi pada milestone pekerjaan lapangan, termin sipil pada milestone struktur. Memakai satu skema '+
+    'untuk ketiganya membuat pekerjaan sipil ikut tertahan menunggu BL kapal — padahal sipil justru harus selesai '+
+    'sebelum barang datang.</div></div></details>'+
+
+  '<details class="grp"><summary>Opsi desain</summary><div class="fields">'+
+    fSel("tampilDesain","Cetak halaman desain",["true","false"])+desainForm()+
+    '<div class="hint">Tambah pilihan baru di blok <b>DESAIN</b> dekat awal file ini. Isi <b>img</b> dengan URL '+
+    'gambar atau data URI; selama kosong, dokumen mencetak kotak placeholder.</div></div></details>'+
+
+  '<details class="grp"><summary>Unit lift &amp; spesifikasi</summary><div class="fields">'+
+    fSel("jenisLift","Jenis lift",M.jenisLift)+fSel("tipeKabin","Tipe kabin",M.tipeKabin)+
+    '<div class="row2">'+fSel("kapasitas","Kapasitas",M.kapasitas)+fSel("penumpang","Kapasitas orang",M.penumpang)+'</div>'+
+    '<div class="row3">'+fSel("kecepatan","Kecepatan",M.kecepatan)+fSel("mpm","MPM",M.mpm)+fSel("sfd","S/F/D",M.sfd)+'</div>'+
+    '<div class="row2">'+fSel("tipeMesin","Tipe mesin",M.tipeMesin)+fSel("traksi","Rasio traksi",M.traksi)+'</div>'+
+    '<div class="row2">'+fSel("dayaMesin","Daya mesin",M.dayaMesin)+fSel("power","Power supply",M.power)+'</div>'+
+    '<div class="row2">'+fSel("pintu","Bukaan pintu",M.pintu)+fSel("bukaanPintu","Lebar bukaan",M.bukaanPintu)+'</div>'+
+    '<div class="row2">'+fSel("tinggiKabin","Tinggi kabin",M.tinggiKabin)+fTxt("shaftSize","Shaft size")+'</div>'+
+    '<div class="row2">'+fTxt("cabinSize","Cabin size")+fTxt("pitDepth","Pit depth")+'</div>'+
+    '<div class="row2">'+fTxt("namaLantai","Nama lantai")+fTxt("baseFloor","Base floor")+'</div>'+
+  '</div></details>'+
+
+  '<details class="grp"><summary>Syarat &amp; kondisi</summary><div class="fields">'+
+    '<div class="row2">'+fSel("masaBerlaku","Masa berlaku",M.masaBerlaku)+fSel("ppn","PPN 11%",["exclude","include"])+'</div>'+
+    '<div class="row2">'+fSel("garSpare","Garansi sparepart",M.garSpare)+fSel("garMesin","Garansi mesin",M.garMesin)+'</div>'+
+    fSel("freeMtn","Maintenance",M.freeMtn)+
+    (isSPK?'<div class="row2">'+fTxt("waktuPengadaan","Waktu s/d MOS")+fTxt("waktuInstalasi","Instalasi setelah MOS")+'</div>':"")+
+  '</div></details>'+
+
+  '<details class="grp"><summary>Tanda tangan &amp; cap</summary><div class="fields">'+
+    fSel("tampilTtd","Tampilkan tanda tangan &amp; cap",["true","false"])+
+    (mode==="SPH" ? fSel("sales","Nama sales",M.sales)+fSel("jabatanTtd","Jabatan",M.jabatanTtd)
+                  : fTxt("direktur","Nama direktur")+fTxt("rekening","Rekening pembayaran"))+
+    '<div class="hint">Gambar diambil dari blok <b>ASET</b> di awal file ini. Selama kosong, yang tercetak hanya '+
+    'garis dan nama — dokumen tetap rapi dan siap ditandatangani basah.</div></div></details>';
+}
+
+function setItem(i,k,v){
+  ITEMS[i][k] = (k==="on"||k==="inc") ? v : num(v);
+  if(k==="inc"&&v){ITEMS[i].hp=0;ITEMS[i].hi=0}
+  if(k==="on"&&!ITEMS[i].par){
+    var pid=ITEMS[i].id;
+    ITEMS.forEach(function(x){if(x.par===pid)x.on=v});
+  }
+  render();
+}
+function setT(kel,i,k,v){TERMIN[kel][i][k] = (k==="p"?num(v):v); render()}
+function addT(kel){TERMIN[kel].push({p:0,s:SYARAT[kel][0]}); render()}
+function delT(kel,i){if(TERMIN[kel].length>1)TERMIN[kel].splice(i,1); render()}
+function setDesain(k,v){PILIH_DESAIN[k]=v; render()}
+function upd(k,v){S[k]=v; render()}
+function setMode(m){
+  mode=m;
+  document.getElementById("tabSPH").setAttribute("aria-selected",m==="SPH");
+  document.getElementById("tabSPK").setAttribute("aria-selected",m==="SPK");
+  render();
+}
+function isiCepat(){
+  var v=window.prompt("Nilai kontrak pengadaan + pemasangan (Rp):","425000000");
+  if(v===null) return;
+  var t=num(String(v).replace(/\D/g,"")), p=Math.round(t*0.87);
+  ITEMS.forEach(function(i){
+    if(i.id==="P1"){i.hp=p;i.hi=0;i.inc=false;i.on=true}
+    if(i.id==="I1"){i.hp=0;i.hi=t-p;i.inc=false;i.on=true}
+  });
+  render();
+}
+
+/* ===================================== DOKUMEN ===================================== */
+function kop(t){
+  return '<div class="lethead"><div class="doctype">'+t+'</div><div class="co"><div class="mark">B<i>ELIFT</i></div>'+
+  '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>'+esc(S.alamatKantor).replace(/, /g,",<br>")+
+  '<br>info@belift.co.id</div></div>';
+}
+function tujuan(){return (S.namaPerusahaan||((S.sapaan==="—"?"":S.sapaan+" ")+(S.namaCustomer||"…"))).trim()}
+function namaDesain(k){
+  var o=(DESAIN[k]||[]).filter(function(x){return x.kode===PILIH_DESAIN[k]})[0];
+  return o?o.nama:"";
+}
+
+function tabelHargaDoc(){
+  var kels=kelAktif(); if(!kels.length) return "";
+  var q = modeHarga==="satuan", rows="", no=0;
+  kels.forEach(function(kel){
+    rows+='<tr class="grp2"><td colspan="'+(q?6:5)+'">'+KEL_LABEL[kel]+'</td></tr>';
+    ITEMS.filter(function(i){return i.kel===kel&&i.on}).forEach(function(it){
+      var sub=it.par?"subrow":"";
+      if(it.inc){
+        rows+='<tr class="'+sub+'"><td class="c">'+(it.par?"":++no)+'</td><td>'+it.nama+'</td>'+
+          (q?'<td class="c">'+it.qty+' '+it.sat+'</td>':'')+'<td class="inc" colspan="3">Include</td></tr>';
+      }else{
+        var tp=q?num(it.hp)*num(it.qty):num(it.hp), ti=q?num(it.hi)*num(it.qty):num(it.hi);
+        rows+='<tr class="'+sub+'"><td class="c">'+(it.par?"":++no)+'</td><td>'+it.nama+'</td>'+
+          (q?'<td class="c">'+it.qty+' '+it.sat+'</td>':'')+
+          '<td class="n">'+(tp?ribu(tp):"—")+'</td><td class="n">'+(ti?ribu(ti):"—")+'</td>'+
+          '<td class="n">'+ribu(tp+ti)+'</td></tr>';
+      }
+    });
+    rows+='<tr><td colspan="'+(q?5:4)+'" class="rt" style="font-weight:600">Sub Total '+
+      KEL_LABEL[kel].split("· ")[1]+'</td><td class="n" style="font-weight:600">'+ribu(totalKel(kel))+'</td></tr>';
+  });
+  return '<table class="doc"><thead><tr><th style="width:9mm">No</th><th>Item Pekerjaan</th>'+
+    (q?'<th style="width:18mm">Qty</th>':'')+
+    '<th style="width:26mm">Pengadaan (Rp)</th><th style="width:26mm">Pemasangan (Rp)</th>'+
+    '<th style="width:28mm">Total (Rp)</th></tr></thead><tbody>'+rows+
+    '<tr class="total"><td colspan="'+(q?5:4)+'" class="rt">TOTAL PRICE</td><td class="n">'+
+    ribu(grandTotal())+'</td></tr></tbody></table>';
+}
+
+function terminDoc(){
+  return kelAktif().filter(function(k){return totalKel(k)>0}).map(function(kel){
+    var dasar=totalKel(kel);
+    return '<h4>'+KEL_LABEL[kel]+' — '+rupiah(dasar)+'</h4><ul class="ul">'+
+      TERMIN[kel].map(function(t,i){
+        return '<li>Angsuran ke-'+(i+1)+' : <strong>'+t.p+'%</strong> ('+rupiah(dasar*num(t.p)/100)+') '+t.s+'</li>'
+      }).join("")+'</ul>';
+  }).join("");
+}
+
+function desainDoc(){
+  var dipilih=Object.keys(DESAIN_LABEL).filter(function(k){return PILIH_DESAIN[k]});
+  if(!isTrue(S.tampilDesain)||!dipilih.length) return "";
+  var cards=dipilih.map(function(k){
+    var o=(DESAIN[k]||[]).filter(function(x){return x.kode===PILIH_DESAIN[k]})[0];
+    if(!o) return "";
+    return '<div class="dcard"><div class="box">'+
+      (o.img ? '<img src="'+o.img+'" alt="'+esc(o.nama)+'">'
+             : '<div class="ph">Gambar '+DESAIN_LABEL[k]+'<br>'+esc(o.kode)+'</div>')+
+      '</div><div class="cap"><b>'+DESAIN_LABEL[k]+'</b>'+esc(o.nama)+'</div></div>';
+  }).join("");
+  return '<div class="page cont"><h3 class="secttl">Opsi Desain — '+esc(S.tipeKabin)+'</h3>'+
+    '<div class="dgrid">'+cards+'</div>'+
+    '<p style="margin-top:6mm;font-size:9pt;font-style:italic">Gambar bersifat ilustrasi. Warna dan tekstur final '+
+    'mengikuti sampel material yang disetujui saat survey final.</p><div class="pgnum">·</div></div>';
+}
+
+function ttdBlok(nama,jabatan,pakaiCap){
+  var img=ASET.ttd[nama]||"";
+  var cap=(pakaiCap&&ASET.capPerusahaan)?'<img class="cap" src="'+ASET.capPerusahaan+'" alt="">':'';
+  var sig=img?'<img class="ttd" src="'+img+'" alt="">':'';
+  return '<div class="sigbox">'+(isTrue(S.tampilTtd)?cap+sig:'')+'</div>'+
+    '<div class="sig-nm">'+esc(nama)+'</div><div>'+esc(jabatan)+'</div>';
+}
+
+function specRows(){
+  var d=[["Type",S.tipeMesin],["Loading Capacity",S.kapasitas],["Speed",S.kecepatan],["Stops/Floors/Doors",S.sfd],
+    ["Floor Name",S.namaLantai],["Base Floor",S.baseFloor],["Rate of Traction Machine",S.dayaMesin],
+    ["Traction Ratio",S.traksi],["Power Supply",S.power,1],["Lighting Power","220V 50HZ"],["Shaft Size",S.shaftSize,1],
+    ["Floor height","After Survey",1],["Overhead","After Survey",1],["Travelling Height","(Custom)",1],
+    ["Pit Depth",S.pitDepth,1],["Door opening Type",S.pintu,1],["Door opening Size",S.bukaanPintu,1],
+    ["Cabin Size",S.cabinSize,1],["Height of Cabin",S.tinggiKabin,1],
+    ["Cabin decoration",namaDesain("cabin")||"As in pic"],["Handrail","Yes"],["Floor",namaDesain("floor")||"—"],
+    ["Ceiling",namaDesain("ceiling")||"As at Pict"],["Door",namaDesain("door")||"As at Pict"],
+    ["COP",namaDesain("cop")||"As at Pict"],["LOP",namaDesain("lop")||"As at Pict"],
+    ["Struktur",namaDesain("struktur")||"—"],["Language","English"],["Brand","BELIFT"]];
+  return d.map(function(r,i){
+    return '<tr><td>'+String(i+1).padStart(3,"0")+'</td><td>'+esc(r[0])+'</td><td'+(r[2]?' class="hl"':'')+'>'+
+      esc(r[1])+'</td></tr>'}).join("");
+}
+
+function pageSPH(){
+  var d=D(), hari={"2 Minggu":14,"3 Minggu":21,"1 Bulan":31,"2 Bulan":61}[S.masaBerlaku]||21;
+  var berlaku=new Date(d.getTime()+hari*864e5), adaSipil=totalKel("SIPIL")>0;
+  return ''+
+  '<div class="page">'+kop("INQUIRY")+
+    '<div class="docno">'+noSurat()+'</div>'+
+    '<div class="place">'+esc(S.kota)+', '+fmtID(d)+'</div>'+
+    '<div class="to">Kepada Yth:<br><strong>'+esc(tujuan())+'</strong><br>di '+esc(S.kotaProyek)+'</div>'+
+    '<div class="subject">Hal: Penawaran Harga Pengadaan &amp; Pemasangan 1 unit '+esc(S.tipeKabin)+' '+
+      esc(S.jenisLift)+' di '+esc(S.kotaProyek)+'</div>'+
+    '<div class="body ind"><p>Dengan hormat,<br>Berdasarkan data yang kami terima, bersama ini kami sampaikan '+
+      'penawaran harga pekerjaan (pengadaan &amp; pemasangan Elevator merk <strong>BELIFT</strong>) untuk proyek '+
+      'tersebut di atas dengan ruang lingkup sebagai berikut:</p>'+
+      '<h4>1. Pengadaan '+esc(S.jenisLift)+'</h4><p>Harga pengadaan material Elevator dan transportasi sampai di '+
+      'lokasi proyek 1 (satu) unit <strong>Lift Elevator-'+esc(S.kapasitas)+'</strong> / '+esc(S.penumpang)+
+      ' – '+esc(S.mpm)+' – Floors/Stops/Doors '+esc(S.sfd)+'.</p>'+
+      '<h4>2. Pemasangan</h4><p>Biaya pemasangan termasuk Mobilisasi, Test-Commissioning, Mob-demobilisasi, '+
+      '<strong>Free Maintenance '+S.freeMtn+', Garansi Spare Part '+S.garSpare+', Garansi Mesin '+S.garMesin+'</strong>.</p>'+
+      (adaSipil?'<h4>3. Pekerjaan Sipil</h4><p>Pekerjaan sipil dikerjakan oleh PT Belift Amanah Indonesia berdasarkan '+
+        'SPK tersendiri, dengan rincian dan termin pembayaran terpisah sebagaimana tercantum di halaman berikut.</p>':'')+
+      '<p><strong>*</strong> Semua Harga <strong>'+(S.ppn==="exclude"?"Exclude":"Include")+'</strong> PPN 11%</p>'+
+      '<h4>Waktu Pelaksanaan:</h4><p>Maksimal 3,5 Bulan sudah test commissioning sejak Kontrak ditanda tangani dan '+
+      'pembayaran pertama diterima.</p></div><div class="pgnum">1</div></div>'+
+
+  '<div class="page cont"><h3 class="secttl">Rincian Harga Pekerjaan</h3>'+tabelHargaDoc()+
+    '<div class="terbilang">'+terbilangRp(grandTotal())+'</div>'+
+    '<p style="font-size:9.5pt"><strong>*</strong> Harga <strong>'+(S.ppn==="exclude"?"Exclude":"Include")+
+    '</strong> PPN 11%. Baris bertanda <em>Include</em> sudah tercakup dalam harga item induknya.</p>'+
+    '<div class="pgnum">2</div></div>'+
+
+  desainDoc()+
+
+  '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator '+esc(S.tipeKabin)+
+    ' With Traction Description</th></tr>'+specRows()+'</table><div class="pgnum">·</div></div>'+
+
+  '<div class="page cont"><p style="font-weight:700;text-decoration:underline;margin-bottom:5mm">Syarat dan Kondisi Penawaran :</p>'+
+    '<ol class="ol"><li>Penawaran berlaku sampai dengan <strong>'+fmtID(berlaku)+'</strong> ('+S.masaBerlaku+
+      '), dan dapat berubah sewaktu-waktu tanpa pemberitahuan terlebih dahulu.</li>'+
+    (adaSipil
+      ? '<li><strong>Termasuk</strong> pekerjaan sipil sesuai rincian di halaman Rincian Harga. Di luar item yang '+
+        'tercantum tersebut tetap menjadi tanggung jawab pemberi kerja.</li>'
+      : '<li><strong>Tidak termasuk</strong> dalam penawaran yaitu, <strong>Struktur dan pekerjaan sipil</strong> '+
+        'meliputi finishing untuk bagian luar lift, pengadaan gudang peralatan elevator, <strong>instalasi dan daya '+
+        'listrik ke ruang mesin elevator</strong> untuk keperluan pemasangan dan pengujian elevator sesuai dengan '+
+        'gambar kerja dan <strong>kebutuhan daya</strong> yang diperlukan elevator.</li>')+
+    '<li><strong>Masa pemeliharaan cuma-cuma berlaku selama '+S.freeMtn+' sejak Serah Terima Pekerjaan.</strong></li>'+
+    '<li><strong>Garansi peralatan dan pemasangan berlaku '+S.garSpare+' sejak Serah Terima Pekerjaan</strong> '+
+      '(testing &amp; commissioning).</li>'+
+    '<li><strong>Garansi Motor Mesin berlaku '+S.garMesin+' sejak Serah Terima Pekerjaan.</strong></li>'+
+    '<li>Cara pembayaran:'+terminDoc()+'</li></ol>'+
+    '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>'+
+    '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">'+
+      '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#592203">B<span style="color:#D95103">ELIFT</span></div>'+
+      ttdBlok(S.sales,S.jabatanTtd,true)+'</div></div><div class="pgnum">·</div></div>';
+}
+
+function pageSPK(){
+  var d=D(), hari=M.hariID[d.getDay()];
+  function cap(s){return s.replace(/\b\w/g,function(c){return c.toUpperCase()})}
+  function P(n,t,b){
+    return '<div class="page cont"><p style="text-align:center;font-weight:700;text-decoration:underline;margin-bottom:1mm">PASAL '+n+
+      '</p><p style="text-align:center;font-weight:700;margin-bottom:5mm">'+t+'</p>'+b+
+      '<div class="pgnum">'+(n+1)+'</div><div class="paraf">_______ Paraf _______</div></div>';
+  }
+  var adaSipil=totalKel("SIPIL")>0;
+  return ''+
+  '<div class="page">'+kop("CONTRACT")+'<div class="docno">'+noSurat()+'</div>'+
+    '<p>Pada hari ini, <strong>'+hari+'</strong> tanggal <strong>'+cap(terbilang(d.getDate()))+'</strong> bulan '+
+    '<strong>'+M.bulanID[d.getMonth()+1]+'</strong> tahun <strong>'+cap(terbilang(d.getFullYear()))+
+    '</strong>, kami yang bertanda tangan dibawah ini:</p>'+
+    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td>: <strong>'+
+      esc(S.namaCustomer||"…")+'</strong></td></tr><tr><td style="vertical-align:top">NIK</td><td>: '+
+      esc(S.nikCustomer||"…")+'</td></tr><tr><td style="vertical-align:top">Alamat</td><td>: '+
+      esc(S.alamatCustomer||"…")+'</td></tr></table>'+
+    '<p>Dalam hal ini bertindak untuk dan atas nama <strong>'+esc(S.namaPerusahaan||S.namaCustomer||"…")+
+      '</strong> untuk selanjutnya disebut <strong>PIHAK PERTAMA</strong></p>'+
+    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td>: <strong>'+
+      esc(S.direktur)+'</strong></td></tr><tr><td style="vertical-align:top">Jabatan</td><td>: Direktur PT Belift '+
+      'Amanah Indonesia</td></tr><tr><td style="vertical-align:top">Alamat</td><td>: '+esc(S.alamatKantor)+'</td></tr></table>'+
+    '<p>Dalam hal ini bertindak untuk dan atas nama <strong>PT. Belift Amanah Indonesia</strong> untuk selanjutnya '+
+      'disebut sebagai <strong>PIHAK KEDUA</strong></p>'+
+    '<p>Selanjutnya kedua belah pihak mengadakan Surat Perjanjian Kerja sebagai berikut:</p>'+
+    '<div class="pgnum">1</div><div class="paraf">_______ Paraf _______</div></div>'+
+
+  P(1,"DEFINISI ISTILAH DAN KETENTUAN",
+    '<p><strong>1. SPK</strong> — dokumen resmi dasar pelaksanaan pekerjaan yang memuat ruang lingkup, nilai kontrak, '+
+    'waktu pelaksanaan, serta syarat dan ketentuan pekerjaan.</p>'+
+    '<p><strong>2. MOS (Material On Site)</strong> — material telah tiba dan tersimpan di lokasi proyek namun belum '+
+    'dipasang, dapat dijadikan dasar penagihan termin. Risiko kehilangan atau kerusakan sebelum instalasi menjadi '+
+    'tanggung jawab Pelaksana Pekerjaan.</p>'+
+    '<p><strong>3. BAST</strong> — dokumen resmi yang menyatakan pekerjaan telah selesai dan diserahkan kepada '+
+    'Pemberi Kerja; menjadi dasar dimulainya masa garansi.</p>'+
+    '<p><strong>4. Commissioning</strong> — pengujian dan verifikasi fungsi, keselamatan, dan performa unit sebelum '+
+    'dinyatakan siap digunakan.</p>'+
+    '<p><strong>5. Handover</strong> — penyerahan unit setelah commissioning berhasil, dibuktikan dokumen BAST.</p>'+
+    '<p><strong>6. Masa Garansi</strong> — Free Maintenance '+S.freeMtn+' · Garansi Spare Part '+S.garSpare+
+    ' · Garansi Mesin/Motor '+S.garMesin+', dihitung sejak tanggal BAST.</p>'+
+    '<p><strong>7. Progress Pekerjaan</strong> — tingkat penyelesaian berdasarkan tahapan yang telah dilaksanakan, '+
+    'menjadi dasar penagihan termin dan harus dapat diverifikasi kedua belah pihak.</p>')+
+
+  P(2,"LINGKUP PEKERJAAN",
+    '<p>PIHAK PERTAMA memberi tugas kepada PIHAK KEDUA untuk mengerjakan pekerjaan dengan rincian sebagai berikut:</p>'+
+    tabelHargaDoc()+
+    '<p style="font-size:9.5pt">Baris bertanda <em>Include</em> merupakan bagian dari lingkup pekerjaan yang harganya '+
+    'sudah tercakup pada item induknya.</p>'+
+    (adaSipil?'':'<p><strong>Di luar lingkup PIHAK KEDUA</strong> dan menjadi tanggung jawab PIHAK PERTAMA: pekerjaan '+
+    'sipil dan arsitektural di luar area pintu lift, sirkulasi udara ruang mesin, pengadaan daya listrik dan instalasi '+
+    'sub panel di dekat control panel lift, grounding khusus lift yang terpisah dari penangkal petir, pengadaan gudang '+
+    'peralatan lift di lokasi, serta pembuatan pit.</p>'))+
+
+  P(3,"LOKASI PEKERJAAN",'<p>Lokasi pekerjaan berada di '+esc(S.alamatCustomer||"…")+
+    ' yang disebut lokasi proyek yang akan dikerjakan oleh PIHAK KEDUA.</p>')+
+
+  P(4,"NILAI KONTRAK",
+    '<p>Nilai pekerjaan yang telah disepakati oleh kedua belah pihak adalah <strong>'+rupiah(grandTotal())+
+    '</strong>,- ('+terbilangRp(grandTotal())+') dengan rincian:</p><ul class="ul">'+
+    kelAktif().filter(function(k){return totalKel(k)>0}).map(function(k){
+      return '<li>'+KEL_LABEL[k]+' sebesar <strong>'+rupiah(totalKel(k))+'</strong></li>'}).join("")+
+    '</ul><p style="font-size:9.5pt">Harga '+(S.ppn==="exclude"?"belum":"sudah")+' termasuk PPN 11%.</p>')+
+
+  P(5,"WAKTU PELAKSANAAN PEKERJAAN",'<ul class="ul">'+
+    '<li>Maksimal <strong>'+esc(S.waktuPengadaan)+'</strong> sejak kontrak ditandatangani dan pembayaran pertama (DP) '+
+    'diterima, untuk Material On Site.</li>'+
+    '<li>Maksimal <strong>'+esc(S.waktuInstalasi)+'</strong> sejak Material On Site dengan catatan tidak ada kendala '+
+    'bangunan dari PIHAK PERTAMA.</li>'+
+    (adaSipil?'<li>Pekerjaan sipil diselesaikan sebelum Material On Site, sesuai jadwal yang disepakati kedua belah pihak.</li>':'')+
+    '</ul>')+
+
+  P(6,"PINALTY",'<p>Penalty dikenakan apabila keterlambatan terjadi karena kelalaian <strong>PIHAK KEDUA</strong>.</p>'+
+    '<ol class="ol"><li>Keterlambatan produksi dan pengiriman material melebihi 2,5 bulan sejak DP diterima dikenakan '+
+    'penalty <strong>0,05% per hari kerja (maksimal 1%)</strong> dari nilai pekerjaan pengadaan material unit elevator.</li>'+
+    '<li>Keterlambatan pemasangan lebih dari 30 hari sejak material dinyatakan lengkap dan lokasi dinyatakan siap '+
+    'dikenakan penalty <strong>0,05% per hari kerja (maksimal 2%)</strong> dari nilai pekerjaan pemasangan.</li>'+
+    '<li>Penalty tidak berlaku apabila keterlambatan disebabkan gangguan pekerjaan sipil, keterlambatan pelunasan '+
+    'termin, akses kerja yang belum lengkap, dan gangguan listrik di lokasi proyek.</li></ol>')+
+
+  P(7,"CARA PEMBAYARAN",
+    '<p>Pembayaran dilakukan terpisah untuk setiap lingkup pekerjaan sebagai berikut:</p>'+terminDoc()+
+    '<p>Pembayaran dapat ditransfer <strong>ke rekening</strong></p>'+
+    '<p style="margin-left:8mm"><strong>PT. BELIFT AMANAH INDONESIA</strong><br><strong>'+esc(S.rekening)+'</strong></p>')+
+
+  P(8,"FORCE MAJEURE",
+    '<p>Force Majeure adalah keadaan di luar kemampuan para pihak yang menyebabkan pekerjaan tidak dapat dilaksanakan, '+
+    'seperti bencana alam, gempa bumi, kebakaran, kerusuhan, kebijakan pemerintah, gangguan distribusi material global, '+
+    'atau meninggal dunia salah satu pihak.</p>'+
+    '<p>Pihak yang mengalami Force Majeure wajib memberitahukan secara tertulis paling lambat <strong>7 (tujuh) hari '+
+    'kalender</strong>. Selama Force Majeure berlangsung, kewajiban para pihak ditangguhkan sementara, waktu '+
+    'pelaksanaan diperpanjang, dan PIHAK KEDUA tidak dikenakan penalty keterlambatan.</p>'+
+    '<p>Dalam hal salah satu pihak meninggal dunia, hak dan kewajiban beralih kepada ahli waris yang sah. Apabila '+
+    'Force Majeure berlangsung lebih dari 90 hari kalender dan pekerjaan tidak dapat dilanjutkan, para pihak sepakat '+
+    'menyelesaikannya secara musyawarah.</p>')+
+
+  P(9,"PENYELESAIAN",'<p>Apabila terjadi sengketa, <strong>PIHAK PERTAMA</strong> dan <strong>PIHAK KEDUA</strong> '+
+    'sepakat menyelesaikan secara musyawarah. Apabila tidak tercapai kesepakatan, diselesaikan melalui Pengadilan '+
+    'Negeri sesuai domisili hukum <strong>PIHAK KEDUA</strong>.</p>')+
+
+  P(10,"PENUTUP",
+    '<p>Hal-hal yang belum tercantum dalam Surat Perjanjian Kerja ini apabila diperlukan akan dibicarakan kemudian '+
+    'dan dituangkan dalam bentuk tertulis serta menjadi addendum yang tak terpisahkan dari perjanjian ini.</p>'+
+    '<p>Demikian, Surat Perjanjian Kerja ini ditandatangani oleh kedua belah pihak untuk dapat dilaksanakan dengan '+
+    'baik sebagaimana mestinya. Perjanjian ini dibuat dalam rangkap dua, masing-masing dibubuhi materai secukupnya '+
+    'serta mempunyai kekuatan hukum yang sama.</p>'+
+    '<div class="sign"><div>PIHAK PERTAMA<div class="sigbox"></div><div class="sig-nm">'+esc(S.namaCustomer||"…")+
+    '</div>Pemilik Bangunan</div><div>PIHAK KEDUA<br><strong>PT BELIFT AMANAH INDONESIA</strong>'+
+    ttdBlok(S.direktur,"Direktur",true)+'</div></div>')+
+
+  desainDoc()+
+
+  '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator '+esc(S.tipeKabin)+
+    ' With Traction Description</th></tr>'+specRows()+'</table>'+
+    '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>'+
+    '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>';
+}
+
+function renderPreview(){
+  document.getElementById("preview").innerHTML =
+    '<div class="plabel">Pratinjau '+mode+' — A4</div>' + (mode==="SPH"?pageSPH():pageSPK());
+}
+function render(){renderForm();renderPreview()}
+
+function copyRegister(){
+  var d=D(), tgl=d.getDate()+"-"+M.bulanID[d.getMonth()+1]+"-"+String(d.getFullYear()).slice(2);
+  var row = (mode==="SPH")
+    ? [pad3(S.noUrut),tgl,noSurat(),S.namaPerusahaan||S.namaCustomer,S.jenisLift,"Hold"].join("\t")
+    : [pad3(S.noUrut),tgl,noSurat(),grandTotal(),S.namaPerusahaan||S.namaCustomer,namaFile(),
+       totalKel("PENGADAAN"),totalKel("INSTALASI"),"","Approved","START PROJECT","",totalKel("SIPIL"),
+       grandTotal(),""].join("\t");
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(row).then(function(){
+      var b=document.getElementById("btnReg"), t=b.textContent;
+      b.textContent="Tersalin — tempel di register";
+      setTimeout(function(){b.textContent=t},2200);
+    },function(){window.prompt("Salin baris ini lalu tempel ke register:",row)});
+  } else { window.prompt("Salin baris ini lalu tempel ke register:",row); }
+}
+
+render();
+</script>

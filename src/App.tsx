@@ -8,6 +8,7 @@ import AppLayout from "./components/AppLayout";
 import Index from "./pages/Index";
 import SPHForm from "./pages/SPHForm";
 import SPHList from "./pages/SPHList";
+import SPKList from "./pages/SPKList";
 import SPHPreview from "./pages/SPHPreview";
 import MasterData from "./pages/MasterData";
 import SettingsPage from "./pages/SettingsPage";
@@ -33,15 +34,20 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/signup" element={user ? <Navigate to="/" replace /> : <SignupPage />} />
+      {/* Generator: full-bleed, no AppLayout sidebar */}
+      <Route path="/sph/new" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
+      <Route path="/sph/:id/edit" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
+      <Route path="/spk/new" element={<ProtectedRoute><SPHForm defaultMode="SPK" /></ProtectedRoute>} />
+      <Route path="/spk/:id/edit" element={<ProtectedRoute><SPHForm defaultMode="SPK" /></ProtectedRoute>} />
       <Route path="*" element={
         <ProtectedRoute>
           <AppLayout>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/sph" element={<SPHList />} />
-              <Route path="/sph/new" element={<SPHForm />} />
               <Route path="/sph/:id" element={<SPHForm />} />
               <Route path="/sph/:id/preview" element={<SPHPreview />} />
+              <Route path="/spk" element={<SPKList />} />
               <Route path="/master" element={<MasterData />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFound />} />

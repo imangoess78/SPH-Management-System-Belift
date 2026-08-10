@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, ImageIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, ImageIcon, RefreshCw } from 'lucide-react';
 import { JENIS_LIFT, KAPASITAS_LIFT } from '@/lib/sph-types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,10 +22,11 @@ interface DesignItem {
 }
 
 export default function MasterData() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const canManageDesign = role === 'admin' || role === 'staff';
   const [designItems, setDesignItems] = useState<DesignItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DesignItem | null>(null);
   const [formName, setFormName] = useState('');
@@ -37,15 +38,26 @@ export default function MasterData() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDesignItems = async () => {
+    setLoading(true);
+    setFetchError(null);
     const { data, error } = await supabase
       .from('design_items')
       .select('*')
       .order('created_at', { ascending: true });
-    if (!error && data) setDesignItems(data as DesignItem[]);
+    if (error) {
+      console.error('[MasterData] fetch design_items error:', error);
+      setFetchError(error.message);
+    } else if (data) {
+      setDesignItems(data as DesignItem[]);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchDesignItems(); }, []);
+  // Fetch setelah user auth siap — bukan saat mount (user bisa belum login)
+  useEffect(() => {
+    if (user) fetchDesignItems();
+    else setLoading(false);
+  }, [user]);
 
   const openAdd = (category: string) => {
     setEditingItem(null);
@@ -106,7 +118,8 @@ export default function MasterData() {
         .update({ name: formName, sku: formSku, image_url: imageUrl } as any)
         .eq('id', editingItem.id);
       if (error) {
-        toast.error('Gagal mengupdate desain');
+        console.error('[MasterData] update error:', error);
+        toast.error('Gagal mengupdate desain: ' + error.message);
       } else {
         toast.success('Desain berhasil diupdate');
       }
@@ -115,7 +128,8 @@ export default function MasterData() {
         .from('design_items')
         .insert({ category: formCategory, name: formName, sku: formSku, image_url: imageUrl } as any);
       if (error) {
-        toast.error('Gagal menambahkan desain');
+        console.error('[MasterData] insert error:', error);
+        toast.error('Gagal menambahkan desain: ' + error.message);
       } else {
         toast.success('Desain berhasil ditambahkan');
       }
@@ -130,7 +144,8 @@ export default function MasterData() {
     if (!confirm(`Hapus desain "${item.name}"?`)) return;
     const { error } = await supabase.from('design_items').delete().eq('id', item.id);
     if (error) {
-      toast.error('Gagal menghapus desain');
+      console.error('[MasterData] delete error:', error);
+      toast.error('Gagal menghapus desain: ' + error.message);
     } else {
       toast.success('Desain berhasil dihapus');
       fetchDesignItems();
@@ -141,9 +156,21 @@ export default function MasterData() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Master Data</h1>
-        <p className="text-sm text-muted-foreground mt-1">Kelola data referensi untuk SPH</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Master Data</h1>
+          <p className="text-sm text-muted-foreground mt-1">Kelola data referensi untuk SPH</p>
+          {fetchError && (
+            <p className="text-xs text-destructive mt-1">
+              Error memuat data: {fetchError}
+              {!user && ' — Anda harus login terlebih dahulu.'}
+            </p>
+          )}
+        </div>
+        <Button variant="outline" size="sm" className="gap-1 shrink-0" onClick={fetchDesignItems} disabled={loading}>
+          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       <Tabs defaultValue="lift" className="space-y-4">
