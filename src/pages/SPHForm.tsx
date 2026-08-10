@@ -892,55 +892,75 @@ function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, s
   return (
     <div className="topbar-app no-print" style={{
       position:'sticky', top:0, zIndex:60, background:'var(--brown)', color:'#fff',
-      display:'flex', alignItems:'center', gap:18, padding:'0 16px', height:56,
       borderBottom:'3px solid var(--orange)', flexShrink:0,
     }}>
-      <button onClick={onBack} style={{background:'none',border:0,color:'#E8DCD3',cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 4px'}}>‹</button>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:26,letterSpacing:'.06em'}}>
-        BEL<span style={{color:'var(--orange)'}}>IFT</span>
-      </div>
-      <div style={{display:'flex',gap:2}} role="tablist">
-        {(['SPH','SPK'] as Mode[]).map(m => (
-          <button key={m} role="tab" aria-selected={mode===m} onClick={()=>setMode(m)} style={{
-            background:'none', border:0, color: mode===m ? '#fff' : '#E8DCD3',
-            padding:'8px 18px', cursor:'pointer',
-            fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:17, letterSpacing:'.08em',
-            borderBottom: mode===m ? '3px solid var(--orange)' : '3px solid transparent',
-            marginBottom:-3,
-          }}>{m === 'SPH' ? 'SPH · Penawaran' : 'SPK · Kontrak'}</button>
-        ))}
-      </div>
-      {/* Desktop: action buttons — hidden on mobile via CSS */}
-      <div className="desktop-topbar-actions" style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
-        {fullName && <span style={{fontSize:12,opacity:.7}}>{fullName}</span>}
-        <button onClick={onSave} disabled={saving} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13,opacity:saving?0.6:1}}>{saving?'Menyimpan…':'Simpan'}</button>
-        <button onClick={onPrint} style={{background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13}}>Cetak / Simpan PDF</button>
-        <button onClick={onSignOut} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontSize:13}}>Keluar</button>
+      {/* Main row: back + logo + mode tabs + desktop actions */}
+      <div style={{display:'flex', alignItems:'center', gap:10, padding:'0 12px', height:52}}>
+        <button onClick={onBack} style={{background:'none',border:0,color:'#E8DCD3',cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 4px',flexShrink:0}}>‹</button>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:26,letterSpacing:'.06em',flexShrink:0}}>
+          BEL<span style={{color:'var(--orange)'}}>IFT</span>
+        </div>
+        {/* Desktop SPH/SPK tabs — shown inline on desktop, hidden on mobile */}
+        <div className="topbar-mode-tabs" style={{display:'flex',gap:2}} role="tablist">
+          {(['SPH','SPK'] as Mode[]).map(m => (
+            <button key={m} role="tab" aria-selected={mode===m} onClick={()=>setMode(m)} style={{
+              background:'none', border:0, color: mode===m ? '#fff' : '#E8DCD3',
+              padding:'8px 14px', cursor:'pointer',
+              fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:16, letterSpacing:'.08em',
+              borderBottom: mode===m ? '3px solid var(--orange)' : '3px solid transparent',
+              marginBottom:-3, whiteSpace:'nowrap',
+            }}>{m === 'SPH' ? 'SPH · Penawaran' : 'SPK · Kontrak'}</button>
+          ))}
+        </div>
+        {/* Desktop: action buttons — hidden on mobile via CSS */}
+        <div className="desktop-topbar-actions" style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
+          {fullName && <span style={{fontSize:12,opacity:.7}}>{fullName}</span>}
+          <button onClick={onSave} disabled={saving} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13,opacity:saving?0.6:1}}>{saving?'Menyimpan…':'Simpan'}</button>
+          <button onClick={onPrint} style={{background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13}}>Cetak / Simpan PDF</button>
+          <button onClick={onSignOut} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontSize:13}}>Keluar</button>
+        </div>
+        {/* Mobile: action buttons row (right side) — hidden on desktop via CSS */}
+        <div className="mobile-actions" style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+          <button onClick={onSave} disabled={saving} title="Simpan" style={{
+            border:'1px solid rgba(255,255,255,.45)',background:'none',color:'#fff',
+            padding:'6px 10px',borderRadius:3,cursor:'pointer',fontSize:13,fontWeight:500,
+            opacity:saving?0.6:1,whiteSpace:'nowrap',
+          }}>{saving?'…':'Simpan'}</button>
+          <button onClick={onPrint} title="Cetak / PDF" style={{
+            background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',
+            padding:'6px 10px',borderRadius:3,cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap',
+          }}>PDF</button>
+          <button onClick={onSignOut} title="Keluar" style={{
+            border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#E8DCD3',
+            padding:'6px 8px',borderRadius:3,cursor:'pointer',fontSize:13,whiteSpace:'nowrap',
+          }}>Keluar</button>
+        </div>
       </div>
 
-      {/* Mobile: Form/Preview tabs + action icons — hidden on desktop via CSS */}
-      <div className="mobile-tabs" style={{marginLeft:'auto',display:'flex',gap:4,alignItems:'center'}}>
-        {/* Tab switcher */}
+      {/* Mobile second row: SPH/SPK mode tabs + Form/Preview switcher */}
+      <div className="mobile-tabs" style={{display:'none', alignItems:'center', justifyContent:'space-between', padding:'0 12px 8px', gap:8}}>
+        {/* SPH/SPK mode tabs */}
+        <div style={{display:'flex',border:'1px solid rgba(255,255,255,.35)',borderRadius:4,overflow:'hidden'}}>
+          {(['SPH','SPK'] as Mode[]).map(m => (
+            <button key={m} role="tab" aria-selected={mode===m} onClick={()=>setMode(m)} style={{
+              background: mode===m ? 'rgba(255,255,255,.15)' : 'none',
+              border:0, color: mode===m ? '#fff' : '#E8DCD3',
+              padding:'5px 14px', cursor:'pointer',
+              fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:14, letterSpacing:'.06em',
+              borderRight: '1px solid rgba(255,255,255,.2)',
+            }}>{m}</button>
+          ))}
+        </div>
+        {/* Form/Preview tab switcher */}
         <div style={{display:'flex',border:'1px solid rgba(255,255,255,.35)',borderRadius:4,overflow:'hidden'}}>
           {(['form','preview'] as const).map(t => (
             <button key={t} onClick={() => setMobileTab(t)} style={{
               background: mobileTab===t ? 'var(--orange)' : 'none',
-              border:0, color:'#fff', padding:'6px 10px', cursor:'pointer',
+              border:0, color:'#fff', padding:'5px 12px', cursor:'pointer',
               fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:13, letterSpacing:'.04em',
             }}>{t==='form'?'Form':'Preview'}</button>
           ))}
         </div>
-        {/* Save button */}
-        <button onClick={onSave} disabled={saving} title="Simpan" style={{
-          border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',
-          padding:'6px 9px',borderRadius:3,cursor:'pointer',fontSize:12,
-          opacity:saving?0.6:1,whiteSpace:'nowrap',
-        }}>{saving?'…':'Simpan'}</button>
-        {/* Print button */}
-        <button onClick={onPrint} title="Cetak / PDF" style={{
-          background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',
-          padding:'6px 9px',borderRadius:3,cursor:'pointer',fontSize:12,whiteSpace:'nowrap',
-        }}>PDF</button>
       </div>
     </div>
   );

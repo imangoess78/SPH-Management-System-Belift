@@ -391,13 +391,14 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 }
 
 /* ===== GENERATOR SPLIT-PANEL LAYOUT ===== */
+/* Desktop: topbar is always one row = 55px (52px + 3px border) */
 .form-panel {
   background: #fff;
   border-right: 1px solid var(--line);
-  height: calc(100vh - 56px);
+  height: calc(100vh - 55px);
   overflow-y: auto;
   position: sticky;
-  top: 56px;
+  top: 55px;
   padding-bottom: 60px;
 }
 .preview-panel {
@@ -407,7 +408,7 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
   align-items: center;
   gap: 18px;
   overflow-y: auto;
-  height: calc(100vh - 56px);
+  height: calc(100vh - 55px);
   background: var(--shell);
 }
 
@@ -526,9 +527,11 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .tc { text-align: center; }
 
 /* ── Responsive: desktop (≥768px) always shows split layout ── */
-/* Mobile-specific topbar controls */
+/* Mobile-specific topbar controls — hidden by default (desktop) */
 .mobile-tabs { display: none !important; }
+.mobile-actions { display: none !important; }
 .desktop-topbar-actions { display: flex !important; gap: 8px; align-items: center; }
+.topbar-mode-tabs { display: flex !important; }
 
 /* On desktop, both panels are always visible regardless of mobileVisible prop */
 @media (min-width: 768px) {
@@ -538,24 +541,25 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 
 /* ── Responsive: mobile (<768px) uses tab switching ── */
 @media (max-width: 767px) {
-  /* Show mobile tab switcher, hide desktop action buttons */
+  /* Show mobile controls, hide desktop-only controls */
   .mobile-tabs { display: flex !important; }
+  .mobile-actions { display: flex !important; }
   .desktop-topbar-actions { display: none !important; }
+  .topbar-mode-tabs { display: none !important; }
 
   /* Single-column layout on mobile */
   .gen-layout {
     grid-template-columns: 1fr !important;
   }
 
-  /* Form panel: full height, no sticky on mobile */
+  /* Form/preview panels: subtract two-row header (~92px) */
   .form-panel {
-    height: calc(100svh - 56px);
+    height: calc(100svh - 92px);
     position: static;
   }
 
-  /* Preview panel: full height on mobile */
   .preview-panel {
-    height: calc(100svh - 56px);
+    height: calc(100svh - 92px);
   }
 }
 
