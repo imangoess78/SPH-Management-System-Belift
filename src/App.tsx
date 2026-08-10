@@ -36,6 +36,7 @@ function AppRoutes() {
       <Route path="/signup" element={user ? <Navigate to="/" replace /> : <SignupPage />} />
       {/* Generator: full-bleed, no AppLayout sidebar */}
       <Route path="/sph/new" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
+      <Route path="/sph/:id" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
       <Route path="/sph/:id/edit" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
       <Route path="/spk/new" element={<ProtectedRoute><SPHForm defaultMode="SPK" /></ProtectedRoute>} />
       <Route path="/spk/:id/edit" element={<ProtectedRoute><SPHForm defaultMode="SPK" /></ProtectedRoute>} />
@@ -45,7 +46,6 @@ function AppRoutes() {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/sph" element={<SPHList />} />
-              <Route path="/sph/:id" element={<SPHForm />} />
               <Route path="/sph/:id/preview" element={<SPHPreview />} />
               <Route path="/spk" element={<SPKList />} />
               <Route path="/master" element={<MasterData />} />

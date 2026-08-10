@@ -123,6 +123,28 @@ export async function getNextDocIncrement(): Promise<number> {
   return (count || 0) + 1;
 }
 
+/**
+ * Returns the next available sequential number for a given doc type (SPH or SPK).
+ * Reads all existing nomor_sph values, filters by type, parses the leading number,
+ * and returns max + 1. Falls back to 1 if no docs exist yet.
+ */
+export async function getNextNoUrut(mode: 'SPH' | 'SPK'): Promise<number> {
+  const { data, error } = await (supabase as any)
+    .from('sph')
+    .select('nomor_sph');
+  if (error || !data) return 1;
+
+  const typeSlug = mode === 'SPH' ? '/SPH/' : '/SPK/';
+  let max = 0;
+  (data as { nomor_sph: string }[]).forEach(row => {
+    const n = row.nomor_sph || '';
+    if (!n.includes(typeSlug)) return;
+    const leading = parseInt(n.split('/')[0], 10);
+    if (!isNaN(leading) && leading > max) max = leading;
+  });
+  return max + 1;
+}
+
 export async function saveDocument(doc: Record<string, unknown>, userId: string): Promise<boolean> {
   // Build nomor_sph from the full generator state
   const state = (doc.state as Record<string, unknown>) || doc;

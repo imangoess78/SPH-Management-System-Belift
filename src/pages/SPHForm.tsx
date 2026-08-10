@@ -14,7 +14,7 @@ import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords, fmtID,
   parseDate, pad3, noSuratSPH, noSuratSPK,
   totalKel, grandTotal, kelAktif, sumTermin,
-  saveDocument, generateId,
+  saveDocument, generateId, getNextNoUrut,
 } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -459,6 +459,13 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   );
   const upd = useCallback((k: keyof S, v: unknown) => setS(prev => ({ ...prev, [k]: v })), []);
 
+  // Auto-populate noUrut with next available number per doc type
+  useEffect(() => {
+    getNextNoUrut(mode).then(next => {
+      upd('noUrut', String(next));
+    });
+  }, [mode]);
+
   // Fetch design_items from Supabase — re-run when user is available (RLS requires auth)
   useEffect(() => {
     if (!user) return; // wait for auth session
@@ -875,10 +882,41 @@ function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesa
   const html = mode === 'SPH'
     ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
     : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
+
+  // Compute scale so 794px-wide A4 page fits within the mobile viewport
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    function computeScale() {
+      if (window.innerWidth < 768) {
+        // 210mm at 96dpi ≈ 794px. Target: viewport width minus 16px margin.
+        const s = Math.min(1, (window.innerWidth - 16) / 794);
+        setScale(s);
+      } else {
+        setScale(1);
+      }
+    }
+    computeScale();
+    window.addEventListener('resize', computeScale);
+    return () => window.removeEventListener('resize', computeScale);
+  }, []);
+
+  // Natural height of all pages: SPH ~5 pages, SPK ~12 pages at 297mm each.
+  // We measure via a rough estimate: count <div class="page"> occurrences.
+  const pageCount = (html.match(/class="page/g) || []).length || 1;
+  // 297mm at 96dpi ≈ 1123px per page
+  const naturalH = pageCount * 1123;
+
   return (
     <div className="preview-panel" style={{display: mobileVisible ? undefined : 'none'}} data-mobile-visible={mobileVisible}>
       <div className="plabel no-print">Pratinjau {mode} — A4</div>
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <div
+        className="preview-scaler"
+        style={scale < 1 ? {
+          ['--preview-scale' as any]: scale,
+          ['--preview-natural-h' as any]: `${naturalH}px`,
+        } : undefined}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   );
 }

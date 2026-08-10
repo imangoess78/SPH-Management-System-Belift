@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FileText, PlusCircle, Trash2, Copy, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 export default function SPHList() {
+  const [searchParams] = useSearchParams();
   const [sphList, setSphList] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'final'>(
+    (searchParams.get('status') as 'draft' | 'final') || 'all'
+  );
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -66,11 +70,13 @@ export default function SPHList() {
 
   const filteredList: any[] = sphList.map(norm).filter(s => {
     const q = search.toLowerCase();
-    return (
+    const matchSearch = (
       s.nomorSPH.toLowerCase().includes(q) ||
       s.kepada.toLowerCase().includes(q) ||
       s.jenisLift.toLowerCase().includes(q)
     );
+    const matchStatus = statusFilter === 'all' || s.status === statusFilter;
+    return matchSearch && matchStatus;
   });
 
   return (
@@ -81,8 +87,16 @@ export default function SPHList() {
           <p className="text-sm text-muted-foreground mt-1">{filteredList.length} surat penawaran</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center">
+          {/* Status filter tabs */}
+          <div className="flex rounded-lg border overflow-hidden shrink-0">
+            {(['all', 'draft', 'final'] as const).map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)} className={`px-3 py-1.5 text-xs font-medium transition-colors ${statusFilter === f ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted/50'}`}>
+                {f === 'all' ? 'Semua' : f === 'draft' ? 'Draft' : 'Final'}
+              </button>
+            ))}
+          </div>
           <Input
-            className="w-full sm:w-64"
+            className="w-full sm:w-56"
             placeholder="Cari nomor, perusahaan, jenis lift..."
             value={search}
             onChange={e => setSearch(e.target.value)}
