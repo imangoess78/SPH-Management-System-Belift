@@ -525,11 +525,38 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .off-row td:nth-child(n+2) { opacity: .4; }
 .tc { text-align: center; }
 
-/* Responsive */
-@media (max-width: 1180px) {
-  .form-panel { height: auto; position: static; }
-  .preview-panel { height: auto; }
-  .gen-layout { grid-template-columns: 1fr !important; }
+/* ── Responsive: desktop (≥768px) always shows split layout ── */
+/* Mobile-specific topbar controls */
+.mobile-tabs { display: none !important; }
+.desktop-topbar-actions { display: flex !important; gap: 8px; align-items: center; }
+
+/* On desktop, both panels are always visible regardless of mobileVisible prop */
+@media (min-width: 768px) {
+  .form-panel { display: block !important; }
+  .preview-panel { display: flex !important; }
+}
+
+/* ── Responsive: mobile (<768px) uses tab switching ── */
+@media (max-width: 767px) {
+  /* Show mobile tab switcher, hide desktop action buttons */
+  .mobile-tabs { display: flex !important; }
+  .desktop-topbar-actions { display: none !important; }
+
+  /* Single-column layout on mobile */
+  .gen-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Form panel: full height, no sticky on mobile */
+  .form-panel {
+    height: calc(100svh - 56px);
+    position: static;
+  }
+
+  /* Preview panel: full height on mobile */
+  .preview-panel {
+    height: calc(100svh - 56px);
+  }
 }
 
 /* Print */

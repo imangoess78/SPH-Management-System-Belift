@@ -443,6 +443,7 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   const navigate = useNavigate();
   const { signOut, fullName, user } = useAuth();
   const [mode, setMode] = useState<Mode>(defaultMode || 'SPH');
+  const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
   const [s, setS] = useState<S>(DEFAULT_S);
   const [modeHarga, setModeHarga] = useState<ModeHarga>('satuan');
   const [items, setItems] = useState<KatalogItem[]>(makeDefaultItems());
@@ -564,13 +565,15 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   }
 
   return (
-    <div style={{display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden'}}>
+    <div style={{display:'flex', flexDirection:'column', height:'100svh', overflow:'hidden'}}>
       {/* TOP BAR */}
       <TopBar mode={mode} setMode={setMode}
         fullName={fullName} onBack={() => navigate('/')} onSignOut={signOut}
-        onPrint={handlePrint} onSave={handleSave} saving={saving} />
-      {/* SPLIT LAYOUT */}
-      <div className="gen-layout" style={{display:'grid', gridTemplateColumns:'430px 1fr', flex:1, overflow:'hidden'}}>
+        onPrint={handlePrint} onSave={handleSave} saving={saving}
+        mobileTab={mobileTab} setMobileTab={setMobileTab} />
+
+      {/* SPLIT LAYOUT — desktop: side-by-side | mobile: tab-switched single panel */}
+      <div className="gen-layout" style={{flex:1, overflow:'hidden', display:'grid', gridTemplateColumns:'430px 1fr'}}>
         <FormPanel
           mode={mode} s={s} upd={upd} items={items} setItemField={setItemField}
           modeHarga={modeHarga} setModeHarga={setModeHarga} isiCepat={isiCepat}
@@ -580,9 +583,11 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
           noSuratStr={noSurat(mode,s)} namaFileStr={namaFile(mode,s)}
           totalKelFn={(k) => totalKel(items,k,modeHarga)} gt={gt}
           liveDesain={liveDesain}
+          mobileVisible={mobileTab === 'form'}
         />
         <PreviewPanel mode={mode} s={s} items={items} termin={termin}
-          modeHarga={modeHarga} pilihDesain={pilihDesain} liveDesain={liveDesain} />
+          modeHarga={modeHarga} pilihDesain={pilihDesain} liveDesain={liveDesain}
+          mobileVisible={mobileTab === 'preview'} />
       </div>
     </div>
   );
@@ -598,6 +603,7 @@ interface FormPanelProps {
   pilihDesain: DesainPilihan; setPilihDesain: (d: DesainPilihan) => void;
   noSuratStr: string; namaFileStr: string; totalKelFn: (k: string) => number; gt: number;
   liveDesain: Record<string, DesainOption[]>;
+  mobileVisible: boolean;
 }
 
 function Grp({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
@@ -634,13 +640,13 @@ function Ftxt({ label, value, type, onChange, hint }: { label: string; value: st
 function FormPanel(props: FormPanelProps) {
   const { mode, s, upd, items, setItemField, modeHarga, setModeHarga, isiCepat,
     termin, tabTermin, setTabTermin, addT, delT, setT,
-    pilihDesain, setPilihDesain, noSuratStr, namaFileStr, totalKelFn, gt } = props;
+    pilihDesain, setPilihDesain, noSuratStr, namaFileStr, totalKelFn, gt, mobileVisible } = props;
   const isSPK = mode === 'SPK';
   const aktif = kelAktif(items);
   const safeTab = aktif.includes(tabTermin) ? tabTermin : (aktif[0] || 'PENGADAAN');
 
   return (
-    <div className="form-panel no-print">
+    <div className="form-panel no-print" style={{display: mobileVisible ? undefined : 'none'}}>
       <Grp title="Nomor &amp; tanggal" open>
         <div className="row2">
           <Ftxt label="No urut" value={s.noUrut} onChange={v => upd('noUrut', v)} />
@@ -864,13 +870,13 @@ function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, 
 }
 
 // ── Preview Panel ────────────────────────────────────────────
-function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesain }:
-  { mode: Mode; s: S; items: KatalogItem[]; termin: Record<string,TerminItem[]>; modeHarga: ModeHarga; pilihDesain: DesainPilihan; liveDesain: Record<string, DesainOption[]> }) {
+function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesain, mobileVisible }:
+  { mode: Mode; s: S; items: KatalogItem[]; termin: Record<string,TerminItem[]>; modeHarga: ModeHarga; pilihDesain: DesainPilihan; liveDesain: Record<string, DesainOption[]>; mobileVisible: boolean }) {
   const html = mode === 'SPH'
     ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
     : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
   return (
-    <div className="preview-panel">
+    <div className="preview-panel" style={{display: mobileVisible ? undefined : 'none'}} data-mobile-visible={mobileVisible}>
       <div className="plabel no-print">Pratinjau {mode} — A4</div>
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
@@ -878,10 +884,11 @@ function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesa
 }
 
 // ── Top Bar ─────────────────────────────────────────────────
-function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, saving }:
+function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, saving, mobileTab, setMobileTab }:
   { mode:Mode; setMode:(m:Mode)=>void; fullName:string|null;
     onBack:()=>void; onSignOut:()=>void; onPrint:()=>void;
-    onSave:()=>void; saving:boolean }) {
+    onSave:()=>void; saving:boolean;
+    mobileTab:'form'|'preview'; setMobileTab:(t:'form'|'preview')=>void; }) {
   return (
     <div className="topbar-app no-print" style={{
       position:'sticky', top:0, zIndex:60, background:'var(--brown)', color:'#fff',
@@ -903,11 +910,37 @@ function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, s
           }}>{m === 'SPH' ? 'SPH · Penawaran' : 'SPK · Kontrak'}</button>
         ))}
       </div>
-      <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
+      {/* Desktop: action buttons — hidden on mobile via CSS */}
+      <div className="desktop-topbar-actions" style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
         {fullName && <span style={{fontSize:12,opacity:.7}}>{fullName}</span>}
         <button onClick={onSave} disabled={saving} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13,opacity:saving?0.6:1}}>{saving?'Menyimpan…':'Simpan'}</button>
         <button onClick={onPrint} style={{background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontWeight:500,fontSize:13}}>Cetak / Simpan PDF</button>
         <button onClick={onSignOut} style={{border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',padding:'7px 13px',borderRadius:3,cursor:'pointer',fontSize:13}}>Keluar</button>
+      </div>
+
+      {/* Mobile: Form/Preview tabs + action icons — hidden on desktop via CSS */}
+      <div className="mobile-tabs" style={{marginLeft:'auto',display:'flex',gap:4,alignItems:'center'}}>
+        {/* Tab switcher */}
+        <div style={{display:'flex',border:'1px solid rgba(255,255,255,.35)',borderRadius:4,overflow:'hidden'}}>
+          {(['form','preview'] as const).map(t => (
+            <button key={t} onClick={() => setMobileTab(t)} style={{
+              background: mobileTab===t ? 'var(--orange)' : 'none',
+              border:0, color:'#fff', padding:'6px 10px', cursor:'pointer',
+              fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:13, letterSpacing:'.04em',
+            }}>{t==='form'?'Form':'Preview'}</button>
+          ))}
+        </div>
+        {/* Save button */}
+        <button onClick={onSave} disabled={saving} title="Simpan" style={{
+          border:'1px solid rgba(255,255,255,.35)',background:'none',color:'#fff',
+          padding:'6px 9px',borderRadius:3,cursor:'pointer',fontSize:12,
+          opacity:saving?0.6:1,whiteSpace:'nowrap',
+        }}>{saving?'…':'Simpan'}</button>
+        {/* Print button */}
+        <button onClick={onPrint} title="Cetak / PDF" style={{
+          background:'var(--orange)',border:'1px solid var(--orange)',color:'#fff',
+          padding:'6px 9px',borderRadius:3,cursor:'pointer',fontSize:12,whiteSpace:'nowrap',
+        }}>PDF</button>
       </div>
     </div>
   );
