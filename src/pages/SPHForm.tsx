@@ -648,7 +648,7 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   return (
     <div style={{display:'flex', flexDirection:'column', height:'100svh', overflow:'hidden'}}>
       {/* TOP BAR */}
-      <TopBar mode={mode} setMode={setMode}
+      <TopBar mode={mode}
         fullName={fullName} onBack={() => navigate('/')} onSignOut={signOut}
         onPrint={handlePrint} onSave={handleSave} saving={saving}
         onFinalize={handleFinalize} finalizing={finalizing}
@@ -997,8 +997,8 @@ function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesa
 }
 
 // ── Top Bar ─────────────────────────────────────────────────
-function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, saving, onFinalize, finalizing, mobileTab, setMobileTab }:
-  { mode:Mode; setMode:(m:Mode)=>void; fullName:string|null;
+function TopBar({ mode, fullName, onBack, onSignOut, onPrint, onSave, saving, onFinalize, finalizing, mobileTab, setMobileTab }:
+  { mode:Mode; fullName:string|null;
     onBack:()=>void; onSignOut:()=>void; onPrint:()=>void;
     onSave:()=>void; saving:boolean;
     onFinalize:()=>void; finalizing:boolean;
@@ -1014,17 +1014,13 @@ function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, s
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:26,letterSpacing:'.06em',flexShrink:0}}>
           BEL<span style={{color:'var(--orange)'}}>IFT</span>
         </div>
-        {/* Desktop SPH/SPK tabs — shown inline on desktop, hidden on mobile */}
-        <div className="topbar-mode-tabs" style={{display:'flex',gap:2}} role="tablist">
-          {(['SPH','SPK'] as Mode[]).map(m => (
-            <button key={m} role="tab" aria-selected={mode===m} onClick={()=>setMode(m)} style={{
-              background:'none', border:0, color: mode===m ? '#fff' : '#E8DCD3',
-              padding:'8px 14px', cursor:'pointer',
-              fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:16, letterSpacing:'.08em',
-              borderBottom: mode===m ? '3px solid var(--orange)' : '3px solid transparent',
-              marginBottom:-3, whiteSpace:'nowrap',
-            }}>{m === 'SPH' ? 'SPH · Penawaran' : 'SPK · Kontrak'}</button>
-          ))}
+        {/* Current mode label — no tab switching */}
+        <div className="topbar-mode-tabs" style={{display:'flex',gap:2}}>
+          <span style={{
+            color:'#fff', padding:'8px 14px',
+            fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:16, letterSpacing:'.08em',
+            borderBottom:'3px solid var(--orange)', marginBottom:-3, whiteSpace:'nowrap',
+          }}>{mode === 'SPH' ? 'SPH · Penawaran' : 'SPK · Kontrak'}</span>
         </div>
         {/* Desktop: action buttons — hidden on mobile via CSS */}
         <div className="desktop-topbar-actions" style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
@@ -1063,18 +1059,12 @@ function TopBar({ mode, setMode, fullName, onBack, onSignOut, onPrint, onSave, s
 
       {/* Mobile second row: SPH/SPK mode tabs + Form/Preview switcher */}
       <div className="mobile-tabs" style={{display:'none', alignItems:'center', justifyContent:'space-between', padding:'0 12px 8px', gap:8}}>
-        {/* SPH/SPK mode tabs */}
-        <div style={{display:'flex',border:'1px solid rgba(255,255,255,.35)',borderRadius:4,overflow:'hidden'}}>
-          {(['SPH','SPK'] as Mode[]).map(m => (
-            <button key={m} role="tab" aria-selected={mode===m} onClick={()=>setMode(m)} style={{
-              background: mode===m ? 'rgba(255,255,255,.15)' : 'none',
-              border:0, color: mode===m ? '#fff' : '#E8DCD3',
-              padding:'5px 14px', cursor:'pointer',
-              fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:14, letterSpacing:'.06em',
-              borderRight: '1px solid rgba(255,255,255,.2)',
-            }}>{m}</button>
-          ))}
-        </div>
+        {/* Current mode label — no tab switching */}
+        <span style={{
+          color:'#fff', padding:'5px 14px',
+          fontFamily:"'Barlow Condensed',sans-serif", fontWeight:600, fontSize:14, letterSpacing:'.06em',
+          border:'1px solid rgba(255,255,255,.35)', borderRadius:4,
+        }}>{mode === 'SPH' ? 'SPH · Penawaran' : 'SPK · Kontrak'}</span>
         {/* Form/Preview tab switcher */}
         <div style={{display:'flex',border:'1px solid rgba(255,255,255,.35)',borderRadius:4,overflow:'hidden'}}>
           {(['form','preview'] as const).map(t => (
