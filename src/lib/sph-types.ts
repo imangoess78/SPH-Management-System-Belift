@@ -144,9 +144,9 @@ export function makeDefaultItems(): KatalogItem[] {
 }
 
 export const KEL_LABEL: Record<string, string> = {
-  PENGADAAN: 'SPK 1 · Pengadaan Lift',
-  INSTALASI: 'SPK 2 · Instalasi & Maintenance',
-  SIPIL:     'SPK 3 · Pekerjaan Sipil',
+  PENGADAAN: 'Pengadaan Lift',
+  INSTALASI: 'Instalasi & Maintenance',
+  SIPIL:     'Pekerjaan Sipil',
 };
 
 export const SYARAT: Record<string, string[]> = {

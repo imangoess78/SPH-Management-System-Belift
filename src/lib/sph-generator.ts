@@ -106,7 +106,7 @@ function tabelHargaDoc(items: KatalogItem[], modeH: ModeHarga): string {
       }
     });
     rows += '<tr><td colspan="' + (q ? 5 : 4) + '" class="rt" style="font-weight:600">Sub Total ' +
-      KEL_LABEL[kel].split('· ')[1] + '</td><td class="n" style="font-weight:600">' + ribu(totalKel(items, kel, modeH)) + '</td></tr>';
+      KEL_LABEL[kel] + '</td><td class="n" style="font-weight:600">' + ribu(totalKel(items, kel, modeH)) + '</td></tr>';
   });
   return '<table class="doc"><thead><tr><th style="width:9mm">No</th><th>Item Pekerjaan</th>' +
     (q ? '<th style="width:18mm">Qty</th>' : '') +

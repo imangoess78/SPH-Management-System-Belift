@@ -140,7 +140,7 @@ function tabelHargaDoc(items: KatalogItem[], mode: ModeHarga): string {
       }
     });
     rows += '<tr><td colspan="'+(q?5:4)+'" class="rt" style="font-weight:600">Sub Total '+
-      KEL_LABEL[kel].split('· ')[1]+'</td><td class="n" style="font-weight:600">'+ribu(totalKel(items,kel,mode))+'</td></tr>';
+      KEL_LABEL[kel]+'</td><td class="n" style="font-weight:600">'+ribu(totalKel(items,kel,mode))+'</td></tr>';
   });
   return '<table class="doc"><thead><tr><th style="width:9mm">No</th><th>Item Pekerjaan</th>' +
     (q?'<th style="width:18mm">Qty</th>':'') +
@@ -708,9 +708,9 @@ function FormPanel(props: FormPanelProps) {
         <div className="f-hint" style={{marginTop:8}}>Centang <b>Include</b> kalau item sudah tercakup di harga induknya.</div>
         <button className="mini-btn" onClick={isiCepat}>Isi cepat 87/13 dari satu nilai kontrak</button>
         <div className="computed-box">
-          Pengadaan (SPK 1): <b>{rupiah(totalKelFn('PENGADAAN'))}</b><br />
-          Instalasi (SPK 2): <b>{rupiah(totalKelFn('INSTALASI'))}</b><br />
-          Pekerjaan Sipil (SPK 3): <b>{rupiah(totalKelFn('SIPIL'))}</b><br />
+          Pengadaan: <b>{rupiah(totalKelFn('PENGADAAN'))}</b><br />
+          Instalasi: <b>{rupiah(totalKelFn('INSTALASI'))}</b><br />
+          Pekerjaan Sipil: <b>{rupiah(totalKelFn('SIPIL'))}</b><br />
           <span className="big-total">Total: {rupiah(gt)}</span><br />
           <span style={{fontSize:'11.5px'}}>{terbilangRp(gt)}</span>
         </div>
@@ -830,7 +830,7 @@ function PriceTable({ items, setItemField, modeHarga }: { items: KatalogItem[]; 
       </thead>
       <tbody>
         {items.map((it, idx) => {
-          const kelHeader = it.kel !== lastKel ? (lastKel = it.kel, <tr key={'kel'+it.kel} className="kel-row"><td colSpan={q?6:5} dangerouslySetInnerHTML={{__html: KEL_LABEL[it.kel]}} /></tr>) : null;
+          const kelHeader = it.kel !== lastKel ? (lastKel = it.kel, null) : null;
           const d = it.inc;
           return (
             <>
@@ -864,7 +864,7 @@ function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, 
       <div className="chip-bar">
         {aktif.map(k => (
           <button key={k} className={'chip'+(tabTermin===k?' chip-on':'')} onClick={() => setTabTermin(k)}>
-            {KEL_LABEL[k].split('· ')[1]}
+            {KEL_LABEL[k]}
           </button>
         ))}
       </div>
