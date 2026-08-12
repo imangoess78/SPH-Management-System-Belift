@@ -119,7 +119,7 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
   const naturalH = pageCount * 1123;
 
   return (
-    <div>
+    <div style={{ overflowX: 'hidden', width: '100%' }}>
       <div className="flex items-center gap-2 mb-3 px-1 no-print">
         <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4" />
@@ -129,16 +129,18 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
           <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Cetak / </span>PDF
         </Button>
       </div>
-      {/* Render A4 pages directly in DOM (same as SPHForm PreviewPanel) so
-          relative image paths resolve against the app's origin correctly. */}
-      <div
-        className="preview-scaler"
-        style={scale < 1 ? {
-          ['--preview-scale' as any]: scale,
-          ['--preview-natural-h' as any]: `${naturalH}px`,
-        } : undefined}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      {/* Centering wrapper mirrors .preview-panel's align-items:center so
+          transform-origin:top center keeps the page horizontally centered on mobile */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'hidden', width: '100%' }}>
+        <div
+          className="preview-scaler"
+          style={scale < 1 ? {
+            ['--preview-scale' as any]: scale,
+            ['--preview-natural-h' as any]: `${naturalH}px`,
+          } : undefined}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
     </div>
   );
 }
