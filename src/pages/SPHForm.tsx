@@ -245,79 +245,161 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
 function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>, mode: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
   const d = parseDate(s.tanggal);
   const hari = HARI_ID[d.getDay()];
-  const adaSipil = totalKel(items,'SIPIL',mode) > 0;
   const gt = grandTotal(items, mode);
 
+  // Pasal block: flowing, no forced page break per pasal
   function P(n: number, t: string, b: string) {
-    return '<div class="page cont"><p style="text-align:center;font-weight:700;text-decoration:underline;margin-bottom:1mm">PASAL '+n+
-      '</p><p style="text-align:center;font-weight:700;margin-bottom:5mm">'+t+'</p>'+b+
-      '<div class="pgnum">'+(n+1)+'</div><div class="paraf">_______ Paraf _______</div></div>';
+    return '<div class="pasal-blk">' +
+      '<p style="text-align:center;font-weight:700;text-decoration:underline;margin-bottom:1mm">PASAL&nbsp;&nbsp;' + n + '</p>' +
+      '<p style="text-align:center;font-weight:700;margin-bottom:5mm">' + t + '</p>' +
+      b + '</div>';
+  }
+
+  function terminParagraphs(): string {
+    const allTermin: {kel:string;idx:number;pct:number;nominal:number;syarat:string}[] = [];
+    kelAktif(items).filter(k => totalKel(items,k,mode)>0).forEach(kel => {
+      const dasar = totalKel(items,kel,mode);
+      (termin[kel]||[]).forEach((t,i) => {
+        allTermin.push({kel,idx:i,pct:num(t.p),nominal:dasar*num(t.p)/100,syarat:t.s});
+      });
+    });
+    if (!allTermin.length) return '';
+    const ordinal = ['Pertama','Kedua','Ketiga','Keempat','Kelima','Keenam','Ketujuh','Kedelapan','Kesembilan','Kesepuluh'];
+    return allTermin.map((t,gi) =>
+      '<p>Pembayaran '+(ordinal[gi]||'ke-'+(gi+1))+' sebesar <strong>'+rupiah(t.nominal)+'</strong> atau '+
+      '<strong>'+t.pct+'% ('+capWords(terbilang(t.pct))+' Persen)</strong> dari nilai kontrak '+esc(t.syarat)+'.</p>'
+    ).join('');
   }
 
   return injectDeco('' +
-  '<div class="page">'+kop('CONTRACT', s.alamatKantor)+'<div class="docno">'+noSuratSPK(s.noUrut,s.tanggal,s.formatNoSPK)+'</div>'+
+  // ── Halaman 1: Pembukaan ──────────────────────────────────
+  '<div class="page">'+kop('CONTRACT', s.alamatKantor)+
+    '<div class="docno">'+noSuratSPK(s.noUrut,s.tanggal,s.formatNoSPK)+'</div>'+
     '<p>Pada hari ini, <strong>'+hari+'</strong> tanggal <strong>'+capWords(terbilang(d.getDate()))+'</strong> bulan '+
-    '<strong>'+fmtID(d).split(' ')[1]+'</strong> tahun <strong>'+capWords(terbilang(d.getFullYear()))+'</strong>, kami yang bertanda tangan dibawah ini:</p>'+
-    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td>: <strong>'+esc(s.namaCustomer||'…')+'</strong></td></tr>'+
-    '<tr><td>NIK</td><td>: '+esc(s.nikCustomer||'…')+'</td></tr>'+
-    '<tr><td style="vertical-align:top">Alamat</td><td>: '+esc(s.alamatCustomer||'…')+'</td></tr></table>'+
+    '<strong>'+fmtID(d).split(' ')[1]+'</strong> tahun <strong>'+capWords(terbilang(d.getFullYear()))+'</strong>, '+
+    'kami yang bertanda tangan dibawah ini :</p>'+
+    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td style="vertical-align:top">:</td><td>&nbsp;<strong>'+esc(s.namaCustomer||'…')+'</strong></td></tr>'+
+    '<tr><td style="vertical-align:top">NIK</td><td style="vertical-align:top">:</td><td>&nbsp;'+esc(s.nikCustomer||'…')+'</td></tr>'+
+    '<tr><td style="vertical-align:top">Alamat</td><td style="vertical-align:top">:</td><td>&nbsp;'+esc(s.alamatCustomer||'…')+'</td></tr></table>'+
     '<p>Dalam hal ini bertindak untuk dan atas nama <strong>'+esc(s.namaPerusahaan||s.namaCustomer||'…')+'</strong> '+
     'untuk selanjutnya disebut <strong>PIHAK PERTAMA</strong></p>'+
-    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td>: <strong>'+esc(s.direktur)+'</strong></td></tr>'+
-    '<tr><td>Jabatan</td><td>: Direktur PT Belift Amanah Indonesia</td></tr>'+
-    '<tr><td style="vertical-align:top">Alamat</td><td>: '+esc(s.alamatKantor)+'</td></tr></table>'+
-    '<p>Dalam hal ini bertindak untuk dan atas nama <strong>PT. Belift Amanah Indonesia</strong> untuk selanjutnya '+
+    '<table style="margin:4mm 0 4mm 10mm"><tr><td style="width:24mm;vertical-align:top">Nama</td><td style="vertical-align:top">:</td><td>&nbsp;<strong>'+esc(s.direktur)+'</strong></td></tr>'+
+    '<tr><td>Jabatan</td><td>:</td><td>&nbsp;Direktur PT Belift Amanah Indonesia</td></tr>'+
+    '<tr><td style="vertical-align:top">Alamat</td><td style="vertical-align:top">:</td><td>&nbsp;'+esc(s.alamatKantor)+'</td></tr></table>'+
+    '<p>Dalam hal ini bertindak untuk dan atas nama <strong>PT.Belift Amanah Indonesia</strong> untuk selanjutnya '+
     'disebut sebagai <strong>PIHAK KEDUA</strong></p>'+
-    '<p>Selanjutnya kedua belah pihak mengadakan Surat Perjanjian Kerja sebagai berikut:</p>'+
+    '<p>Selanjutnya kedua belah pihak mengadakan Surat Perjanjian Kerja sebagai berikut :</p>'+
     '<div class="pgnum">1</div><div class="paraf">_______ Paraf _______</div></div>'+
 
+  // ── Semua Pasal dalam satu halaman kontinu ────────────────
+  '<div class="page cont spk-body"><div class="paraf">_______ Paraf _______</div>'+
+
   P(1,'DEFINISI ISTILAH DAN KETENTUAN',
-    '<p><strong>1. SPK</strong> — dokumen resmi dasar pelaksanaan pekerjaan.</p>'+
-    '<p><strong>2. MOS (Material On Site)</strong> — material telah tiba dan tersimpan di lokasi proyek.</p>'+
-    '<p><strong>3. BAST</strong> — dokumen resmi serah terima pekerjaan; dasar dimulainya masa garansi.</p>'+
-    '<p><strong>4. Commissioning</strong> — pengujian dan verifikasi fungsi, keselamatan, dan performa unit.</p>'+
-    '<p><strong>5. Masa Garansi</strong> — Free Maintenance '+esc(s.freeMtn)+' · Garansi Spare Part '+esc(s.garSpare)+
-    ' · Garansi Mesin/Motor '+esc(s.garMesin)+', dihitung sejak tanggal BAST.</p>')+
+    '<p><strong>1. SPK (Surat Perintah Kerja)</strong></p>'+
+    '<p>SPK adalah dokumen resmi yang menjadi dasar pelaksanaan pekerjaan antara Pemberi Kerja dan Pelaksana Pekerjaan yang memuat ruang lingkup pekerjaan, nilai kontrak, waktu pelaksanaan, serta syarat dan ketentuan pekerjaan.</p>'+
+    '<p><strong>Ketentuan:</strong></p>'+
+    '<ul class="ul"><li>SPK menjadi dasar hukum pelaksanaan proyek.</li>'+
+    '<li>Semua pekerjaan yang dilakukan harus mengacu pada SPK beserta lampirannya.</li></ul>'+
+
+    '<p><strong>2. MOS (Material On Site)</strong></p>'+
+    '<p>MOS atau Material On Site adalah kondisi dimana material, komponen, atau peralatan yang akan digunakan dalam pekerjaan telah tiba dan tersimpan di lokasi proyek, namun belum dilakukan pemasangan.</p>'+
+    '<p><strong>Ketentuan:</strong></p>'+
+    '<ul class="ul"><li>Material yang dinyatakan sebagai MOS telah berada secara fisik di lokasi proyek dan dapat diverifikasi oleh Pemberi Kerja atau Pengawas Proyek.</li>'+
+    '<li>Material harus dalam kondisi baik, lengkap, dan sesuai dengan spesifikasi yang tercantum dalam dokumen kontrak.</li>'+
+    '<li>Material yang telah dinyatakan sebagai MOS dapat dijadikan dasar untuk perhitungan progres pekerjaan atau penagihan termin pembayaran sesuai ketentuan dalam kontrak.</li>'+
+    '<li>Risiko kehilangan atau kerusakan material sebelum proses instalasi menjadi tanggung jawab Pelaksana Pekerjaan, kecuali ditentukan lain dalam perjanjian.</li>'+
+    '<li>Pemberi Kerja berhak melakukan pemeriksaan terhadap material yang dinyatakan sebagai MOS untuk memastikan kesesuaian dengan spesifikasi proyek.</li></ul>'+
+
+    '<p><strong>3. BAST (Berita Acara Serah Terima)</strong></p>'+
+    '<p>BAST adalah dokumen resmi yang menyatakan bahwa pekerjaan telah selesai dilaksanakan dan diserahkan dari Pelaksana Pekerjaan kepada Pemberi Kerja.</p>'+
+    '<p><strong>Ketentuan:</strong></p>'+
+    '<ul class="ul"><li>BAST menjadi dasar dimulainya masa garansi.</li>'+
+    '<li>Penandatanganan BAST dilakukan oleh kedua belah pihak.</li></ul>'+
+
+    '<p><strong>4. Commissioning</strong></p>'+
+    '<p>Commissioning adalah proses pengujian dan verifikasi sistem lift setelah instalasi selesai untuk memastikan bahwa seluruh komponen berfungsi sesuai spesifikasi teknis.</p>'+
+    '<p><strong>Ketentuan:</strong></p>'+
+    '<ul class="ul"><li>Commissioning meliputi pengujian fungsi, keselamatan, dan performa unit.</li>'+
+    '<li>Commissioning dilakukan sebelum unit dinyatakan siap digunakan.</li></ul>'+
+
+    '<p><strong>5. Masa Garansi</strong></p>'+
+    '<p>Masa Garansi adalah periode waktu setelah serah terima dimana Pelaksana Pekerjaan bertanggung jawab memperbaiki kerusakan yang disebabkan oleh kesalahan instalasi atau cacat material.</p>'+
+    '<ul class="ul"><li>Free Maintenance <strong>'+esc(s.freeMtn)+'</strong></li>'+
+    '<li>Garansi Spare Part <strong>'+esc(s.garSpare)+'</strong></li>'+
+    '<li>Garansi Mesin/Motor <strong>'+esc(s.garMesin)+'</strong></li></ul>'+
+    '<p>Perbaikan selama masa garansi tidak dikenakan biaya tambahan, kecuali kerusakan akibat kelalaian penggunaan.</p>')+
 
   P(2,'LINGKUP PEKERJAAN',
-    '<p>PIHAK PERTAMA memberi tugas kepada PIHAK KEDUA untuk mengerjakan pekerjaan dengan rincian sebagai berikut:</p>'+
-    tabelHargaDoc(items,mode)+
-    (adaSipil?'':'<p><strong>Di luar lingkup PIHAK KEDUA:</strong> pekerjaan sipil, instalasi daya listrik, grounding, dan pembuatan pit.</p>'))+
+    '<p>PIHAK PERTAMA memberi tugas kepada PIHAK KEDUA untuk mengerjakan pekerjaan sebagai berikut :</p>'+
+    '<p><strong>Pengadaan Lift</strong></p>'+
+    '<p>Pengadaan material '+esc(s.tipeKabin)+' '+esc(s.kapasitas)+' dan transportasi sampai di lokasi proyek '+
+    '1&nbsp;(satu) unit '+esc(s.jenisLift)+'-'+esc(s.kapasitas)+', '+esc(s.penumpang)+' – '+esc(s.mpm)+' – Floors/Stops/Doors '+esc(s.sfd)+'.</p>'+
+    '<p><strong>Lingkup Pekerjaan PIHAK PERTAMA</strong></p>'+
+    '<ul class="ul"><li>Pekerjaan Arsitektural estetika diluar area pintu lift</li>'+
+    '<li>Sirkulasi Udara Ruang Mesin (turbin/Heksos/lainnya) jika diinginkan</li>'+
+    '<li>Pengadaan Daya Listrik dan Instalasi Listrik Sub Panel di Dekat Control Panel Lift</li>'+
+    '<li>Pemasangan grounding listrik khusus lift, terpisah dari penangkal petir</li>'+
+    '<li>Pengadaan gudang peralatan Lift di Lokasi Proyek</li>'+
+    '<li>Pembuatan pit</li></ul>'+
+    '<p><strong>Lingkup Pekerjaan PIHAK KEDUA</strong></p>'+
+    '<ul class="ul"><li>Produksi dan pengadaan elevator sesuai spesifikasi</li>'+
+    '<li>Pemasangan Struktur Steel</li>'+
+    '<li>Pengiriman elevator hingga sampai di Lokasi</li>'+
+    '<li>Instalasi dan pemasangan elevator</li>'+
+    '<li>Pemeriksaan dan uji kelayakan, commissioning</li>'+
+    '<li>Serah terima pekerjaan melalui BAST</li>'+
+    '<li>Free Maintenance setelah BAST ditanda tangani</li></ul>')+
 
-  P(3,'LOKASI PEKERJAAN','<p>Lokasi pekerjaan berada di '+esc(s.alamatCustomer||'…')+'.</p>')+
+  P(3,'LOKASI PEKERJAAN',
+    '<p>Lokasi pekerjaan berada di <strong>'+esc(s.alamatCustomer||'…')+'</strong> yang disebut lokasi proyek yang akan dikerjakan oleh PIHAK KEDUA.</p>')+
 
   P(4,'NILAI KONTRAK',
-    '<p>Nilai pekerjaan yang disepakati adalah <strong>'+rupiah(gt)+'</strong>,- ('+terbilangRp(gt)+') dengan rincian:</p><ul class="ul">'+
+    '<p>Nilai pekerjaan yang telah disepakati oleh kedua belah pihak adalah : <strong>'+rupiah(gt)+'</strong> ,-</p>'+
+    '<ul class="ul">'+
     kelAktif(items).filter(k=>totalKel(items,k,mode)>0).map(k=>
-      '<li>'+KEL_LABEL[k]+' sebesar <strong>'+rupiah(totalKel(items,k,mode))+'</strong></li>'
-    ).join('')+'</ul><p style="font-size:9.5pt">Harga '+(s.ppn==='exclude'?'belum':'sudah')+' termasuk PPN 11%.</p>')+
+      '<li>'+KEL_LABEL[k]+' sebesar <strong>Rp. '+ribu(totalKel(items,k,mode))+'</strong></li>'
+    ).join('')+'</ul>'+
+    '<p style="font-size:9.5pt">Harga '+(s.ppn==='exclude'?'belum':'sudah')+' termasuk PPN 11%.</p>')+
 
-  P(5,'WAKTU PELAKSANAAN',
-    '<ul class="ul"><li>Maksimal <strong>'+esc(s.waktuPengadaan)+'</strong> sejak kontrak ditandatangani untuk Material On Site.</li>'+
-    '<li>Maksimal <strong>'+esc(s.waktuInstalasi)+'</strong> sejak Material On Site.</li></ul>')+
+  P(5,'WAKTU PELAKSANAAN PEKERJAAN',
+    '<p>Waktu pelaksanaan Pekerjaan :</p>'+
+    '<ul class="ul"><li>Maksimal <strong>'+esc(s.waktuPengadaan)+'</strong> sejak kontrak telah ditanda tangani dan pembayaran pertama (DP) diterima untuk Material On site.</li>'+
+    '<li>Maksimal <strong>'+esc(s.waktuInstalasi)+'</strong> sejak Material On Site dengan catatan tidak ada kendala bangunan dari PIHAK PERTAMA.</li></ul>')+
 
   P(6,'PINALTY',
-    '<ol class="ol"><li>Keterlambatan produksi melebihi 2,5 bulan: penalty <strong>0,05% per hari kerja (maks 1%)</strong>.</li>'+
-    '<li>Keterlambatan pemasangan lebih dari 30 hari: penalty <strong>0,05% per hari kerja (maks 2%)</strong>.</li>'+
-    '<li>Penalty tidak berlaku jika keterlambatan karena gangguan sipil, keterlambatan termin, atau gangguan listrik.</li></ol>')+
+    '<p>Penalty akan dikenakan apabila keterlambatan terjadi karena kelalaian PIHAK KEDUA:</p>'+
+    '<ul class="ul"><li>Apabila PIHAK KEDUA terlambat dalam menyelesaikan proses produksi dan pengiriman material ke lokasi proyek melebihi waktu maksimal 2,5 (dua setengah) bulan sejak pembayaran DP diterima, maka dikenakan pinalty sebesar <strong>0,05% / hari kerja (maksimal 1%)</strong> dari nilai pekerjaan pengadaan material unit elevator.</li>'+
+    '<li>Apabila PIHAK KEDUA terlambat dalam menyelesaikan pekerjaan pemasangan lebih dari 30 hari sejak Material dinyatakan lengkap di lokasi dan lokasi dinyatakan siap oleh PIHAK PERTAMA akan dikenakan pinalty sebesar <strong>0,05% / hari kerja (maksimal 2%)</strong> dari nilai pekerjaan pemasangan unit elevator.</li>'+
+    '<li>Pinalty pemasangan dan pengadaan material <strong>tidak berlaku</strong> apabila keterlambatan disebabkan oleh: gangguan pekerjaan sipil, keterlambatan pelunasan termin, akses kerja yang belum lengkap dan gangguan listrik di lokasi proyek.</li></ul>')+
 
   P(7,'CARA PEMBAYARAN',
-    '<p>Pembayaran dilakukan terpisah untuk setiap lingkup pekerjaan:</p>'+terminDoc(items,termin,mode)+
-    '<p>Transfer ke rekening:</p><p style="margin-left:8mm"><strong>PT. BELIFT AMANAH INDONESIA</strong><br>'+
+    '<p>Pembayaran akan dilakukan dengan cara :</p>'+
+    terminParagraphs()+
+    '<p>Pembayaran dapat ditransfer ke rekening:</p>'+
+    '<p style="margin-left:8mm"><strong>PT. BELIFT AMANAH INDONESIA</strong><br>'+
     '<strong>'+esc(s.rekening)+'</strong></p>')+
 
-  P(8,'FORCE MAJEURE',
-    '<p>Force Majeure adalah keadaan di luar kemampuan para pihak seperti bencana alam, kebakaran, kerusuhan, kebijakan pemerintah. '+
-    'Pihak yang mengalami wajib memberitahu tertulis dalam 7 hari kalender.</p>')+
+  P(8,'FORCE MAJURE',
+    '<p>Force Majeure adalah keadaan di luar kemampuan para pihak yang menyebabkan pekerjaan tidak dapat dilaksanakan, seperti Bencana Alam, Gempa Bumi, Kebakaran, Kerusuhan, Kebijakan Pemerintah, Gangguan Distribusi Material Global, atau Meninggal Dunia salah satu pihak.</p>'+
+    '<p>Pihak yang mengalami Force Majeure wajib memberitahukan secara tertulis kepada pihak lainnya paling lambat 7 (tujuh) hari kalender sejak terjadinya keadaan tersebut.</p>'+
+    '<p>Selama keadaan Force Majeure berlangsung, kewajiban para pihak ditangguhkan sementara dan PIHAK KEDUA tidak dikenakan penalty keterlambatan.</p>'+
+    '<p>Apabila keadaan Force Majeure berlangsung lebih dari 90 (sembilan puluh) hari kalender dan pekerjaan tidak dapat dilanjutkan, maka para pihak sepakat menyelesaikannya secara musyawarah.</p>')+
 
   P(9,'PENYELESAIAN',
-    '<p>Sengketa diselesaikan secara musyawarah. Jika tidak tercapai, diselesaikan melalui Pengadilan Negeri sesuai domisili PIHAK KEDUA.</p>')+
+    '<p>Apabila terjadi sengketa, PIHAK PERTAMA dan PIHAK KEDUA sepakat menyelesaikan secara musyawarah. Apabila tidak tercapai kesepakatan, maka diselesaikan melalui Pengadilan NEGERI sesuai domisili hukum PIHAK KEDUA.</p>')+
 
   P(10,'PENUTUP',
-    '<p>Hal-hal yang belum tercantum akan dibicarakan kemudian sebagai addendum perjanjian ini.</p>'+
-    '<div class="sign"><div>PIHAK PERTAMA<div class="sigbox"></div><div class="sig-nm">'+esc(s.namaCustomer||'…')+'</div>Pemilik Bangunan</div>'+
-    '<div>PIHAK KEDUA<br><strong>PT BELIFT AMANAH INDONESIA</strong>'+
-    ttdBlok(s.direktur,'Direktur',true,s.tampilTtd)+'</div></div>')+
+    '<p>Hal-hal yang belum tercantum dalam surat Perjanjian Kerja ini apabila diperlukan akan dibicarakan kemudian dan dituangkan dalam bentuk tertulis serta menjadi addendum yang tak terpisahkan dari perjanjian ini.</p>'+
+    '<p>Demikian, Surat Perjanjian Kerja ini ditanda tangani oleh kedua belah pihak untuk dapat dilaksanakan dengan baik sebagaimana mestinya.</p>'+
+    '<div class="sign">'+
+      '<div>PIHAK PERTAMA<div class="sigbox"></div>'+
+      '<div class="sig-nm">'+esc(s.namaCustomer||'…')+'</div>'+
+      '<div>'+(s.namaPerusahaan ? 'Pemilik / Penanggung Jawab' : 'Pemilik Bangunan')+'</div></div>'+
+      '<div>PIHAK KEDUA<br><strong>PT BELIFT AMANAH INDONESIA</strong>'+
+      ttdBlok(s.direktur,'Direktur',true,s.tampilTtd)+'</div>'+
+    '</div>')+
+
+  '</div>'+ // tutup .spk-body
 
   desainDoc(s, pilihDesain, liveDesain)+
 
@@ -398,6 +480,8 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .sig-nm{font-weight:700;border-top:.6pt solid #2B1B10;padding-top:1.5mm;display:inline-block;min-width:52mm}
 .rt{text-align:right}
 h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
+.page.spk-body{min-height:0;height:auto;overflow:visible;page-break-after:auto;break-after:auto}
+.pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
 </style>
 </head>
 <body>${html}</body>

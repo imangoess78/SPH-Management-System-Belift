@@ -284,6 +284,10 @@
   font-family: 'Barlow', sans-serif;
 }
 .page.cont { padding-top: 22mm; }
+/* SPK pasal wrapper: flows naturally across printed pages, no fixed height */
+.page.spk-body { min-height: 0; height: auto; overflow: visible; }
+/* Individual pasal block: avoid breaking mid-pasal when possible */
+.pasal-blk { page-break-inside: avoid; break-inside: avoid; margin-bottom: 7mm; }
 .page .hex-bg {
   position: absolute;
   right: 0;
@@ -608,6 +612,13 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
     page-break-after: always;
     break-after: page;
     overflow: visible !important;
+  }
+  /* SPK pasal wrapper flows across pages — no forced break, no fixed height */
+  .page.spk-body {
+    min-height: 0;
+    height: auto;
+    page-break-after: auto;
+    break-after: auto;
   }
   .page:last-child { page-break-after: auto; break-after: auto; }
   .plabel { display: none !important; }

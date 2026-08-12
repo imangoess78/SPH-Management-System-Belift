@@ -2,9 +2,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { loadSPHById, formatCurrency, formatDate, calculateItemTotal } from '@/lib/sph-utils';
-import { SPH } from '@/lib/sph-types';
+import { SPH, DesainOption, DESAIN } from '@/lib/sph-types';
 import { useState, useEffect, Fragment } from 'react';
 import { pageSPH, pageSPK } from '@/lib/sph-generator';
+import { supabase } from '@/integrations/supabase/client';
 
 // Ensure every .page div has the hex-bg img (handles old saved HTML that lacks it)
 const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
@@ -74,7 +75,9 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .sig-nm{font-weight:700;border-top:.6pt solid #2B1B10;padding-top:1.5mm;display:inline-block;min-width:52mm}
 .rt{text-align:right}
 h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
-@media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}}
+.page.spk-body{min-height:0;height:auto;overflow:visible}
+.pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
+@media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page.spk-body{min-height:0;height:auto;page-break-after:auto;break-after:auto}.page:last-child{page-break-after:auto;break-after:auto}}
 `;
 
 // ── Generator preview renderer ──────────────────────────────
@@ -431,11 +434,41 @@ function LegacyPreview({ sph }: { sph: SPH }) {
   );
 }
 
+// ── Map DB category names to DESAIN keys ─────────────────────
+const CAT_MAP: Record<string, string> = {
+  cabin: 'cabin', floor: 'floor', ceiling: 'ceiling', door: 'door',
+  cop: 'cop', lop: 'lop', struktur: 'struktur', 'add on': 'addon', addon: 'addon',
+};
+
+function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
+  const result: Record<string, DesainOption[]> = Object.fromEntries(
+    Object.keys(DESAIN).map(k => [k, []])
+  );
+  dbRows.forEach(row => {
+    const rawCat = (row.category || '').toLowerCase().trim();
+    const cat = CAT_MAP[rawCat];
+    if (!cat) return;
+    const img = row.image_url || '';
+    const sku = (row.sku || '').trim();
+    const kode = sku || row.id;
+    const nama = row.name || kode;
+    const label = sku ? `${nama} [${sku}]` : nama;
+    if (!result[cat]) result[cat] = [];
+    if (!result[cat].find(o => o.kode === kode)) {
+      result[cat].push({ kode, nama, label, img });
+    }
+  });
+  return result;
+}
+
 // ── Main component ───────────────────────────────────────────
 export default function SPHPreview() {
   const { id } = useParams();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [liveDesain, setLiveDesain] = useState<Record<string, DesainOption[]>>(
+    Object.fromEntries(Object.keys(DESAIN).map(k => [k, []])) as Record<string, DesainOption[]>
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -447,6 +480,14 @@ export default function SPHPreview() {
     };
     load();
   }, [id]);
+
+  // Fetch design images from Supabase (same as SPHForm does)
+  useEffect(() => {
+    (supabase as any).from('design_items').select('*').then(({ data: rows, error }: { data: any; error: any }) => {
+      if (error || !rows || rows.length === 0) return;
+      setLiveDesain(mergeDesainFromDB(rows));
+    });
+  }, []);
 
   if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;
   if (!data)   return <div className="text-center py-20 text-muted-foreground">SPH tidak ditemukan</div>;
@@ -475,8 +516,8 @@ export default function SPHPreview() {
         const modeHarga = data.modeHarga || 'satuan';
         const pilihDesain = data.pilihDesain || { cabin:'',floor:'',ceiling:'',door:'',cop:'',lop:'',struktur:'',addon:'' };
         html = docMode === 'SPH'
-          ? pageSPH(normState, items, termin, modeHarga, pilihDesain)
-          : pageSPK(normState, items, termin, modeHarga, pilihDesain);
+          ? pageSPH(normState, items, termin, modeHarga, pilihDesain, liveDesain)
+          : pageSPK(normState, items, termin, modeHarga, pilihDesain, liveDesain);
       } catch (e) {
         console.error('Regenerate HTML failed:', e);
         // Fallback to stored HTML if regeneration fails
