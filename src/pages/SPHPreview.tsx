@@ -23,7 +23,7 @@ body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system
 @import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap');
 /* .page-wrap is injected by JS — centres each scaled page */
 .page-wrap{width:100%;overflow:hidden;display:flex;justify-content:center}
-.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:26mm auto;box-shadow:0 2px 18px rgba(89,34,3,.16);
+.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:33.8mm auto;box-shadow:0 2px 18px rgba(89,34,3,.16);
   padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;
   font-family:'Barlow',sans-serif;flex-shrink:0;transform-origin:top center}
 .page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
@@ -33,8 +33,7 @@ body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system
 .lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
 .doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
-.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#D95103}
-.co .mark i{font-style:normal;color:#D95103}
+.co .mark-logo{height:20mm;width:auto;display:block;margin-left:auto}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
 .docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:#D95103;letter-spacing:.08em;margin:9mm 0 6mm}
 .place{text-align:right;font-size:10pt;margin-bottom:5mm}

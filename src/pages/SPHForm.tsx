@@ -87,7 +87,7 @@ function namaDesain(k: string, pilihDesain: DesainPilihan, desain?: Record<strin
 
 function kop(t: string, alamatKantor: string): string {
   return '<div class="lethead"><div class="doctype">'+t+'</div><div class="co">' +
-    '<div class="mark">B<i>ELIFT</i></div>' +
+'<img class="mark-logo" src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin-left:auto">' +
     '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>' +
     esc(alamatKantor).replace(/, /g, ',<br>') + '<br>info@belift.co.id</div></div>';
 }
@@ -238,7 +238,7 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     '<li>Cara pembayaran:'+terminDoc(items,termin,mode)+'</li></ol>'+
     '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>'+
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">'+
-    '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#D95103">BELIFT</div>'+
+'<img src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin:0 auto 2mm">'+
     ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd)+'</div></div><div class="pgnum">·</div></div>');
 }
 
@@ -427,7 +427,7 @@ function printDocument(html: string, tipeKabin: string) {
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;font-size:14px}
 @page{size:A4;margin:0}
-.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:26mm auto;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
+.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:33.8mm auto;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
 .page:last-child{page-break-after:auto;break-after:auto}
 .page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
 .page.cont{padding-top:22mm}
@@ -438,8 +438,7 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 .lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
 .doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
-.co .mark{font-family:'Barlow Condensed',sans-serif;font-size:26pt;font-weight:700;color:#D95103}
-.co .mark i{font-style:normal;color:#D95103}
+.co .mark-logo{height:10mm;width:auto;display:block;margin-left:auto}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
 .docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:#D95103;letter-spacing:.08em;margin:9mm 0 6mm}
 .place{text-align:right;font-size:10pt;margin-bottom:5mm}
@@ -1102,9 +1101,7 @@ function TopBar({ mode, fullName, onBack, onSignOut, onPrint, onSave, saving, on
       {/* Main row: back + logo + mode tabs + desktop actions */}
       <div style={{display:'flex', alignItems:'center', gap:10, padding:'0 12px', height:52}}>
         <button onClick={onBack} style={{background:'none',border:0,color:'#E8DCD3',cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 4px',flexShrink:0}}>‹</button>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:26,letterSpacing:'.06em',flexShrink:0}}>
-          BEL<span style={{color:'var(--orange)'}}>IFT</span>
-        </div>
+        <img src="/logo.png" alt="Belift" style={{height:32,width:'auto',display:'block',flexShrink:0}} />
         {/* Current mode label — no tab switching */}
         <div className="topbar-mode-tabs" style={{display:'flex',gap:2}}>
           <span style={{

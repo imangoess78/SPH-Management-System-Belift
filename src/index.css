@@ -275,7 +275,7 @@
   width: var(--pageW);
   min-height: var(--pageH);
   background: #fff url('/corner-shape-bg.png') no-repeat left top;
-  background-size: 26mm auto;
+  background-size: 32.5mm auto;
   box-shadow: 0 2px 18px rgba(89,34,3,.16);
   padding: 18mm 17mm 16mm;
   position: relative;
