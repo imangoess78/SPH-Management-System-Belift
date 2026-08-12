@@ -34,6 +34,13 @@ function esc(s: unknown): string {
   return String(s == null ? '' : s).replace(/[<>"]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
 
+// Inject decorative hexagon (bottom-right) inside every .page div
+const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
+function injectDeco(html: string): string {
+  // Match opening tag of every .page div (with optional class additions) and inject img right after >
+  return html.replace(/(<div class="page(?:[^"]*)"[^>]*>)/g, '$1' + HEX_IMG);
+}
+
 function tujuan(s: GenState): string {
   return (s.namaPerusahaan || ((s.sapaan === '—' ? '' : s.sapaan + ' ') + (s.namaCustomer || '…'))).trim();
 }
@@ -149,7 +156,7 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
   const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku] || 21) * 864e5);
   const adaSipil = totalKel(items, 'SIPIL', modeH) > 0;
   const gt = grandTotal(items, modeH);
-  return '' +
+  const raw = '' +
     '<div class="page">' + kop('INQUIRY', s.alamatKantor) +
     '<div class="docno">' + noSuratSPH(s.noUrut, s.tanggal) + '</div>' +
     '<div class="place">' + esc(s.kota) + ', ' + fmtID(d) + '</div>' +
@@ -192,6 +199,7 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">' +
     '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#592203">B<span style="color:#D95103">ELIFT</span></div>' +
     ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd) + '</div></div><div class="pgnum">·</div></div>';
+  return injectDeco(raw);
 }
 
 export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan): string {
@@ -222,7 +230,7 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
       '<div class="pgnum">' + (n + 1) + '</div><div class="paraf">_______ Paraf _______</div></div>';
   }
 
-  return '' +
+  const raw = '' +
     // ── Halaman 1: Pembukaan ──────────────────────────────────
     '<div class="page">' + kop('CONTRACT', s.alamatKantor) +
     '<div class="docno">' + noSuratSPK(s.noUrut, s.tanggal, s.formatNoSPK) + '</div>' +
@@ -387,4 +395,5 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
     ' With Traction Description</th></tr>' + specRows(s, pilihDesain) + '</table>' +
     '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>' +
     '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>';
+  return injectDeco(raw);
 }

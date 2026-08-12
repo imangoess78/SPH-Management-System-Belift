@@ -274,7 +274,7 @@
 .page {
   width: var(--pageW);
   min-height: var(--pageH);
-  background: #fff;
+  background: #fff url('/corner-shape-bg.png') no-repeat left top;
   box-shadow: 0 2px 18px rgba(89,34,3,.16);
   padding: 18mm 17mm 16mm;
   position: relative;
@@ -284,22 +284,15 @@
   font-family: 'Barlow', sans-serif;
 }
 .page.cont { padding-top: 22mm; }
-.page::before {
-  content: "";
+.page .hex-bg {
   position: absolute;
-  left: 0; top: 0;
-  width: 34mm; height: 24mm;
-  background: var(--orange);
-  border-bottom-right-radius: 9mm;
-}
-.page::after {
-  content: "";
-  position: absolute;
-  left: 6mm; top: 0;
-  width: 26mm; height: 20mm;
-  border: .7pt solid #fff;
-  border-top: 0;
-  border-bottom-right-radius: 8mm;
+  right: 0;
+  bottom: 0;
+  width: 80mm;
+  height: auto;
+  pointer-events: none;
+  z-index: 0;
+  display: block;
 }
 .pgnum { position: absolute; left: 17mm; bottom: 9mm; font-size: 9pt; color: var(--muted-color); }
 .paraf { position: absolute; right: 17mm; bottom: 9mm; font-size: 8pt; color: var(--muted-color); }

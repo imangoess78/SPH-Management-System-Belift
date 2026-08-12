@@ -189,8 +189,8 @@ export default function SPKList() {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Link to={`/spk/${spk.id}/edit`}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit SPK">
+                        <Link to={`/spk/${spk.id}/preview`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Preview SPK">
                             <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </Link>

@@ -56,6 +56,7 @@ function AppRoutes() {
               <Route path="/" element={<Index />} />
               <Route path="/sph" element={<SPHList />} />
               <Route path="/sph/:id/preview" element={<SPHPreview />} />
+              <Route path="/spk/:id/preview" element={<SPHPreview />} />
               <Route path="/spk" element={<SPKList />} />
               <Route path="/master" element={<MasterData />} />
               <Route path="/settings" element={<SettingsPage />} />

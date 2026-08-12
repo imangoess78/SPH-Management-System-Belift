@@ -56,6 +56,12 @@ function esc(s: unknown): string {
   return String(s == null ? '' : s).replace(/[<>"]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;'})[c]!);
 }
 
+// ── Inject hex-bg img into every .page div ──────────────────
+const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
+function injectDeco(html: string): string {
+  return html.replace(/(<div class="page(?:[^"]*)"[^>]*>)/g, '$1' + HEX_IMG);
+}
+
 // ── Helper: nomor surat ─────────────────────────────────────
 function noSurat(mode: Mode, s: S): string {
   return mode === 'SPH' ? noSuratSPH(s.noUrut, s.tanggal) : noSuratSPK(s.noUrut, s.tanggal, s.formatNoSPK);
@@ -188,7 +194,7 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
   const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku]||21)*864e5);
   const adaSipil = totalKel(items,'SIPIL',mode) > 0;
   const gt = grandTotal(items, mode);
-  return '' +
+  return injectDeco('' +
   '<div class="page">'+kop('INQUIRY', s.alamatKantor)+
     '<div class="docno">'+noSuratSPH(s.noUrut, s.tanggal)+'</div>'+
     '<div class="place">'+esc(s.kota)+', '+fmtID(d)+'</div>'+
@@ -233,7 +239,7 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>'+
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">'+
     '<div style="font-family:\'Barlow Condensed\';font-size:24pt;font-weight:700;color:#D95103">BELIFT</div>'+
-    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd)+'</div></div><div class="pgnum">·</div></div>';
+    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd)+'</div></div><div class="pgnum">·</div></div>');
 }
 
 function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>, mode: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
@@ -248,7 +254,7 @@ function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
       '<div class="pgnum">'+(n+1)+'</div><div class="paraf">_______ Paraf _______</div></div>';
   }
 
-  return '' +
+  return injectDeco('' +
   '<div class="page">'+kop('CONTRACT', s.alamatKantor)+'<div class="docno">'+noSuratSPK(s.noUrut,s.tanggal,s.formatNoSPK)+'</div>'+
     '<p>Pada hari ini, <strong>'+hari+'</strong> tanggal <strong>'+capWords(terbilang(d.getDate()))+'</strong> bulan '+
     '<strong>'+fmtID(d).split(' ')[1]+'</strong> tahun <strong>'+capWords(terbilang(d.getFullYear()))+'</strong>, kami yang bertanda tangan dibawah ini:</p>'+
@@ -318,7 +324,7 @@ function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
   '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator '+esc(s.tipeKabin)+
     ' With Traction Description</th></tr>'+specRows(s,pilihDesain,liveDesain)+'</table>'+
     '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>'+
-    '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>';
+    '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>');
 }
 
 // ── Print helper ────────────────────────────────────────────
@@ -339,8 +345,9 @@ function printDocument(html: string, tipeKabin: string) {
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;font-size:14px}
 @page{size:A4;margin:0}
-.page{width:210mm;min-height:297mm;background:#fff;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
+.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
 .page:last-child{page-break-after:auto;break-after:auto}
+.page .hex-bg{position:absolute;right:0;bottom:0;pointer-events:none;z-index:0;display:block}
 .page.cont{padding-top:22mm}
 .page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:#D95103;border-bottom-right-radius:9mm}
 .page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}

@@ -14,12 +14,11 @@ body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system
 @import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap');
 /* .page-wrap is injected by JS — centres each scaled page */
 .page-wrap{width:100%;overflow:hidden;display:flex;justify-content:center}
-.page{width:210mm;min-height:297mm;background:#fff;box-shadow:0 2px 18px rgba(89,34,3,.16);
+.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;box-shadow:0 2px 18px rgba(89,34,3,.16);
   padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;
   font-family:'Barlow',sans-serif;flex-shrink:0;transform-origin:top center}
+.page .hex-bg{position:absolute;right:0;bottom:0;pointer-events:none;z-index:0;opacity:1}
 .page.cont{padding-top:22mm}
-.page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:#D95103;border-bottom-right-radius:9mm}
-.page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}
 .pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:#7A6E66}
 .paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:#7A6E66}
 .lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
@@ -142,7 +141,9 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
           <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Cetak / </span>PDF
         </Button>
       </div>
-      {/* Render A4 pages inside a scoped iframe so styles don't bleed */}
+      {/* Render A4 pages inside a scoped iframe so styles don't bleed.
+          srcDoc iframes have a null origin so relative URLs break — patch
+          image srcs to use an absolute origin before injecting into the iframe. */}
       <iframe
         title="preview"
         style={{ width: '100%', height: 'calc(100vh - 72px)', border: 'none', background: '#F0EDE9' }}
@@ -150,7 +151,7 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
           <meta name="viewport" content="width=device-width,initial-scale=1">
           <link rel="preconnect" href="https://fonts.googleapis.com">
           <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
-          <style>${GEN_CSS}</style></head><body>${html}${SCALE_SCRIPT}</body></html>`}
+          <style>${GEN_CSS.replace('/corner-shape-bg.png', `${window.location.origin}/corner-shape-bg.png`).replace('/hexagon-outline-bg.png', `${window.location.origin}/hexagon-outline-bg.png`)}</style></head><body>${html.replace(/src="\/hexagon-outline-bg\.png"/g, `src="${window.location.origin}/hexagon-outline-bg.png"`).replace(/src="\/corner-shape-bg\.png"/g, `src="${window.location.origin}/corner-shape-bg.png"`)}${SCALE_SCRIPT}</body></html>`}
       />
     </div>
   );
