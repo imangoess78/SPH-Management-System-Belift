@@ -275,6 +275,7 @@
   width: var(--pageW);
   min-height: var(--pageH);
   background: #fff url('/corner-shape-bg.png') no-repeat left top;
+  background-size: 26mm auto;
   box-shadow: 0 2px 18px rgba(89,34,3,.16);
   padding: 18mm 17mm 16mm;
   position: relative;
@@ -349,9 +350,9 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .hl { color: #C0392B; }
 .total td { font-weight: 700; background: #FBE9DF; }
 .terbilang { font-weight: 700; margin-top: 3mm; }
-.ol { margin: 0; padding-left: 6mm; }
+.ol { margin: 0; padding-left: 10mm; list-style-type: decimal; overflow: visible; }
 .ol li { margin-bottom: 2.6mm; }
-.ul { margin: 1mm 0 3mm; padding-left: 6mm; }
+.ul { margin: 1mm 0 3mm; padding-left: 10mm; list-style-type: disc; overflow: visible; }
 .ul li { margin-bottom: 1.4mm; }
 .dgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6mm 5mm; margin-top: 5mm; }
 .dcard { text-align: center; }

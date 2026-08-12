@@ -427,7 +427,7 @@ function printDocument(html: string, tipeKabin: string) {
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;font-size:14px}
 @page{size:A4;margin:0}
-.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
+.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:26mm auto;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
 .page:last-child{page-break-after:auto;break-after:auto}
 .page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
 .page.cont{padding-top:22mm}
@@ -463,8 +463,8 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .hl{color:#C0392B}
 .total td{font-weight:700;background:#FBE9DF}
 .terbilang{font-weight:700;margin-top:3mm}
-.ol{margin:0;padding-left:6mm}.ol li{margin-bottom:2.6mm}
-.ul{margin:1mm 0 3mm;padding-left:6mm}.ul li{margin-bottom:1.4mm}
+.ol{margin:0;padding-left:10mm;list-style-type:decimal;overflow:visible}.ol li{margin-bottom:2.6mm}
+.ul{margin:1mm 0 3mm;padding-left:10mm;list-style-type:disc;overflow:visible}.ul li{margin-bottom:1.4mm}
 .dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm 5mm;margin-top:5mm}
 .dcard{text-align:center}
 .dcard .box{height:44mm;border:.6pt solid #DFD8D1;border-radius:2mm;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#FBF9F7}

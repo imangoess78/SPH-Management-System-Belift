@@ -23,7 +23,7 @@ body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system
 @import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap');
 /* .page-wrap is injected by JS — centres each scaled page */
 .page-wrap{width:100%;overflow:hidden;display:flex;justify-content:center}
-.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;box-shadow:0 2px 18px rgba(89,34,3,.16);
+.page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:26mm auto;box-shadow:0 2px 18px rgba(89,34,3,.16);
   padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;
   font-family:'Barlow',sans-serif;flex-shrink:0;transform-origin:top center}
 .page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
@@ -58,8 +58,8 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .hl{color:#C0392B}
 .total td{font-weight:700;background:#FBE9DF}
 .terbilang{font-weight:700;margin-top:3mm}
-.ol{margin:0;padding-left:6mm}.ol li{margin-bottom:2.6mm}
-.ul{margin:1mm 0 3mm;padding-left:6mm}.ul li{margin-bottom:1.4mm}
+.ol{margin:0;padding-left:10mm;list-style-type:decimal;overflow:visible}.ol li{margin-bottom:2.6mm}
+.ul{margin:1mm 0 3mm;padding-left:10mm;list-style-type:disc;overflow:visible}.ul li{margin-bottom:1.4mm}
 .dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm 5mm;margin-top:5mm}
 .dcard{text-align:center}
 .dcard .box{height:44mm;border:.6pt solid #DFD8D1;border-radius:2mm;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#FBF9F7}
