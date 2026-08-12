@@ -25,8 +25,22 @@ export default function SPHList() {
 
   const fetchList = async () => {
     setLoading(true);
-    const list = await loadSPHList();
-    setSphList(list);
+    const all = await loadSPHList();
+    // Filter hanya dokumen SPH — dicek dari specs.__docstate.mode
+    const sphOnly = all.filter((doc: any) => {
+      const specs: any[] = Array.isArray(doc.specs) ? doc.specs : [];
+      const ds = specs.find((s: any) => s.key === '__docstate');
+      if (ds?.value) {
+        try {
+          const parsed = JSON.parse(ds.value);
+          return parsed.mode === 'SPH';
+        } catch { /* fallthrough */ }
+      }
+      // Fallback: perihal mengandung 'SPH' dan tidak mengandung 'SPK'
+      const perihal = String(doc.perihal || '').toUpperCase();
+      return perihal.includes('SPH') && !perihal.includes('SPK');
+    });
+    setSphList(sphOnly);
     setLoading(false);
   };
 

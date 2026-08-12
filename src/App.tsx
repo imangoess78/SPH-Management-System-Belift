@@ -2,19 +2,28 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import AppLayout from "./components/AppLayout";
 import Index from "./pages/Index";
 import SPHForm from "./pages/SPHForm";
 import SPHList from "./pages/SPHList";
 import SPKList from "./pages/SPKList";
+import SPKNew from "./pages/SPKNew";
 import SPHPreview from "./pages/SPHPreview";
 import MasterData from "./pages/MasterData";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import NotFound from "./pages/NotFound";
+
+// Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
+function SPKNewOrForm() {
+  const [searchParams] = useSearchParams();
+  const fromId = searchParams.get('from');
+  if (fromId) return <SPHForm defaultMode="SPK" />;
+  return <SPKNew />;
+}
 
 const queryClient = new QueryClient();
 
@@ -38,7 +47,7 @@ function AppRoutes() {
       <Route path="/sph/new" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
       <Route path="/sph/:id" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
       <Route path="/sph/:id/edit" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
-      <Route path="/spk/new" element={<ProtectedRoute><SPHForm defaultMode="SPK" /></ProtectedRoute>} />
+      <Route path="/spk/new" element={<ProtectedRoute><SPKNewOrForm /></ProtectedRoute>} />
       <Route path="/spk/:id/edit" element={<ProtectedRoute><SPHForm defaultMode="SPK" /></ProtectedRoute>} />
       <Route path="*" element={
         <ProtectedRoute>

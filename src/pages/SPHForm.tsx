@@ -3,7 +3,7 @@
 //  Split-panel: form (left) + live A4 preview (right)
 // ============================================================
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
   OPT, KEL_LABEL, SYARAT, TERMIN_AWAL, DESAIN, DESAIN_LABEL, ASET, HARI_ID,
@@ -15,6 +15,7 @@ import {
   parseDate, pad3, noSuratSPH, noSuratSPK,
   totalKel, grandTotal, kelAktif, sumTermin,
   saveDocument, generateId, getNextNoUrut, updateDocumentStatus,
+  loadDocumentById,
 } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -438,9 +439,46 @@ function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
   return result;
 }
 
+// ── Helper: apply saved docstate to form ────────────────────
+function applyDocState(
+  doc: any,
+  setMode: (m: Mode) => void,
+  setS: (s: S) => void,
+  setModeHarga: (m: ModeHarga) => void,
+  setItems: (i: KatalogItem[]) => void,
+  setTermin: (t: Record<string, TerminItem[]>) => void,
+  setPilihDesain: (d: DesainPilihan) => void,
+  asMode?: Mode, // override mode (e.g. force SPK when loading from SPH)
+) {
+  const st = doc.state || doc;
+  if (asMode) setMode(asMode);
+  else if (doc.mode === 'SPH' || doc.mode === 'SPK') setMode(doc.mode);
+
+  const keys: (keyof S)[] = [
+    'noUrut','tanggal','kota','alamatKantor','formatNoSPK',
+    'sapaan','namaCustomer','namaPerusahaan','nikCustomer','alamatCustomer','kotaProyek',
+    'jenisLift','tipeKabin','kapasitas','penumpang','kecepatan','mpm','sfd',
+    'tipeMesin','traksi','dayaMesin','power','pintu','bukaanPintu',
+    'tinggiKabin','shaftSize','cabinSize','pitDepth','namaLantai','baseFloor',
+    'ppn','masaBerlaku','freeMtn','garSpare','garMesin','waktuPengadaan','waktuInstalasi',
+    'tampilTtd','tampilDesain','sales','jabatanTtd','direktur','rekening',
+  ];
+  const merged: S = { ...DEFAULT_S };
+  keys.forEach(k => { if (st[k] !== undefined) (merged as any)[k] = st[k]; });
+  setS(merged);
+
+  if (doc.modeHarga) setModeHarga(doc.modeHarga as ModeHarga);
+  if (Array.isArray(doc.items) && doc.items.length) setItems(doc.items);
+  if (doc.termin && typeof doc.termin === 'object') setTermin(doc.termin);
+  if (doc.pilihDesain && typeof doc.pilihDesain === 'object') setPilihDesain(doc.pilihDesain);
+}
+
 // ── Main Component ──────────────────────────────────────────
 export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   const navigate = useNavigate();
+  const { id: routeId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const fromSphId = searchParams.get('from'); // ?from=<sphId> when creating SPK from SPH Final
   const { signOut, fullName, user } = useAuth();
   const [mode, setMode] = useState<Mode>(defaultMode || 'SPH');
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
@@ -459,12 +497,33 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   );
   const upd = useCallback((k: keyof S, v: unknown) => setS(prev => ({ ...prev, [k]: v })), []);
 
-  // Auto-populate noUrut with next available number per doc type
+  // Load existing document for edit (:id route) or pre-populate from SPH Final (?from=)
   useEffect(() => {
+    const loadId = routeId || fromSphId;
+    if (!loadId) return;
+    loadDocumentById(loadId).then(doc => {
+      if (!doc) { toast.error('Dokumen tidak ditemukan'); return; }
+      if (fromSphId) {
+        // Creating new SPK from SPH Final — force mode=SPK, keep all data, reset noUrut/tanggal
+        applyDocState(doc, setMode, setS, setModeHarga, setItems, setTermin, setPilihDesain, 'SPK');
+        // Reset date to today and noUrut will be set by getNextNoUrut effect below
+        setS(prev => ({ ...prev, tanggal: new Date().toISOString().slice(0, 10) }));
+        toast.success('Data SPH dimuat. Lengkapi field SPK sebelum menyimpan.');
+      } else {
+        // Editing existing document — restore everything as-is
+        applyDocState(doc, setMode, setS, setModeHarga, setItems, setTermin, setPilihDesain);
+      }
+    });
+  }, [routeId, fromSphId]);
+
+  // Auto-populate noUrut with next available number per doc type
+  // Only runs for new documents (no routeId)
+  useEffect(() => {
+    if (routeId) return; // editing existing — don't overwrite noUrut
     getNextNoUrut(mode).then(next => {
       upd('noUrut', String(next));
     });
-  }, [mode]);
+  }, [mode, routeId]);
 
   // Fetch design_items from Supabase — re-run when user is available (RLS requires auth)
   useEffect(() => {
@@ -526,17 +585,19 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   // Fix tabTermin if needed
   const safeTab = aktif.includes(tabTermin) ? tabTermin : (aktif[0] || 'PENGADAAN');
 
-  const [docId] = useState(() => generateId());
+  const [newDocId] = useState(() => generateId());
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
   async function buildAndSave(status: 'draft' | 'final') {
     if (!user) { toast.error('Login diperlukan untuk menyimpan'); return false; }
+    // Use existing ID when editing, or new ID when creating
+    const saveId = routeId || newDocId;
     const renderedHtml = mode === 'SPH'
       ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
       : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
     return saveDocument({
-      id: docId,
+      id: saveId,
       mode,
       noUrut: s.noUrut,
       tanggal: s.tanggal,
