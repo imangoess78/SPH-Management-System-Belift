@@ -92,8 +92,9 @@ function kop(t: string, alamatKantor: string): string {
     esc(alamatKantor).replace(/, /g, ',<br>') + '<br>info@belift.co.id</div></div>';
 }
 
-function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean): string {
-  const img = ASET.ttd[nama] || '';
+// signatureUrl: if provided (from DB), use it; otherwise fall back to legacy ASET.ttd map
+function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean, signatureUrl?: string): string {
+  const img = signatureUrl || ASET.ttd[nama] || '';
   const cap = (pakaiCap && ASET.capPerusahaan) ? '<img class="cap" src="'+ASET.capPerusahaan+'" alt="">' : '';
   const sig = img ? '<img class="ttd" src="'+img+'" alt="">' : '';
   return '<div class="sigbox">'+(tampilTtd ? cap+sig : '')+'</div>' +
@@ -188,7 +189,7 @@ function desainDoc(s: S, pilihDesain: DesainPilihan, desain?: Record<string, Des
     'mengikuti sampel material yang disetujui saat survey final.</p><div class="pgnum">·</div></div>';
 }
 
-function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>, mode: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>, mode: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>, salesSignatureUrl?: string): string {
   const d = parseDate(s.tanggal);
   const hariMap: Record<string,number> = {'2 Minggu':14,'3 Minggu':21,'1 Bulan':31,'2 Bulan':61};
   const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku]||21)*864e5);
@@ -239,7 +240,7 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>'+
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">'+
 '<img src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin:0 auto 2mm">'+
-    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd)+'</div></div><div class="pgnum">·</div></div>');
+    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd, salesSignatureUrl)+'</div></div><div class="pgnum">·</div></div>');
 }
 
 function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>, mode: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
@@ -585,6 +586,23 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   const [liveDesain, setLiveDesain] = useState<Record<string, DesainOption[]>>(
     Object.fromEntries(Object.keys(DESAIN).map(k => [k, []])) as Record<string, DesainOption[]>
   );
+  // Sales from DB: list of { name, jabatan, signature_url }
+  const [salesList, setSalesList] = useState<{ name: string; jabatan: string; signature_url: string | null }[]>([]);
+
+  // Fetch active sales from Supabase
+  useEffect(() => {
+    if (!user) return;
+    (supabase as any)
+      .from('sales')
+      .select('name, jabatan, signature_url, active')
+      .eq('active', true)
+      .order('name', { ascending: true })
+      .then(({ data, error }: { data: any; error: any }) => {
+        if (error) { console.error('[SPHForm] sales fetch error:', error); return; }
+        if (data && data.length > 0) setSalesList(data);
+      });
+  }, [user]);
+
   const upd = useCallback((k: keyof S, v: unknown) => setS(prev => ({ ...prev, [k]: v })), []);
 
   // Load existing document for edit (:id route) or pre-populate from SPH Final (?from=)
@@ -755,10 +773,12 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
           noSuratStr={noSurat(mode,s)} namaFileStr={namaFile(mode,s)}
           totalKelFn={(k) => totalKel(items,k,modeHarga)} gt={gt}
           liveDesain={liveDesain}
+          salesList={salesList}
           mobileVisible={mobileTab === 'form'}
         />
         <PreviewPanel mode={mode} s={s} items={items} termin={termin}
           modeHarga={modeHarga} pilihDesain={pilihDesain} liveDesain={liveDesain}
+          salesList={salesList}
           mobileVisible={mobileTab === 'preview'} />
       </div>
     </div>
@@ -766,6 +786,8 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
 }
 
 // ── Form Panel ──────────────────────────────────────────────
+interface SalesListItem { name: string; jabatan: string; signature_url: string | null; }
+
 interface FormPanelProps {
   mode: Mode; s: S; upd: (k: keyof S, v: unknown) => void;
   items: KatalogItem[]; setItemField: (i: number, k: keyof KatalogItem, v: unknown) => void;
@@ -775,6 +797,7 @@ interface FormPanelProps {
   pilihDesain: DesainPilihan; setPilihDesain: (d: DesainPilihan) => void;
   noSuratStr: string; namaFileStr: string; totalKelFn: (k: string) => number; gt: number;
   liveDesain: Record<string, DesainOption[]>;
+  salesList: SalesListItem[];
   mobileVisible: boolean;
 }
 
@@ -949,15 +972,39 @@ function FormPanel(props: FormPanelProps) {
         <Fsel label="Tampilkan tanda tangan &amp; cap" value={String(s.tampilTtd)} options={['true','false']} onChange={v => upd('tampilTtd', v === 'true')} />
         {mode === 'SPH'
           ? <>
-              <Fsel label="Nama sales" value={s.sales} options={OPT.sales} onChange={v => upd('sales', v)} />
+              <div className="f-item">
+                <label className="f-label">Nama sales</label>
+                <select className="f-ctrl" value={s.sales} onChange={e => {
+                  upd('sales', e.target.value);
+                  // Auto-fill jabatan from salesList if available
+                  const found = props.salesList.find(sl => sl.name === e.target.value);
+                  if (found) upd('jabatanTtd', found.jabatan);
+                }}>
+                  {props.salesList.length > 0
+                    ? props.salesList.map(sl => <option key={sl.name} value={sl.name}>{sl.name}</option>)
+                    : OPT.sales.map(o => <option key={o}>{o}</option>)
+                  }
+                </select>
+                {props.salesList.length === 0 && (
+                  <div className="f-hint">Memuat data sales... atau belum ada di database.</div>
+                )}
+              </div>
               <Fsel label="Jabatan" value={s.jabatanTtd} options={OPT.jabatanTtd} onChange={v => upd('jabatanTtd', v)} />
+              {(() => {
+                const found = props.salesList.find(sl => sl.name === s.sales);
+                return found?.signature_url
+                  ? <div className="f-hint" style={{display:'flex',alignItems:'center',gap:6}}>
+                      <img src={found.signature_url} alt="TTD" style={{height:32,objectFit:'contain',border:'1px solid #ddd',borderRadius:3,background:'#fff'}} />
+                      <span style={{color:'#1E6B3A'}}>✓ Tanda tangan tersedia</span>
+                    </div>
+                  : <div className="f-hint" style={{color:'#B8860B'}}>Belum ada gambar tanda tangan. Tambahkan di Master Data → Data Sales.</div>;
+              })()}
             </>
           : <>
               <Ftxt label="Nama direktur" value={s.direktur} onChange={v => upd('direktur', v)} />
               <Ftxt label="Rekening pembayaran" value={s.rekening} onChange={v => upd('rekening', v)} />
             </>
         }
-        <div className="f-hint">Gambar diambil dari blok ASET di sph-types.ts. Selama kosong, yang tercetak hanya garis dan nama.</div>
       </Grp>
     </div>
   );
@@ -1042,10 +1089,11 @@ function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, 
 }
 
 // ── Preview Panel ────────────────────────────────────────────
-function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesain, mobileVisible }:
-  { mode: Mode; s: S; items: KatalogItem[]; termin: Record<string,TerminItem[]>; modeHarga: ModeHarga; pilihDesain: DesainPilihan; liveDesain: Record<string, DesainOption[]>; mobileVisible: boolean }) {
+function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesain, salesList, mobileVisible }:
+  { mode: Mode; s: S; items: KatalogItem[]; termin: Record<string,TerminItem[]>; modeHarga: ModeHarga; pilihDesain: DesainPilihan; liveDesain: Record<string, DesainOption[]>; salesList: SalesListItem[]; mobileVisible: boolean }) {
+  const selectedSales = salesList.find(sl => sl.name === s.sales);
   const html = mode === 'SPH'
-    ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
+    ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain, selectedSales?.signature_url ?? undefined)
     : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
 
   // Compute scale so 794px-wide A4 page fits within the mobile viewport
