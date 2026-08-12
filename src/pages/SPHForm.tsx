@@ -347,7 +347,7 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 @page{size:A4;margin:0}
 .page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;font-family:'Barlow',sans-serif;page-break-after:always;break-after:page}
 .page:last-child{page-break-after:auto;break-after:auto}
-.page .hex-bg{position:absolute;right:0;bottom:0;pointer-events:none;z-index:0;display:block}
+.page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
 .page.cont{padding-top:22mm}
 .page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:#D95103;border-bottom-right-radius:9mm}
 .page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}

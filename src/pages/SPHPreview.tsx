@@ -6,6 +6,14 @@ import { SPH } from '@/lib/sph-types';
 import { useState, useEffect, Fragment } from 'react';
 import { pageSPH, pageSPK } from '@/lib/sph-generator';
 
+// Ensure every .page div has the hex-bg img (handles old saved HTML that lacks it)
+const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
+function ensureHexBg(html: string): string {
+  // If already injected, skip
+  if (html.includes('hex-bg')) return html;
+  return html.replace(/(<div class="page(?:[^"]*)"[^>]*>)/g, '$1' + HEX_IMG);
+}
+
 // CSS for generator A4 pages rendered inside the preview
 const GEN_CSS = `
 :root{--orange:#D95103;--burnt:#A63F04;--brown:#592203;--ink:#2B1B10;--line:#DFD8D1;--muted:#7A6E66}
@@ -17,7 +25,7 @@ body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system
 .page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;box-shadow:0 2px 18px rgba(89,34,3,.16);
   padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;
   font-family:'Barlow',sans-serif;flex-shrink:0;transform-origin:top center}
-.page .hex-bg{position:absolute;right:0;bottom:0;pointer-events:none;z-index:0;opacity:1}
+.page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
 .page.cont{padding-top:22mm}
 .pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:#7A6E66}
 .paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:#7A6E66}
@@ -69,55 +77,32 @@ h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 @media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}}
 `;
 
-// Script injected into iframe: wraps each .page in a centering .page-wrap div,
-// then scales the .page using top-center origin so it stays horizontally centred
-// on any viewport width including mobile (no manual margin math needed).
-const SCALE_SCRIPT = `
-<script>
-(function(){
-  function wrapPages(){
-    document.querySelectorAll('.page').forEach(function(p){
-      if(p.parentElement&&p.parentElement.classList.contains('page-wrap'))return;
-      var w=document.createElement('div');
-      w.className='page-wrap';
-      p.parentNode.insertBefore(w,p);
-      w.appendChild(p);
-    });
-  }
-  function scalePages(){
-    var pages=document.querySelectorAll('.page-wrap .page');
-    if(!pages.length){wrapPages();pages=document.querySelectorAll('.page-wrap .page');}
-    if(!pages.length)return;
-    var vw=window.innerWidth;
-    var pageW=pages[0].offsetWidth||794;
-    var scale=vw/pageW;
-    if(scale>=1)scale=1;
-    pages.forEach(function(p){
-      // Scale from top-center: the .page-wrap flex centres the page, so no
-      // manual marginLeft is needed — scaling keeps it centred automatically.
-      p.style.transformOrigin='top center';
-      p.style.transform='scale('+scale+')';
-      p.style.marginLeft='';
-      var ph=p.offsetHeight||1122;
-      p.parentElement.style.height=(ph*scale)+'px';
-      p.parentElement.style.marginBottom='8px';
-    });
-  }
-  // Run immediately (script is at end of body so DOM exists)
-  wrapPages();
-  // Defer scale until layout is complete
-  requestAnimationFrame(function(){
-    requestAnimationFrame(scalePages);
-  });
-  window.addEventListener('resize',scalePages);
-  if(document.fonts)document.fonts.ready.then(scalePages);
-})();
-</script>
-`;
-
 // ── Generator preview renderer ──────────────────────────────
+// Renders directly in the app DOM (same as SPHForm's PreviewPanel) so that
+// relative image paths like /hexagon-outline-bg.png resolve correctly against
+// the app's origin. The GEN_CSS is injected via a <style> tag into <head>.
 function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
   const navigate = useNavigate();
+
+  // Inject GEN_CSS into document <head> once on mount, remove on unmount
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'gen-preview-css';
+    style.textContent = GEN_CSS;
+    document.head.appendChild(style);
+    return () => { document.getElementById('gen-preview-css')?.remove(); };
+  }, []);
+
+  // Scale pages to fit viewport on mobile (mirrors SPHForm logic)
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    function computeScale() {
+      setScale(window.innerWidth < 768 ? Math.min(1, (window.innerWidth - 16) / 794) : 1);
+    }
+    computeScale();
+    window.addEventListener('resize', computeScale);
+    return () => window.removeEventListener('resize', computeScale);
+  }, []);
 
   function handlePrint() {
     const win = window.open('', '_blank', 'width=900,height=700');
@@ -130,6 +115,9 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
     win.onload = () => { win.focus(); win.print(); };
   }
 
+  const pageCount = (html.match(/class="page/g) || []).length || 1;
+  const naturalH = pageCount * 1123;
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-3 px-1 no-print">
@@ -141,17 +129,15 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
           <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Cetak / </span>PDF
         </Button>
       </div>
-      {/* Render A4 pages inside a scoped iframe so styles don't bleed.
-          srcDoc iframes have a null origin so relative URLs break — patch
-          image srcs to use an absolute origin before injecting into the iframe. */}
-      <iframe
-        title="preview"
-        style={{ width: '100%', height: 'calc(100vh - 72px)', border: 'none', background: '#F0EDE9' }}
-        srcDoc={`<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1">
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
-          <style>${GEN_CSS.replace('/corner-shape-bg.png', `${window.location.origin}/corner-shape-bg.png`).replace('/hexagon-outline-bg.png', `${window.location.origin}/hexagon-outline-bg.png`)}</style></head><body>${html.replace(/src="\/hexagon-outline-bg\.png"/g, `src="${window.location.origin}/hexagon-outline-bg.png"`).replace(/src="\/corner-shape-bg\.png"/g, `src="${window.location.origin}/corner-shape-bg.png"`)}${SCALE_SCRIPT}</body></html>`}
+      {/* Render A4 pages directly in DOM (same as SPHForm PreviewPanel) so
+          relative image paths resolve against the app's origin correctly. */}
+      <div
+        className="preview-scaler"
+        style={scale < 1 ? {
+          ['--preview-scale' as any]: scale,
+          ['--preview-natural-h' as any]: `${naturalH}px`,
+        } : undefined}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
   );
@@ -469,17 +455,14 @@ export default function SPHPreview() {
   const isGenerator = (data.mode === 'SPH' || data.mode === 'SPK') && data.state;
 
   if (isGenerator) {
-    // Try stored __html first (saved by handleSave after this fix was deployed)
-    const rawSpecs: any[] = data.specs || [];
-    const htmlSpec = rawSpecs.find((s: any) => s.key === '__html');
-    let html: string = htmlSpec?.value || '';
+    let html = '';
 
-    // Fallback: regenerate from __docstate when __html is missing (old saves)
-    if (!html && data.state) {
+    // Always regenerate from state so we get the latest layout + hex-bg injection.
+    // The stored renderedHtml may be stale (saved before injectDeco was added).
+    if (data.state) {
       try {
         const st = data.state;
         const docMode: string = data.mode || 'SPH';
-        // Normalise tampilTtd / tampilDesain — stored as string "true"/"false" or boolean
         const normState = {
           ...st,
           tampilTtd: st.tampilTtd === true || st.tampilTtd === 'true',
@@ -494,8 +477,15 @@ export default function SPHPreview() {
           : pageSPK(normState, items, termin, modeHarga, pilihDesain);
       } catch (e) {
         console.error('Regenerate HTML failed:', e);
+        // Fallback to stored HTML if regeneration fails
+        const rawSpecs: any[] = data.specs || [];
+        const htmlSpec = rawSpecs.find((s: any) => s.key === '__html');
+        html = htmlSpec?.value || '';
       }
     }
+
+    // Ensure hex-bg img is present (safety net for any remaining stale HTML)
+    html = ensureHexBg(html);
 
     return <GeneratorPreview html={html} mode={String(data.mode || 'SPH')} />;
   }
