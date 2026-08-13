@@ -80,6 +80,60 @@ export function getDocumentSalesName(doc: Record<string, unknown>): string {
   return 'Tidak ada nama';
 }
 
+export type DocumentValidityStatus = 'berlaku' | 'tenggat' | 'expired';
+
+const MASA_BERLAKU_DAYS: Record<string, number> = {
+  '2 Minggu': 14,
+  '3 Minggu': 21,
+  '1 Bulan': 31,
+  '2 Bulan': 61,
+};
+
+function getDocumentStateValue(doc: Record<string, unknown>, key: string): unknown {
+  const directValue = doc[key];
+  if (directValue !== undefined) return directValue;
+
+  const specs = Array.isArray(doc.specs) ? doc.specs : [];
+  const docState = specs.find((spec): spec is Record<string, unknown> => (
+    typeof spec === 'object' && spec !== null && (spec as Record<string, unknown>).key === '__docstate'
+  ));
+  if (typeof docState?.value !== 'string' || !docState.value) return undefined;
+
+  try {
+    const parsed = JSON.parse(docState.value) as Record<string, unknown>;
+    return parsed[key] ?? (parsed.state as Record<string, unknown> | undefined)?.[key];
+  } catch {
+    return undefined;
+  }
+}
+
+/** Returns the offer validity in days, preserving the value selected in the SPH form. */
+export function getDocumentValidityDays(doc: Record<string, unknown>): number {
+  const masaBerlaku = getDocumentStateValue(doc, 'masaBerlaku');
+  return typeof masaBerlaku === 'string' ? MASA_BERLAKU_DAYS[masaBerlaku] || 21 : 21;
+}
+
+/**
+ * Classifies an SPH offer as safe, nearing its deadline, or expired.
+ * The last 7 days (including the expiry date) are shown as "tenggat".
+ */
+export function getDocumentValidityStatus(
+  doc: Record<string, unknown>,
+  now: Date = new Date(),
+): { status: DocumentValidityStatus; daysLeft: number } {
+  const dateValue = doc.tanggal || (typeof doc.created_at === 'string' ? doc.created_at.slice(0, 10) : '');
+  const created = dateValue ? parseDate(String(dateValue).slice(0, 10)) : null;
+  if (!created || Number.isNaN(created.getTime())) return { status: 'berlaku', daysLeft: 0 };
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const age = Math.floor((today.getTime() - created.getTime()) / 86400000);
+  const daysLeft = getDocumentValidityDays(doc) - age;
+  return {
+    status: daysLeft < 0 ? 'expired' : daysLeft <= 7 ? 'tenggat' : 'berlaku',
+    daysLeft,
+  };
+}
+
 // ============================================================
 //  NOMOR SURAT
 // ============================================================

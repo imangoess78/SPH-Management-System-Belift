@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle } from 'lucide-react';
+import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle, Clock3, AlertTriangle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement, updateDocumentStatus, getDocumentSalesName } from '@/lib/sph-utils';
+import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement, updateDocumentStatus, getDocumentSalesName, getDocumentValidityStatus } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -111,6 +111,7 @@ export default function SPHList() {
     jenisLift: s.jenisLift || s.jenis_lift || '',
     sales: getDocumentSalesName(s),
     status: s.status || 'draft',
+    validity: getDocumentValidityStatus(s),
   });
 
   const salesOptions = Array.from(new Set(sphList.map(getDocumentSalesName)))
@@ -121,7 +122,8 @@ export default function SPHList() {
     const matchSearch = (
       s.nomorSPH.toLowerCase().includes(q) ||
       s.kepada.toLowerCase().includes(q) ||
-      s.jenisLift.toLowerCase().includes(q)
+      s.jenisLift.toLowerCase().includes(q) ||
+      s.sales.toLowerCase().includes(q)
     );
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
     const matchSales = salesFilter === 'all' || s.sales === salesFilter;
@@ -182,13 +184,15 @@ export default function SPHList() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-left p-4 font-medium text-muted-foreground">No. SPH</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Tanggal</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Kepada</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Jenis Lift</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">Nama Sales</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground">Masa Berlaku</th>
                   <th className="text-left p-4 font-medium text-muted-foreground">Status</th>
                   <th className="text-right p-4 font-medium text-muted-foreground">Aksi</th>
                 </tr>
@@ -202,6 +206,22 @@ export default function SPHList() {
                     <td className="p-4 text-muted-foreground">{formatDate(sph.tanggal)}</td>
                     <td className="p-4">{sph.kepada}</td>
                     <td className="p-4 text-muted-foreground">{sph.jenisLift}</td>
+                    <td className="p-4">{sph.sales}</td>
+                    <td className="p-4">
+                      {sph.validity.status === 'expired' ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-destructive/30 bg-destructive/10 text-destructive font-medium" title="Masa berlaku penawaran telah berakhir">
+                          <XCircle className="w-3.5 h-3.5" /> Expired
+                        </span>
+                      ) : sph.validity.status === 'tenggat' ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-warning/30 bg-warning/10 text-warning font-medium" title={`Sisa ${sph.validity.daysLeft} hari`}>
+                          <AlertTriangle className="w-3.5 h-3.5" /> Tenggat ({sph.validity.daysLeft} hari)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-success/30 bg-success/10 text-success font-medium" title={`Sisa ${sph.validity.daysLeft} hari`}>
+                          <Clock3 className="w-3.5 h-3.5" /> Berlaku
+                        </span>
+                      )}
+                    </td>
                     <td className="p-4">
                       <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${sph.status === 'draft' ? 'badge-draft' : 'badge-final'}`}>
                         {sph.status === 'draft' ? 'Draft' : 'Final'}

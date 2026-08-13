@@ -16,6 +16,7 @@ import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import NotFound from "./pages/NotFound";
+import Reports from "./pages/Reports";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
 function SPKNewOrForm() {
@@ -58,6 +59,7 @@ function AppRoutes() {
               <Route path="/sph/:id/preview" element={<SPHPreview />} />
               <Route path="/spk/:id/preview" element={<SPHPreview />} />
               <Route path="/spk" element={<SPKList />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/master" element={<MasterData />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFound />} />

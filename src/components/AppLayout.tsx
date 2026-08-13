@@ -1,7 +1,8 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -9,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/sph', icon: FileText, label: 'Riwayat SPH' },
   { to: '/spk/new', icon: PlusCircle, label: 'Buat SPK Baru' },
   { to: '/spk', icon: FileText, label: 'Riwayat SPK' },
+  { to: '/reports', icon: BarChart3, label: 'Laporan' },
   { to: '/master', icon: Database, label: 'Master Data' },
   { to: '/settings', icon: Settings, label: 'Pengaturan' },
 ];
@@ -28,7 +30,8 @@ function SidebarContent({
   const { fullName, role, signOut } = useAuth();
 
   return (
-    <div className={`${isMobileOverlay ? 'w-64' : collapsed ? 'w-16' : 'w-64'} bg-sidebar flex flex-col h-full transition-all duration-300`}>
+    <TooltipProvider delayDuration={0}>
+      <div className={`${isMobileOverlay ? 'w-64' : collapsed ? 'w-16' : 'w-64'} bg-sidebar flex flex-col h-full transition-all duration-300`}>
       {/* Logo */}
       <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
         <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0">
@@ -54,15 +57,27 @@ function SidebarContent({
           const active = location.pathname === item.to ||
             (item.to !== '/' && item.to !== '/sph/new' && item.to !== '/spk/new' && location.pathname.startsWith(item.to));
           return (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              className={`nav-item ${active ? 'nav-item-active' : ''}`}
-            >
-              <item.icon className="w-4 h-4 shrink-0" />
-              {(!collapsed || isMobileOverlay) && <span>{item.label}</span>}
-            </Link>
+            <Tooltip key={item.to}>
+              <TooltipTrigger asChild>
+                <Link
+                  to={item.to}
+                  onClick={onClose}
+                  aria-label={item.label}
+                  className={`nav-item ${active ? 'nav-item-active' : ''}`}
+                >
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  {(!collapsed || isMobileOverlay) && <span>{item.label}</span>}
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent
+                side="right"
+                align="center"
+                sideOffset={8}
+                hidden={!collapsed || isMobileOverlay}
+              >
+                {item.label}
+              </TooltipContent>
+            </Tooltip>
           );
         })}
       </nav>
@@ -94,7 +109,8 @@ function SidebarContent({
           {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
 
