@@ -19,7 +19,7 @@ function ensureHexBg(html: string): string {
 const GEN_CSS = `
 :root{--orange:#D95103;--burnt:#A63F04;--brown:#592203;--ink:#2B1B10;--line:#DFD8D1;--muted:#7A6E66}
 *{box-sizing:border-box}
-body{margin:0;padding:16px 0 24px;background:#F0EDE9;font-family:'Barlow',system-ui,sans-serif}
+body{margin:0;padding:0 0 24px;background:#F0EDE9;font-family:'Barlow',system-ui,sans-serif}
 @import url('https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap');
 /* .page-wrap is injected by JS — centres each scaled page */
 .page-wrap{width:100%;overflow:hidden;display:flex;justify-content:center}
@@ -176,7 +176,7 @@ function LegacyPreview({ sph }: { sph: SPH }) {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4 border-b-2 border-primary pb-4">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain shrink-0" />
+            <img src="/BELIFT-Logo-White.webp" alt="Logo" className="w-12 h-12 object-contain shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-primary font-sans leading-tight">PT. BELIFT AMANAH INDONESIA</h2>
               <p className="text-xs text-muted-foreground">Pengadaan & Pemasangan Lift</p>

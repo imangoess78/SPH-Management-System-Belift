@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement, updateDocumentStatus } from '@/lib/sph-utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement, updateDocumentStatus, getDocumentSalesName } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -13,6 +14,9 @@ export default function SPHList() {
   const [searchParams] = useSearchParams();
   const [sphList, setSphList] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [salesFilter, setSalesFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'final'>(
     (searchParams.get('status') as 'draft' | 'final') || 'all'
   );
@@ -105,8 +109,12 @@ export default function SPHList() {
     tanggal: s.tanggal || '',
     kepada: s.kepada || '',
     jenisLift: s.jenisLift || s.jenis_lift || '',
+    sales: getDocumentSalesName(s),
     status: s.status || 'draft',
   });
+
+  const salesOptions = Array.from(new Set(sphList.map(getDocumentSalesName)))
+    .sort((a, b) => a.localeCompare(b, 'id'));
 
   const filteredList: any[] = sphList.map(norm).filter(s => {
     const q = search.toLowerCase();
@@ -116,7 +124,10 @@ export default function SPHList() {
       s.jenisLift.toLowerCase().includes(q)
     );
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchSales = salesFilter === 'all' || s.sales === salesFilter;
+    const matchDateFrom = !dateFrom || s.tanggal >= dateFrom;
+    const matchDateTo = !dateTo || s.tanggal <= dateTo;
+    return matchSearch && matchStatus && matchSales && matchDateFrom && matchDateTo;
   });
 
   // Find the name of the item pending deletion for the dialog description
@@ -129,7 +140,7 @@ export default function SPHList() {
           <h1 className="text-2xl font-bold text-foreground">Riwayat SPH</h1>
           <p className="text-sm text-muted-foreground mt-1">{filteredList.length} surat penawaran</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:items-center sm:flex-wrap sm:justify-end">
           {/* Status filter tabs */}
           <div className="flex rounded-lg border overflow-hidden shrink-0">
             {(['all', 'draft', 'final'] as const).map(f => (
@@ -144,6 +155,17 @@ export default function SPHList() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Input type="date" aria-label="Tanggal mulai" title="Tanggal mulai" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full sm:w-36" />
+            <Input type="date" aria-label="Tanggal sampai" title="Tanggal sampai" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full sm:w-36" />
+          </div>
+          <Select value={salesFilter} onValueChange={setSalesFilter}>
+            <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua sales" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua sales</SelectItem>
+              {salesOptions.map(sales => <SelectItem key={sales} value={sales}>{sales}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Link to="/sph/new">
             <Button className="gap-2 w-full sm:w-auto"><PlusCircle className="w-4 h-4" /> Buat SPH Baru</Button>
           </Link>

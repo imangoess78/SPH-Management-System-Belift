@@ -37,7 +37,7 @@ export default function LoginPage() {
         <div className="bg-card rounded-2xl border shadow-lg p-8">
           {/* Logo & Header */}
           <div className="text-center mb-8">
-            <img src="/logo.png" alt="Belift" className="w-20 h-20 mx-auto mb-4 object-contain" />
+            <img src="/BELIFT-Logo-White.webp" alt="Belift" className="w-20 h-20 mx-auto mb-4 object-contain" />
             <h1 className="text-xl font-bold text-foreground font-sans">SPH Management System</h1>
             <p className="text-sm text-muted-foreground mt-1">PT. Belift Amanah Indonesia</p>
           </div>

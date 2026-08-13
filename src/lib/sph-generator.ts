@@ -53,7 +53,7 @@ function namaDesain(k: string, pilihDesain: DesainPilihan, liveDesain?: Record<s
 
 function kop(t: string, alamatKantor: string): string {
   return '<div class="lethead"><div class="doctype">' + t + '</div><div class="co">' +
-'<img class="mark-logo" src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin-left:auto">' +
+'<img class="mark-logo" src="/BELIFT-Logo-White.webp" alt="Belift" style="height:10mm;width:auto;display:block;margin-left:auto">' +
     '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>' +
     esc(alamatKantor).replace(/, /g, ',<br>') + '<br>info@belift.co.id</div></div>';
 }
@@ -198,7 +198,7 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
     '<li>Cara pembayaran:' + terminDoc(items, termin, modeH) + '</li></ol>' +
     '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>' +
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">' +
-'<img src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin:0 auto 2mm">' +
+'<img src="/BELIFT-Logo-White.webp" alt="Belift" style="height:10mm;width:auto;display:block;margin:0 auto 2mm">'+
     ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd) + '</div></div><div class="pgnum">·</div></div>';
   return injectDeco(raw);
 }

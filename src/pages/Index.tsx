@@ -32,6 +32,25 @@ function isSPH(doc: any): boolean {
   return !isSPK(doc);
 }
 
+// The generator stores the selected sales name as `sales` inside __docstate,
+// while older documents may expose it directly as namaSales/nama_sales.
+function getSalesName(doc: any): string {
+  const directName = doc.namaSales || doc.nama_sales || doc.sales || doc.sales_name;
+  if (typeof directName === 'string' && directName.trim()) return directName.trim();
+
+  const specs: any[] = Array.isArray(doc.specs) ? doc.specs : [];
+  const docState = specs.find((spec: any) => spec.key === '__docstate');
+  if (docState?.value) {
+    try {
+      const parsed = JSON.parse(docState.value);
+      const savedName = parsed.sales || parsed.namaSales || parsed.nama_sales || parsed.state?.sales;
+      if (typeof savedName === 'string' && savedName.trim()) return savedName.trim();
+    } catch { /* ignore malformed legacy docstate */ }
+  }
+
+  return 'Tidak ada nama';
+}
+
 const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -78,7 +97,7 @@ const Index = () => {
   const sphSalesStats = useMemo(() => {
     const map = new Map<string, { sales: string; total: number; final: number }>();
     sphFiltered.forEach(s => {
-      const key = (s.namaSales || s.nama_sales || 'Tidak ada nama').trim() || 'Tidak ada nama';
+      const key = getSalesName(s);
       const row = map.get(key) || { sales: key, total: 0, final: 0 };
       row.total += 1;
       if (s.status === 'final') row.final += 1;
@@ -104,7 +123,7 @@ const Index = () => {
   const spkSalesStats = useMemo(() => {
     const map = new Map<string, { sales: string; total: number; final: number }>();
     spkFiltered.forEach(s => {
-      const key = (s.namaSales || s.nama_sales || 'Tidak ada nama').trim() || 'Tidak ada nama';
+      const key = getSalesName(s);
       const row = map.get(key) || { sales: key, total: 0, final: 0 };
       row.total += 1;
       if (s.status === 'final') row.final += 1;

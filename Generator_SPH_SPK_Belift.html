@@ -19,7 +19,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 .topbar{position:sticky;top:0;z-index:60;background:var(--brown);color:#fff;display:flex;align-items:center;
   gap:18px;padding:0 16px;height:56px;border-bottom:3px solid var(--orange)}
-.brand{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:26px;letter-spacing:.06em}
+.brand{height:23px;width:auto;display:block;object-fit:contain}
 .brand span{color:var(--orange)}
 .tabs{display:flex;gap:2px}
 .tab{background:none;border:0;color:#E8DCD3;padding:8px 18px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
@@ -163,7 +163,7 @@ tr.subrow td:nth-child(2)::before{content:"\21B3 "}
 </style>
 
 <div class="topbar">
-  <div class="brand">BEL<span>IFT</span></div>
+  <img class="brand" src="/BELIFT-Logo-White.webp" alt="Belift">
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tabSPH" aria-selected="true" onclick="setMode('SPH')">SPH · Penawaran</button>
     <button class="tab" role="tab" id="tabSPK" aria-selected="false" onclick="setMode('SPK')">SPK · Kontrak</button>
@@ -550,7 +550,7 @@ function isiCepat(){
 
 /* ===================================== DOKUMEN ===================================== */
 function kop(t){
-  return '<div class="lethead"><div class="doctype">'+t+'</div><div class="co"><div class="mark">B<i>ELIFT</i></div>'+
+  return '<div class="lethead"><div class="doctype">'+t+'</div><div class="co"><img class="mark-logo" src="/BELIFT-Logo-White.webp" alt="Belift">'+
   '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>'+esc(S.alamatKantor).replace(/, /g,",<br>")+
   '<br>info@belift.co.id</div></div>';
 }

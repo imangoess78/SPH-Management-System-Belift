@@ -32,7 +32,7 @@ function SidebarContent({
       {/* Logo */}
       <div className="p-4 flex items-center gap-3 border-b border-sidebar-border">
         <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0">
-          <img src="/favicon.ico" alt="Belift" className="w-7 h-7 object-contain" />
+          <img src="/favicon.ico" alt="Belift" className="h-[23px] w-[23px] object-contain" />
         </div>
         {(!collapsed || isMobileOverlay) && (
           <div className="overflow-hidden flex-1">
@@ -145,11 +145,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span
-            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: '.06em', color: '#fff' }}
-          >
-            BEL<span style={{ color: '#D95103' }}>IFT</span>
-          </span>
+          <img src="/BELIFT-Logo-White.webp" alt="Belift" className="h-[23px] w-auto object-contain" />
         </div>
 
         <div className="p-4 md:p-6 max-w-7xl mx-auto animate-fade-in">

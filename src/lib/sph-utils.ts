@@ -60,6 +60,26 @@ export function formatDate(dateStr: string): string {
   return fmtID(parseDate(dateStr));
 }
 
+/** Reads the selected sales name from current and legacy document shapes. */
+export function getDocumentSalesName(doc: Record<string, unknown>): string {
+  const directName = doc.namaSales || doc.nama_sales || doc.sales || doc.sales_name;
+  if (typeof directName === 'string' && directName.trim()) return directName.trim();
+
+  const specs = Array.isArray(doc.specs) ? doc.specs : [];
+  const docState = specs.find((spec): spec is Record<string, unknown> => (
+    typeof spec === 'object' && spec !== null && (spec as Record<string, unknown>).key === '__docstate'
+  ));
+  if (typeof docState?.value === 'string' && docState.value) {
+    try {
+      const parsed = JSON.parse(docState.value);
+      const savedName = parsed.sales || parsed.namaSales || parsed.nama_sales || parsed.state?.sales;
+      if (typeof savedName === 'string' && savedName.trim()) return savedName.trim();
+    } catch { /* ignore malformed legacy docstate */ }
+  }
+
+  return 'Tidak ada nama';
+}
+
 // ============================================================
 //  NOMOR SURAT
 // ============================================================
