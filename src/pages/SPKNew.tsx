@@ -111,9 +111,11 @@ export default function SPKNew() {
             onClick={() => navigate('/')}
             style={{ background: 'none', border: 0, color: '#E8DCD3', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}
           >‹</button>
-          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 26, letterSpacing: '.06em', flexShrink: 0 }}>
-            BEL<span style={{ color: 'var(--orange)' }}>IFT</span>
-          </div>
+          <img
+            src="/BELIFT-Logo-White.webp"
+            alt="Belift"
+            style={{ height: 23, width: 'auto', objectFit: 'contain', display: 'block', flexShrink: 0 }}
+          />
           <div style={{ marginLeft: 8, flexShrink: 0 }}>
             <span style={{
               fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 600, fontSize: 16,

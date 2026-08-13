@@ -176,7 +176,7 @@ function LegacyPreview({ sph }: { sph: SPH }) {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4 border-b-2 border-primary pb-4">
           <div className="flex items-center gap-3">
-            <img src="/BELIFT-Logo-White.webp" alt="Logo" className="w-12 h-12 object-contain shrink-0" />
+            <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain shrink-0" />
             <div>
               <h2 className="text-sm font-bold text-primary font-sans leading-tight">PT. BELIFT AMANAH INDONESIA</h2>
               <p className="text-xs text-muted-foreground">Pengadaan & Pemasangan Lift</p>
