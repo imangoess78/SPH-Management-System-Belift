@@ -7,6 +7,7 @@ import {
 import { loadDocumentList, formatDate, getDocumentSalesName } from '@/lib/sph-utils';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const VALIDITY_DAYS = 21;
 const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -100,6 +101,38 @@ export default function Reports() {
     return Array.from(values).sort();
   }, [documents, yearFilter]);
 
+  // Trend tahunan selalu menampilkan seluruh 12 bulan. Saat "Semua tahun"
+  // dipilih, setiap tahun menjadi satu garis agar perbandingannya mudah dibaca.
+  const trendYears = useMemo(() => {
+    const years = new Set(documents.map(documentDate).filter(Boolean).map(value => value.slice(0, 4)));
+    if (yearFilter !== 'all') years.add(yearFilter);
+    return Array.from(years).sort();
+  }, [documents, yearFilter]);
+
+  const yearlyTrend = useMemo(() => monthNames.map((month, monthIndex) => {
+    const row: Record<string, string | number> = { month: month.slice(0, 3) };
+    trendYears.forEach(year => {
+      const prefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+      row[`${year}_sph`] = documents.filter(doc => getMode(doc) === 'SPH' && periodKey(doc) === prefix).length;
+      row[`${year}_spk`] = documents.filter(doc => getMode(doc) === 'SPK' && periodKey(doc) === prefix).length;
+    });
+    return row;
+  }), [documents, trendYears]);
+
+  const dailyTrend = useMemo(() => {
+    if (yearFilter === 'all' || monthFilter === 'all') return [];
+    const daysInMonth = new Date(Number(yearFilter), Number(monthFilter), 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, index) => {
+      const day = String(index + 1).padStart(2, '0');
+      const prefix = `${yearFilter}-${monthFilter}-${day}`;
+      return {
+        day: String(index + 1),
+        sph: documents.filter(doc => getMode(doc) === 'SPH' && documentDate(doc) === prefix).length,
+        spk: documents.filter(doc => getMode(doc) === 'SPK' && documentDate(doc) === prefix).length,
+      };
+    });
+  }, [documents, yearFilter, monthFilter]);
+
   const periodLabel = period === 'all' ? 'Semua periode / global' : monthFilter === 'all'
     ? `Tahun ${yearFilter}`
     : `${monthNames[Number(monthFilter) - 1]} ${yearFilter}`;
@@ -172,6 +205,46 @@ export default function Reports() {
       <Stat icon={TrendingUp} label="Rasio SPH → SPK" value={`${conversion}%`} note={`${report.spk.length} dari ${report.sph.length} SPH`} tone="success" />
       <Stat icon={CheckCircle2} label="Tingkat finalisasi SPH" value={`${finalRate}%`} note="Draft menjadi final" tone="warning" />
     </div>
+
+    <section className="bg-card rounded-xl border shadow-sm p-5 mb-6">
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp className="w-5 h-5 text-primary" />
+        <div><h2 className="section-title">Trend SPH &amp; SPK per tahun</h2><p className="text-xs text-muted-foreground">Jumlah dokumen pada semua bulan untuk setiap tahun</p></div>
+      </div>
+      {trendYears.length === 0 ? <p className="text-sm text-muted-foreground py-10 text-center">Belum ada data untuk ditampilkan.</p> : <div className="h-72 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={yearlyTrend} margin={{ top: 8, right: 12, left: -20, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" />
+            <YAxis allowDecimals={false} />
+            <Tooltip labelFormatter={label => `Bulan ${label}`} />
+            <Legend />
+            {trendYears.map(year => <Line key={`${year}-sph`} type="monotone" dataKey={`${year}_sph`} name={`SPH ${year}`} stroke="#2563eb" strokeWidth={2} dot={{ r: 2 }} />)}
+            {trendYears.map(year => <Line key={`${year}-spk`} type="monotone" dataKey={`${year}_spk`} name={`SPK ${year}`} stroke="#9333ea" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 2 }} />)}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>}
+    </section>
+
+    <section className="bg-card rounded-xl border shadow-sm p-5 mb-6">
+      <div className="flex items-center gap-2 mb-4">
+        <BarChart3 className="w-5 h-5 text-primary" />
+        <div><h2 className="section-title">Trend SPH &amp; SPK per hari</h2><p className="text-xs text-muted-foreground">Jumlah dokumen pada setiap hari di bulan terpilih</p></div>
+      </div>
+      {yearFilter === 'all' || monthFilter === 'all' ? <p className="text-sm text-muted-foreground py-10 text-center">Pilih tahun dan bulan untuk melihat trend harian.</p> : <div className="h-72 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={dailyTrend} margin={{ top: 8, right: 12, left: -20, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="day" label={{ value: 'Tanggal', position: 'insideBottom', offset: -2 }} />
+            <YAxis allowDecimals={false} />
+            <Tooltip labelFormatter={label => `Tanggal ${label} ${monthNames[Number(monthFilter) - 1]} ${yearFilter}`} />
+            <Legend />
+            <Line type="monotone" dataKey="sph" name="SPH" stroke="#2563eb" strokeWidth={2} dot={{ r: 2 }} />
+            <Line type="monotone" dataKey="spk" name="SPK" stroke="#9333ea" strokeWidth={2} dot={{ r: 2 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>}
+    </section>
 
     <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6 mb-6">
       <section className="bg-card rounded-xl border shadow-sm p-5">
