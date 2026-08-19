@@ -343,12 +343,12 @@ export default function MasterData() {
       active: formSalesActive,
     };
     if (editingSales) {
-      const { error } = await (supabase as any).from('sales').update(payload).eq('id', editingSales.id);
-      if (error) toast.error('Gagal mengupdate sales: ' + error.message);
+      const response = await fetch(`/api/data?table=sales&id=${encodeURIComponent(editingSales.id)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!response.ok) toast.error('Gagal mengupdate sales');
       else { toast.success('Data sales berhasil diupdate'); setSalesDialogOpen(false); fetchSalesItems(); }
     } else {
-      const { error } = await (supabase as any).from('sales').insert(payload);
-      if (error) toast.error('Gagal menambahkan sales: ' + error.message);
+      const response = await fetch('/api/data?table=sales', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!response.ok) toast.error('Gagal menambahkan sales');
       else { toast.success('Sales berhasil ditambahkan'); setSalesDialogOpen(false); fetchSalesItems(); }
     }
     setSalesSaving(false);
@@ -359,8 +359,8 @@ export default function MasterData() {
     const item = pendingDeleteSales;
     setPendingDeleteSales(null);
     setConfirmSalesOpen(false);
-    const { error } = await (supabase as any).from('sales').delete().eq('id', item.id);
-    if (error) toast.error('Gagal menghapus sales: ' + error.message);
+    const response = await fetch(`/api/data?table=sales&id=${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+    if (!response.ok) toast.error('Gagal menghapus sales');
     else { toast.success('Sales berhasil dihapus'); fetchSalesItems(); }
   };
 
