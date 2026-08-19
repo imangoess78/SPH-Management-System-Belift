@@ -1,0 +1,12 @@
+{
+	"name": "sph-management-clone",
+	"pages_build_output_dir": "./dist",
+	"compatibility_date": "2026-08-19",
+	"d1_databases": [
+		{
+			"binding": "sph_management_db",
+			"database_name": "sph-management-db",
+			"database_id": "26004faf-d0f8-45de-bafb-14ccd5f7cf61"
+		}
+	]
+}
