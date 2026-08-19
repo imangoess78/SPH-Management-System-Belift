@@ -501,6 +501,11 @@ const CAT_MAP: Record<string, string> = {
 // UUID regex — used to detect fallback IDs so we don't show them as SKU labels
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function toR2MediaUrl(value: string): string {
+  const match = value.match(/\/storage\/v1\/object\/public\/(design-images|signatures)\/([^?]+)/);
+  return match ? `/api/media?key=${encodeURIComponent(`recovery/2026-08-19/${match[1]}/${match[2]}`)}` : value;
+}
+
 function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
   // Build map keyed by DESAIN category — filled exclusively from DB rows.
   // Categories with no DB rows stay as empty arrays (no static placeholders).
@@ -514,7 +519,7 @@ function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
     const cat = CAT_MAP[rawCat];
     if (!cat) return; // unknown category — skip
 
-    const img = row.image_url || '';
+    const img = toR2MediaUrl(row.image_url || '');
     const sku = (row.sku || '').trim();
     const kode = sku || row.id; // fallback to id if no sku
     const nama = row.name || kode; // clean name for printing
@@ -633,17 +638,13 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     });
   }, [mode, routeId]);
 
-  // Fetch design_items from Supabase — re-run when user is available (RLS requires auth)
+  // Fetch design_items from D1 API
   useEffect(() => {
-    if (!user) return; // wait for auth session
-    (supabase as any).from('design_items').select('*').then(({ data, error }: { data: any; error: any }) => {
-      if (error) { console.error('[SPHForm] design_items fetch error:', error); return; }
-      if (!data || data.length === 0) { console.warn('[SPHForm] design_items: no rows returned (RLS or empty table)'); return; }
-      console.log('[SPHForm] design_items raw:', data);
+    if (!user) return;
+    fetch('/api/data?table=design_items').then(r => r.json()).then(({ data }) => {
+      if (!data?.length) return;
       const fromDB = mergeDesainFromDB(data);
-      console.log('[SPHForm] liveDesain from DB:', JSON.stringify(fromDB, null, 2));
       setLiveDesain(fromDB);
-      // Auto-select first item per category so the design page renders immediately
       setPilihDesain(prev => {
         const next = { ...prev };
         (Object.keys(fromDB) as (keyof DesainPilihan)[]).forEach(k => {
@@ -651,7 +652,7 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
         });
         return next;
       });
-    });
+    }).catch(e => console.error('[SPHForm] design_items fetch error:', e));
   }, [user]);
 
   function setItemField(idx: number, k: keyof KatalogItem, v: unknown) {

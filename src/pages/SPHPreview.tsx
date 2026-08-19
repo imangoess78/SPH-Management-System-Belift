@@ -439,6 +439,11 @@ const CAT_MAP: Record<string, string> = {
   cop: 'cop', lop: 'lop', struktur: 'struktur', 'add on': 'addon', addon: 'addon',
 };
 
+function toR2MediaUrl(value: string): string {
+  const match = value.match(/\/storage\/v1\/object\/public\/(design-images|signatures)\/([^?]+)/);
+  return match ? `/api/media?key=${encodeURIComponent(`recovery/2026-08-19/${match[1]}/${match[2]}`)}` : value;
+}
+
 function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
   const result: Record<string, DesainOption[]> = Object.fromEntries(
     Object.keys(DESAIN).map(k => [k, []])
@@ -447,7 +452,7 @@ function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
     const rawCat = (row.category || '').toLowerCase().trim();
     const cat = CAT_MAP[rawCat];
     if (!cat) return;
-    const img = row.image_url || '';
+    const img = toR2MediaUrl(row.image_url || '');
     const sku = (row.sku || '').trim();
     const kode = sku || row.id;
     const nama = row.name || kode;
@@ -480,12 +485,11 @@ export default function SPHPreview() {
     load();
   }, [id]);
 
-  // Fetch design images from Supabase (same as SPHForm does)
+  // Fetch design images from D1 API (standalone clone)
   useEffect(() => {
-    (supabase as any).from('design_items').select('*').then(({ data: rows, error }: { data: any; error: any }) => {
-      if (error || !rows || rows.length === 0) return;
-      setLiveDesain(mergeDesainFromDB(rows));
-    });
+    fetch('/api/data?table=design_items').then(r => r.json()).then(({ data: rows }) => {
+      if (rows?.length) setLiveDesain(mergeDesainFromDB(rows));
+    }).catch(() => {});
   }, []);
 
   if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;
