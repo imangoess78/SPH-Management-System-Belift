@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/reports', icon: BarChart3, label: 'Laporan' },
   { to: '/master', icon: Database, label: 'Master Data' },
   { to: '/settings', icon: Settings, label: 'Pengaturan' },
+  { to: '/admin/emergency-backup', icon: ShieldCheck, label: 'Emergency Backup', adminOnly: true },
 ];
 
 function SidebarContent({
@@ -53,7 +54,7 @@ function SidebarContent({
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map(item => {
+        {NAV_ITEMS.filter(item => !item.adminOnly || role === 'admin').map(item => {
           const active = location.pathname === item.to ||
             (item.to !== '/' && item.to !== '/sph/new' && item.to !== '/spk/new' && location.pathname.startsWith(item.to));
           return (
