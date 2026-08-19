@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, ArrowRight, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -27,18 +26,14 @@ export default function SPKNew() {
     (async () => {
       setLoading(true);
 
-      // Query langsung ke Supabase — filter status='final' di sisi DB
-      const { data, error } = await (supabase as any)
-        .from('sph')
-        .select('id, nomor_sph, tanggal, kepada, jenis_lift, alamat_proyek, perihal, status, specs')
-        .eq('status', 'final')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('[SPKNew] error fetching:', error);
+      const response = await fetch('/api/data?table=sph&status=final');
+      const result = await response.json();
+      if (!response.ok) {
+        console.error('[SPKNew] error fetching:', result.error);
         setLoading(false);
         return;
       }
+      const data = result.data || [];
 
       // Filter hanya yang mode-nya SPH (bukan SPK)
       const sphFinals = (data || []).filter((doc: any) => {
