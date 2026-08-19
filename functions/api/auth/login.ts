@@ -1,7 +1,11 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 interface Env { sph_management_db: D1Database }
 const enc = new TextEncoder();
-function b64(bytes: ArrayBuffer) { return btoa(String.fromCharCode(...new Uint8Array(bytes))); }
+function b64(bytes: ArrayBuffer) {
+  let out = '';
+  for (const byte of new Uint8Array(bytes)) out += String.fromCharCode(byte);
+  return btoa(out);
+}
 async function derive(password: string, salt: string) {
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:120000,hash:'SHA-256'}, key, 256);
