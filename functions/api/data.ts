@@ -10,5 +10,14 @@ export const onRequestGet: PagesFunction<Env> = async ({request,env}) => {
   const url=new URL(request.url), table=url.searchParams.get('table')||'';
   if(!allowed.has(table)) return Response.json({error:'Invalid table'},{status:400});
   const result=await env.sph_management_db.prepare(`SELECT * FROM ${table} ORDER BY created_at DESC`).all();
-  return Response.json({data:result.results||[]});
+  const jsonColumns = new Set(['specs','items','payments','terms','include_ppn']);
+  const data=(result.results||[]).map((row:any)=>{
+    const out={...row};
+    for(const key of jsonColumns){
+      if(typeof out[key] !== 'string') continue;
+      try { out[key]=JSON.parse(out[key]); } catch { /* keep scalar */ }
+    }
+    return out;
+  });
+  return Response.json({data});
 };
