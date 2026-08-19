@@ -249,17 +249,12 @@ export default function MasterData() {
       else { toast.error('Gagal mengupload gambar'); setDesignSaving(false); return; }
     }
     if (editingDesign) {
-      const { error } = await supabase
-        .from('design_items')
-        .update({ name: formDesignName, sku: formDesignSku, image_url: imageUrl } as any)
-        .eq('id', editingDesign.id);
-      if (error) toast.error('Gagal mengupdate desain: ' + error.message);
+      const response = await fetch(`/api/data?table=design_items&id=${encodeURIComponent(editingDesign.id)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: formDesignName, sku: formDesignSku, image_url: imageUrl }) });
+      if (!response.ok) toast.error('Gagal mengupdate desain');
       else { toast.success('Desain berhasil diupdate'); setDesignDialogOpen(false); fetchDesignItems(); }
     } else {
-      const { error } = await supabase
-        .from('design_items')
-        .insert({ category: formDesignCategory, name: formDesignName, sku: formDesignSku, image_url: imageUrl } as any);
-      if (error) toast.error('Gagal menambahkan desain: ' + error.message);
+      const response = await fetch('/api/data?table=design_items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ category: formDesignCategory, name: formDesignName, sku: formDesignSku, image_url: imageUrl }) });
+      if (!response.ok) toast.error('Gagal menambahkan desain');
       else { toast.success('Desain berhasil ditambahkan'); setDesignDialogOpen(false); fetchDesignItems(); }
     }
     setDesignSaving(false);
@@ -270,8 +265,8 @@ export default function MasterData() {
     const item = pendingDeleteDesign;
     setPendingDeleteDesign(null);
     setConfirmDesignOpen(false);
-    const { error } = await supabase.from('design_items').delete().eq('id', item.id);
-    if (error) toast.error('Gagal menghapus desain: ' + error.message);
+    const response = await fetch(`/api/data?table=design_items&id=${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+    if (!response.ok) toast.error('Gagal menghapus desain');
     else { toast.success('Desain berhasil dihapus'); fetchDesignItems(); }
   };
 

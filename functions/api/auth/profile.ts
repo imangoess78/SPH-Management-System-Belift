@@ -1,0 +1,4 @@
+import type { PagesFunction } from '@cloudflare/workers-types';
+interface Env { sph_management_db: D1Database }
+async function session(request:Request,env:Env){const sid=(request.headers.get('cookie')||'').match(/(?:^|; )sph_session=([^;]+)/)?.[1];if(!sid)return null;return env.sph_management_db.prepare('SELECT user_id FROM app_sessions WHERE id=? AND expires_at>?').bind(sid,new Date().toISOString()).first<any>()}
+export const onRequestPost:PagesFunction<Env>=async({request,env})=>{const u=await session(request,env);if(!u)return Response.json({error:'Unauthorized'},{status:401});let b:any;try{b=await request.json()}catch{return Response.json({error:'Request tidak valid'},{status:400})}if(!b.fullName?.trim())return Response.json({error:'Nama wajib diisi'},{status:400});await env.sph_management_db.prepare('UPDATE app_users SET full_name=? WHERE id=?').bind(b.fullName.trim(),u.user_id).run();return Response.json({ok:true})};

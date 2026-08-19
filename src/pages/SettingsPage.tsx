@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,17 +29,10 @@ export default function SettingsPage() {
     if (!user) return;
 
     setSavingName(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ full_name: trimmed })
-      .eq('user_id', user.id);
-
-    if (error) {
-      toast({ title: 'Gagal menyimpan nama', description: error.message, variant: 'destructive' });
-    } else {
-      await refreshProfile();
-      toast({ title: 'Nama berhasil diperbarui' });
-    }
+    const response = await fetch('/api/auth/profile', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fullName: trimmed }) });
+    const result = await response.json();
+    if (!response.ok) toast({ title: 'Gagal menyimpan nama', description: result.error, variant: 'destructive' });
+    else { await refreshProfile(); toast({ title: 'Nama berhasil diperbarui' }); }
     setSavingName(false);
   };
 
@@ -60,28 +52,10 @@ export default function SettingsPage() {
 
     setSavingPassword(true);
 
-    // Re-authenticate first to verify current password
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user?.email ?? '',
-      password: currentPassword,
-    });
-
-    if (signInError) {
-      toast({ title: 'Password saat ini salah', variant: 'destructive' });
-      setSavingPassword(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-
-    if (error) {
-      toast({ title: 'Gagal mengubah password', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Password berhasil diubah' });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    }
+    const response = await fetch('/api/auth/password', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }) });
+    const result = await response.json();
+    if (!response.ok) toast({ title: result.error || 'Gagal mengubah password', variant: 'destructive' });
+    else { toast({ title: 'Password berhasil diubah' }); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }
     setSavingPassword(false);
   };
 
