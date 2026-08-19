@@ -2,6 +2,12 @@
 	"name": "sph-management-clone",
 	"pages_build_output_dir": "./dist",
 	"compatibility_date": "2026-08-19",
+	"r2_buckets": [
+		{
+			"binding": "belift_media",
+			"bucket_name": "belift-media"
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "sph_management_db",

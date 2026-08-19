@@ -34,6 +34,12 @@ export interface SalesItem {
 
 type MainTab = 'design' | 'sales';
 
+function toR2Url(value: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/\/storage\/v1\/object\/public\/(design-images|signatures)\/([^?]+)/);
+  return match ? `/api/media?key=${encodeURIComponent(`recovery/2026-08-19/${match[1]}/${match[2]}`)}` : value;
+}
+
 // ── Shared image upload zone ─────────────────────────────────
 function ImageUploadZone({
   fileInputRef, imagePreview, imageFile,
@@ -156,7 +162,7 @@ export default function MasterData() {
     const response = await fetch('/api/data?table=design_items');
     const result = await response.json();
     if (!response.ok) setDesignFetchError(result.error || 'Gagal memuat data');
-    else setDesignItems((result.data || []) as DesignItem[]);
+    else setDesignItems(((result.data || []) as DesignItem[]).map(item => ({ ...item, image_url: toR2Url(item.image_url) })));
     setDesignLoading(false);
   };
 
@@ -167,7 +173,7 @@ export default function MasterData() {
     const response = await fetch('/api/data?table=sales');
     const result = await response.json();
     if (!response.ok) setSalesFetchError(result.error || 'Gagal memuat data');
-    else setSalesItems((result.data || []) as SalesItem[]);
+    else setSalesItems(((result.data || []) as SalesItem[]).map(item => ({ ...item, signature_url: toR2Url(item.signature_url) })));
     setSalesLoading(false);
   };
 
@@ -183,12 +189,12 @@ export default function MasterData() {
 
   // ── Shared upload helper ─────────────────────────────────
   const uploadToStorage = async (bucket: string, file: File): Promise<string | null> => {
-    const ext = file.name.split('.').pop();
-    const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from(bucket).upload(path, file);
-    if (error) { console.error('Upload error:', error); return null; }
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    return data.publicUrl;
+    const path = `${crypto.randomUUID()}.${file.name.split('.').pop()}`;
+    const form = new FormData(); form.append('file', file); form.append('bucket', bucket); form.append('path', path);
+    const response = await fetch('/api/media', { method: 'POST', body: form });
+    if (!response.ok) return null;
+    const result = await response.json();
+    return result.url || null;
   };
 
   // ── Design handlers ──────────────────────────────────────
