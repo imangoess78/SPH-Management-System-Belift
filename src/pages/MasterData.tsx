@@ -153,15 +153,10 @@ export default function MasterData() {
   const fetchDesignItems = async () => {
     setDesignLoading(true);
     setDesignFetchError(null);
-    const { data, error } = await supabase
-      .from('design_items')
-      .select('*')
-      .order('created_at', { ascending: true });
-    if (error) {
-      setDesignFetchError(error.message);
-    } else if (data) {
-      setDesignItems(data as DesignItem[]);
-    }
+    const response = await fetch('/api/data?table=design_items');
+    const result = await response.json();
+    if (!response.ok) setDesignFetchError(result.error || 'Gagal memuat data');
+    else setDesignItems((result.data || []) as DesignItem[]);
     setDesignLoading(false);
   };
 
@@ -169,15 +164,10 @@ export default function MasterData() {
   const fetchSalesItems = async () => {
     setSalesLoading(true);
     setSalesFetchError(null);
-    const { data, error } = await (supabase as any)
-      .from('sales')
-      .select('*')
-      .order('name', { ascending: true });
-    if (error) {
-      setSalesFetchError(error.message);
-    } else if (data) {
-      setSalesItems(data as SalesItem[]);
-    }
+    const response = await fetch('/api/data?table=sales');
+    const result = await response.json();
+    if (!response.ok) setSalesFetchError(result.error || 'Gagal memuat data');
+    else setSalesItems((result.data || []) as SalesItem[]);
     setSalesLoading(false);
   };
 

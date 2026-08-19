@@ -266,24 +266,19 @@ export async function loadDocumentList(): Promise<any[]> {
 }
 
 export async function loadDocumentById(id: string): Promise<any | null> {
-  const { data, error } = await (supabase as any)
-    .from('sph')
-    .select('*')
-    .eq('id', id)
-    .single();
-  if (error || !data) return null;
-  // Try to restore full docstate from specs
-  const specs: any[] = data.specs || [];
-  const docstateSpec = specs.find((s: any) => s.key === '__docstate');
-  if (docstateSpec) {
-    try {
-      const parsed = JSON.parse(docstateSpec.value);
-      // Preserve specs so SPHPreview can find __html
-      parsed.specs = specs;
-      return parsed;
-    } catch { /* fall through */ }
-  }
-  return data;
+  try {
+    const r = await fetch(`/api/data?table=sph&id=${encodeURIComponent(id)}`);
+    if (!r.ok) return null;
+    const { data } = await r.json();
+    const raw = data?.[0];
+    if (!raw) return null;
+    const specs: any[] = raw.specs || [];
+    const docstateSpec = specs.find((s: any) => s.key === '__docstate');
+    if (docstateSpec) {
+      try { const parsed = JSON.parse(docstateSpec.value); parsed.specs = specs; return parsed; } catch { /* fall through */ }
+    }
+    return raw;
+  } catch { return null; }
 }
 
 export async function deleteDocument(id: string): Promise<boolean> {

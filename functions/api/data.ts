@@ -9,7 +9,7 @@ export const onRequestGet: PagesFunction<Env> = async ({request,env}) => {
   if(!session) return Response.json({error:'Unauthorized'},{status:401});
   const url=new URL(request.url), table=url.searchParams.get('table')||'';
   if(!allowed.has(table)) return Response.json({error:'Invalid table'},{status:400});
-  const result=await env.sph_management_db.prepare(`SELECT * FROM ${table} ORDER BY created_at DESC`).all();
+  const result=await env.sph_management_db.prepare(table === 'sph' && url.searchParams.get('id') ? 'SELECT * FROM sph WHERE id=?' : `SELECT * FROM ${table} ORDER BY created_at DESC`).bind(...(table === 'sph' && url.searchParams.get('id') ? [url.searchParams.get('id')] : [])).all();
   const jsonColumns = new Set(['specs','items','payments','terms','include_ppn']);
   const data=(result.results||[]).map((row:any)=>{
     const out={...row};
