@@ -3,11 +3,9 @@ import { Download, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 const TABLES = ['profiles', 'user_roles', 'sph', 'design_items', 'sales'] as const;
-const BATCH_SIZE = 500;
 
 type TableName = typeof TABLES[number];
 type TableResult = { rows: number; sha256: string; status: 'PASS' | 'FAIL'; error?: string };
@@ -29,15 +27,10 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 async function readTable(table: TableName) {
-  const rows: unknown[] = [];
-  for (let from = 0; ; from += BATCH_SIZE) {
-    const { data, error } = await (supabase as any).from(table).select('*').range(from, from + BATCH_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const batch = data || [];
-    rows.push(...batch);
-    if (batch.length < BATCH_SIZE) break;
-  }
-  return rows;
+  const response = await fetch(`/api/data?table=${encodeURIComponent(table)}`);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Gagal membaca ${table}`);
+  return payload.data || [];
 }
 
 export default function EmergencyBackup() {
@@ -70,12 +63,11 @@ export default function EmergencyBackup() {
         }
       }
       const failed = TABLES.some((table) => summary[table]?.status === 'FAIL');
-      const manifest = {
+    const manifest = {
         backup_type: 'emergency-production-database-backup',
         created_at: new Date().toISOString(),
-        source: 'production-application-authenticated-session',
+        source: 'cloudflare-d1-authenticated-session',
         authenticated_user: user?.id || null,
-        batch_size: BATCH_SIZE,
         status: failed ? 'PARTIAL' : 'COMPLETE',
         tables: summary,
         auth_users: 'NOT_BACKED_UP',
