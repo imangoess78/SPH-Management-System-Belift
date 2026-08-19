@@ -257,12 +257,12 @@ export async function saveDocument(doc: Record<string, unknown>, userId: string)
 }
 
 export async function loadDocumentList(): Promise<any[]> {
-  const { data, error } = await (supabase as any)
-    .from('sph')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) { console.error('Error loading documents:', error); return []; }
-  return data || [];
+  try {
+    const r = await fetch('/api/data?table=sph');
+    if (!r.ok) return [];
+    const { data } = await r.json();
+    return data || [];
+  } catch { return []; }
 }
 
 export async function loadDocumentById(id: string): Promise<any | null> {
