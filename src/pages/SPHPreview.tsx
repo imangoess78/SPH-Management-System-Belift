@@ -29,8 +29,8 @@ body{margin:0;padding:0 0 24px;background:#F0EDE9;font-family:'Barlow',system-ui
 .page.cont{padding-top:22mm}
 .pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:#7A6E66}
 .paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:#7A6E66}
-.lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
-.doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
+.lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:5mm;gap:10mm}
+.doctype{font-family:'Barlow',sans-serif;font-size:52pt;color:#da5d1a;letter-spacing:.02em;line-height:1;margin-top:14mm;font-weight:500}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
 .co .mark-logo{height:20mm;width:auto;display:block;margin-left:auto}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}

@@ -435,8 +435,8 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 .page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}
 .pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:#7A6E66}
 .paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:#7A6E66}
-.lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:36mm;gap:10mm}
-.doctype{font-family:'Barlow Condensed',sans-serif;font-size:34pt;color:#A63F04;letter-spacing:.02em;line-height:1;margin-top:14mm}
+.lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:5mm;gap:10mm}
+.doctype{font-family:'Barlow',sans-serif;font-size:52pt;color:#da5d1a;letter-spacing:.02em;line-height:1;margin-top:14mm;font-weight:500}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
 .co .mark-logo{height:10mm;width:auto;display:block;margin-left:auto}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
