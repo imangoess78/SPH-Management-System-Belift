@@ -549,9 +549,15 @@ function isiCepat(){
 }
 
 /* ===================================== DOKUMEN ===================================== */
+function alamat2Baris(alamat){
+  var parts=String(alamat||'').split(',').map(function(s){return s.trim()}).filter(Boolean);
+  if(!parts.length)return '';
+  var brk=parts.length<=2?parts.length:(parts.length===3?1:2);
+  return parts.slice(0,brk).map(esc).join(', ')+(parts.length>brk?'<br>'+parts.slice(brk).map(esc).join(', '):'');
+}
 function kop(t){
   return '<div class="lethead"><div class="doctype">'+t+'</div><div class="co"><img class="mark-logo" src="/logo.png" alt="Belift">'+
-  '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>'+esc(S.alamatKantor).replace(/, /g,",<br>")+
+  '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>'+alamat2Baris(S.alamatKantor)+
   '<br>info@belift.co.id</div></div>';
 }
 function tujuan(){return (S.namaPerusahaan||((S.sapaan==="—"?"":S.sapaan+" ")+(S.namaCustomer||"…"))).trim()}

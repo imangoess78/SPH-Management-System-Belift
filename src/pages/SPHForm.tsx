@@ -84,11 +84,22 @@ function namaDesain(k: string, pilihDesain: DesainPilihan, desain?: Record<strin
 
 // ── Document generation helpers used locally ────────────────
 
+// Split address into max 2 lines for the letterhead:
+// 5+ segments -> 2 + rest | 3 segments -> 1 + 2 | <=2 -> single line
+function alamat2Baris(alamat: string): string {
+  const parts = String(alamat || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  const brk = parts.length <= 2 ? parts.length : parts.length === 3 ? 1 : 2;
+  const first = parts.slice(0, brk).map(esc).join(', ');
+  const rest = parts.slice(brk);
+  return first + (rest.length ? '<br>' + rest.map(esc).join(', ') : '');
+}
+
 function kop(t: string, alamatKantor: string): string {
   return '<div class="lethead"><div class="doctype">'+t+'</div><div class="co">' +
 '<img class="mark-logo" src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin-left:auto">' +
     '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>' +
-    esc(alamatKantor).replace(/, /g, ',<br>') + '<br>info@belift.co.id</div></div>';
+    alamat2Baris(alamatKantor) + '<br>info@belift.co.id</div></div>';
 }
 
 // signatureUrl: if provided (from DB), use it; otherwise fall back to legacy ASET.ttd map
