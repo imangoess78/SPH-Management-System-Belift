@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/master', icon: Database, label: 'Master Data' },
   { to: '/settings', icon: Settings, label: 'Pengaturan' },
   { to: '/admin/emergency-backup', icon: ShieldCheck, label: 'Emergency Backup', adminOnly: true },
+  { to: '/admin/users', icon: ShieldCheck, label: 'Manajemen Akun', adminOnly: true },
 ];
 
 function SidebarContent({

@@ -17,6 +17,7 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import NotFound from "./pages/NotFound";
 import EmergencyBackup from "./pages/EmergencyBackup";
+import AdminUsers from "./pages/AdminUsers";
 import Reports from "./pages/Reports";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
@@ -36,6 +37,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="p-6">Memuat...</div>;
+  return user?.role === 'admin' ? <>{children}</> : <Navigate to="/" replace />;
+}
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -43,8 +49,8 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/signup" element={user ? <Navigate to="/" replace /> : <SignupPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       {/* Generator: full-bleed, no AppLayout sidebar */}
       <Route path="/sph/new" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
       <Route path="/sph/:id" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
@@ -62,7 +68,10 @@ function AppRoutes() {
               <Route path="/spk" element={<SPKList />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/master" element={<MasterData />} />
-              <Route path="/admin/emergency-backup" element={<EmergencyBackup />} />
+              <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
+              <Route path="/admin/user" element={<AdminOnly><AdminUsers /></AdminOnly>} />
+              <Route path="/admin/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />
+              <Route path="/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

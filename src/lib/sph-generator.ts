@@ -42,7 +42,14 @@ function injectDeco(html: string): string {
 }
 
 function tujuan(s: GenState): string {
-  return (s.namaPerusahaan || ((s.sapaan === '—' ? '' : s.sapaan + ' ') + (s.namaCustomer || '…'))).trim();
+  const sapaan = s.sapaan && s.sapaan !== '—' ? s.sapaan : 'Bapak';
+  const customer = (s.namaCustomer || '').trim();
+  const perusahaan = (s.namaPerusahaan || '').trim();
+  if (customer && perusahaan) {
+    if (customer.toLowerCase() === perusahaan.toLowerCase()) return `${sapaan} ${customer}`;
+    return `${sapaan} ${customer} / ${perusahaan}`;
+  }
+  return perusahaan ? `${sapaan} ${perusahaan}` : `${sapaan} ${customer || '…'}`;
 }
 
 function namaDesain(k: string, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {

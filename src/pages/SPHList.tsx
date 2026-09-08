@@ -4,7 +4,7 @@ import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle, Clock3, AlertTria
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextIncrement, updateDocumentStatus, getDocumentSalesName, getDocumentValidityStatus } from '@/lib/sph-utils';
+import { loadSPHList, deleteSPH, saveSPH, formatDate, generateId, generateNomorSPH, getNextNoUrut, updateDocumentStatus, getDocumentSalesName, getDocumentValidityStatus, extractDocumentState } from '@/lib/sph-utils';
 import { SPH } from '@/lib/sph-types';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -30,17 +30,23 @@ export default function SPHList() {
   const fetchList = async () => {
     setLoading(true);
     const all = await loadSPHList();
-    // Filter hanya dokumen SPH — dicek dari specs.__docstate.mode
+    // Filter hanya dokumen SPH. Nomor surat menjadi sumber utama agar
+    // dokumen legacy seperti 001/SPH/... tetap muncul walau __docstate.mode
+    // kosong atau tidak sinkron.
     const sphOnly = all.filter((doc: any) => {
+      const number = String(doc.nomor_sph || doc.nomorSPH || '').toUpperCase();
+      if (number.includes('/SPH/')) return true;
+      if (number.includes('/SPK/')) return false;
+
       const specs: any[] = Array.isArray(doc.specs) ? doc.specs : [];
       const ds = specs.find((s: any) => s.key === '__docstate');
       if (ds?.value) {
         try {
           const parsed = JSON.parse(ds.value);
-          return parsed.mode === 'SPH';
+          if (parsed.mode === 'SPH') return true;
+          if (parsed.mode === 'SPK') return false;
         } catch { /* fallthrough */ }
       }
-      // Fallback: perihal mengandung 'SPH' dan tidak mengandung 'SPK'
       const perihal = String(doc.perihal || '').toUpperCase();
       return perihal.includes('SPH') && !perihal.includes('SPK');
     });
@@ -67,25 +73,31 @@ export default function SPHList() {
       setSphList(prev => prev.filter(s => s.id !== id));
       toast.success('SPH berhasil dihapus');
     } else {
-      toast.error('Gagal menghapus SPH');
+      await fetchList();
+      toast.error('Gagal menghapus SPH. Silakan refresh dan coba lagi.');
     }
   };
 
   const handleDuplicate = async (sph: any) => {
     if (!user) return;
-    const increment = await getNextIncrement();
-    const newSPH: SPH = {
-      ...JSON.parse(JSON.stringify(sph)),
+    const source = extractDocumentState(sph);
+    const tanggal = new Date().toISOString().split('T')[0];
+    const noUrut = await getNextNoUrut('SPH');
+    const newDoc = {
+      ...source,
       id: generateId(),
-      nomorSPH: generateNomorSPH(increment),
-      tanggal: new Date().toISOString().split('T')[0],
-      status: 'draft' as const,
+      state: { ...(source.state || {}), ...source, mode: 'SPH', noUrut: String(noUrut), tanggal },
+      mode: 'SPH',
+      noUrut,
+      nomorSPH: generateNomorSPH(noUrut, new Date()),
+      tanggal,
+      status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    const ok = await saveSPH(newSPH, user.id);
+    const ok = await saveSPH(newDoc, user.id);
     if (ok) {
-      setSphList(prev => [newSPH, ...prev]);
+      await fetchList();
       toast.success('SPH berhasil diduplikasi');
     } else {
       toast.error('Gagal menduplikasi SPH');
@@ -107,7 +119,7 @@ export default function SPHList() {
     id: s.id,
     nomorSPH: s.nomorSPH || s.nomor_sph || '',
     tanggal: s.tanggal || '',
-    kepada: s.kepada || '',
+    kepada: s.kepada || s.nama_perusahaan || s.namaCustomer || s.nama_customer || s.state?.namaPerusahaan || s.state?.namaCustomer || '',
     jenisLift: s.jenisLift || s.jenis_lift || '',
     sales: getDocumentSalesName(s),
     status: s.status || 'draft',

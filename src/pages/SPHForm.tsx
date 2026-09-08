@@ -9,7 +9,6 @@ import {
   OPT, KEL_LABEL, SYARAT, TERMIN_AWAL, DESAIN, DESAIN_LABEL, ASET, HARI_ID,
   makeDefaultItems,
 } from '@/lib/sph-types';
-import { supabase } from '@/integrations/supabase/client';
 import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords, fmtID,
   parseDate, pad3, noSuratSPH, noSuratSPK,
@@ -546,7 +545,17 @@ function applyDocState(
   setPilihDesain: (d: DesainPilihan) => void,
   asMode?: Mode, // override mode (e.g. force SPK when loading from SPH)
 ) {
-  const st = doc.state || doc;
+  const raw = doc || {};
+  const nested = (doc.state && typeof doc.state === 'object') ? doc.state : {};
+  const st = {
+    ...raw,
+    ...nested,
+    namaPerusahaan: nested.namaPerusahaan || raw.namaPerusahaan || raw.nama_perusahaan || raw.kepada || raw.nama_pic || '',
+    namaCustomer: nested.namaCustomer || raw.namaCustomer || raw.nama_customer || raw.nama_pic || raw.kepada || '',
+    sapaan: nested.sapaan || raw.sapaan || 'Bapak',
+    alamatCustomer: nested.alamatCustomer || raw.alamatCustomer || raw.alamat_customer || '',
+    kotaProyek: nested.kotaProyek || raw.kotaProyek || raw.kota_proyek || '',
+  };
   if (asMode) setMode(asMode);
   else if (doc.mode === 'SPH' || doc.mode === 'SPK') setMode(doc.mode);
 
@@ -563,8 +572,9 @@ function applyDocState(
   keys.forEach(k => { if (st[k] !== undefined) (merged as any)[k] = st[k]; });
   setS(merged);
 
-  if (doc.modeHarga) setModeHarga(doc.modeHarga as ModeHarga);
+  if (doc.modeHarga || doc.state?.modeHarga) setModeHarga((doc.modeHarga || doc.state?.modeHarga) as ModeHarga);
   if (Array.isArray(doc.items) && doc.items.length) setItems(doc.items);
+  else if (Array.isArray(doc.state?.items) && doc.state.items.length) setItems(doc.state.items);
   if (doc.termin && typeof doc.termin === 'object') setTermin(doc.termin);
   if (doc.pilihDesain && typeof doc.pilihDesain === 'object') setPilihDesain(doc.pilihDesain);
 }
@@ -594,18 +604,30 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   // Sales from DB: list of { name, jabatan, signature_url }
   const [salesList, setSalesList] = useState<{ name: string; jabatan: string; signature_url: string | null }[]>([]);
 
-  // Fetch active sales from Supabase
+  // Fetch active sales from the Cloudflare/D1 API
   useEffect(() => {
     if (!user) return;
-    (supabase as any)
-      .from('sales')
-      .select('name, jabatan, signature_url, active')
-      .eq('active', true)
-      .order('name', { ascending: true })
-      .then(({ data, error }: { data: any; error: any }) => {
-        if (error) { console.error('[SPHForm] sales fetch error:', error); return; }
-        if (data && data.length > 0) setSalesList(data);
-      });
+    fetch('/api/data?table=sales')
+      .then(async response => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Gagal memuat sales');
+        return (result.data || []) as { name: string; jabatan: string; signature_url: string | null; active: boolean | number }[];
+      })
+      .then(data => {
+        const activeSales = data
+          .filter(sales => sales.active === true || sales.active === 1)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setSalesList(activeSales);
+        // Jangan biarkan sales nonaktif tetap terpilih pada form baru.
+        setS(prev => {
+          if (!prev.sales || activeSales.some(sales => sales.name === prev.sales)) return prev;
+          const replacement = activeSales[0];
+          return replacement
+            ? { ...prev, sales: replacement.name, jabatanTtd: replacement.jabatan }
+            : { ...prev, sales: '', jabatanTtd: '' };
+        });
+      })
+      .catch(error => console.error('[SPHForm] sales fetch error:', error));
   }, [user]);
 
   const upd = useCallback((k: keyof S, v: unknown) => setS(prev => ({ ...prev, [k]: v })), []);

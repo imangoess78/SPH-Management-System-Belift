@@ -1,22 +1,22 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserPlus, Loader2, LogIn } from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 
 export default function SignupPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !fullName.trim() || !password.trim()) {
       toast.error('Email dan password wajib diisi');
       return;
     }
@@ -25,13 +25,14 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const response = await fetch('/api/auth/signup', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ email, password, fullName }) });
+    const result = await response.json().catch(() => ({}));
     setLoading(false);
-    if (error) {
-      toast.error(error.message || 'Signup gagal');
+    if (!response.ok) {
+      toast.error(result.error || 'Signup gagal');
       return;
     }
-    toast.success('Akun berhasil dibuat. Silakan login.');
+    toast.success(result.message || 'Pendaftaran berhasil. Tunggu persetujuan Admin.');
     navigate('/login');
   };
 
@@ -46,6 +47,10 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="fullName">Nama Lengkap</Label>
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Nama lengkap" autoComplete="name" />
+            </div>
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -89,7 +94,7 @@ export default function SignupPage() {
         <div className="text-center text-xs text-muted-foreground mt-6 space-y-1">
           <p>
             Sudah punya akun?{' '}
-            <a href="/login" className="text-primary hover:underline font-medium">Masuk</a>
+            <Link to="/login" className="text-primary hover:underline font-medium">Masuk</Link>
           </p>
           <p>© {new Date().getFullYear()} PT. Belift Amanah Indonesia</p>
         </div>

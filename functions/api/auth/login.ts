@@ -15,8 +15,9 @@ export const onRequestPost: PagesFunction<Env> = async ({request,env}) => {
   let body: {email?:string;password?:string};
   try { body=await request.json(); } catch { return Response.json({error:'Request tidak valid'},{status:400}); }
   if (!body.email || !body.password) return Response.json({error:'Email dan password wajib diisi'},{status:400});
-  const user=await env.sph_management_db.prepare('SELECT id,email,role,full_name,password_hash FROM app_users WHERE email=? COLLATE NOCASE').bind(body.email.trim()).first<any>();
+  const user=await env.sph_management_db.prepare('SELECT id,email,role,full_name,password_hash,status FROM app_users WHERE email=? COLLATE NOCASE').bind(body.email.trim()).first<any>();
   if (!user) return Response.json({error:'Email atau password salah'},{status:401});
+  if (user.status !== 'approved') return Response.json({error:user.status === 'pending' ? 'Akun masih menunggu persetujuan Admin' : user.status === 'rejected' ? 'Pendaftaran akun ditolak Admin' : 'Akun dinonaktifkan'},{status:403});
   const [salt,expected]=String(user.password_hash).split('$');
   if (!salt || (await derive(body.password,salt))!==expected) return Response.json({error:'Email atau password salah'},{status:401});
   const sid=crypto.randomUUID(), now=new Date().toISOString(), exp=new Date(Date.now()+7*86400000).toISOString();

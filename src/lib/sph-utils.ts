@@ -1,5 +1,4 @@
 import { KatalogItem, TerminItem, ROMAN, BULAN_ID } from './sph-types';
-import { supabase } from '@/integrations/supabase/client';
 
 // ============================================================
 //  NUMBER HELPERS
@@ -189,12 +188,12 @@ export function sumTermin(termin: TerminItem[] | Record<string, TerminItem[]>, k
 // ============================================================
 export async function getNextDocIncrement(): Promise<number> {
   const year = new Date().getFullYear();
-  const { count } = await (supabase as any)
-    .from('sph')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', year + '-01-01')
-    .lte('created_at', year + '-12-31');
-  return (count || 0) + 1;
+  const docs = await loadDocumentList();
+  const createdThisYear = docs.filter((d: any) => {
+    const created = String(d.created_at || '');
+    return created.startsWith(String(year));
+  });
+  return createdThisYear.length + 1;
 }
 
 /**
@@ -202,63 +201,59 @@ export async function getNextDocIncrement(): Promise<number> {
  * Reads all existing nomor_sph values, filters by type, parses the leading number,
  * and returns max + 1. Falls back to 1 if no docs exist yet.
  */
-export async function getNextNoUrut(mode: 'SPH' | 'SPK'): Promise<number> {
-  const { data, error } = await (supabase as any)
-    .from('sph')
-    .select('nomor_sph');
-  if (error || !data) return 1;
+export function extractDocumentState(doc: any): any {
+  const copy = JSON.parse(JSON.stringify(doc || {}));
+  const specs = Array.isArray(copy.specs) ? copy.specs : [];
+  const state = specs.find((s: any) => s?.key === '__docstate');
+  if (state?.value) { try { return { ...JSON.parse(state.value), ...copy }; } catch {} }
+  return copy;
+}
 
-  const typeSlug = mode === 'SPH' ? '/SPH/' : '/SPK/';
+export async function getNextNoUrut(mode: 'SPH' | 'SPK'): Promise<number> {
+  const docs = await loadDocumentList();
+  const marker = `/${mode}/`;
   let max = 0;
-  (data as { nomor_sph: string }[]).forEach(row => {
-    const n = row.nomor_sph || '';
-    if (!n.includes(typeSlug)) return;
-    const leading = parseInt(n.split('/')[0], 10);
-    if (!isNaN(leading) && leading > max) max = leading;
-  });
+  for (const doc of docs) {
+    const number = String(doc.nomor_sph || '').split('/');
+    if (String(doc.nomor_sph || '').includes(marker)) max = Math.max(max, Number(number[0]) || 0);
+  }
   return max + 1;
 }
 
+
 export async function saveDocument(doc: Record<string, unknown>, userId: string): Promise<boolean> {
-  // Build nomor_sph from the full generator state
   const state = (doc.state as Record<string, unknown>) || doc;
   const noUrut = String(state.noUrut || doc.noUrut || '001');
   const tanggal = String(state.tanggal || doc.tanggal || new Date().toISOString().slice(0, 10));
   const mode = String(doc.mode || 'SPH');
   const formatNoSPK = (state.formatNoSPK || 'standar') as 'standar' | 'lama';
-  const nomorSph = mode === 'SPH'
-    ? noSuratSPH(noUrut, tanggal)
-    : noSuratSPK(noUrut, tanggal, formatNoSPK);
-
+  const nomorSph = mode === 'SPH' ? noSuratSPH(noUrut, tanggal) : noSuratSPK(noUrut, tanggal, formatNoSPK);
   const row = {
-    id: doc.id,
-    user_id: userId,
-    nomor_sph: nomorSph,
-    tanggal: tanggal,
-    kepada: String(doc.namaPerusahaan || doc.namaCustomer || ''),
-    nama_pic: String(doc.namaCustomer || ''),
-    alamat_proyek: String(doc.kotaProyek || ''),
+    id: doc.id, user_id: userId, nomor_sph: nomorSph, tanggal,
+    kepada: String(doc.namaPerusahaan || doc.namaCustomer || doc.kepada || doc.nama_pic || ''),
+    nama_pic: String(doc.namaCustomer || doc.nama_pic || doc.kepada || ''), alamat_proyek: String(doc.kotaProyek || ''),
     perihal: 'Generator ' + mode + ' — ' + String(doc.tipeKabin || ''),
-    jenis_lift: String(doc.jenisLift || 'Passenger Lift'),
+    jenis_lift: String(doc.jenisLift || 'Passenger Lift'), kapasitas: String(doc.kapasitas || ''),
     status: String(doc.status || 'draft'),
-    // Store full generator state + rendered HTML in specs JSONB
-    specs: [
-      { key: '__docstate', label: 'docstate', value: JSON.stringify(doc) },
-      ...(doc.renderedHtml ? [{ key: '__html', label: 'html', value: String(doc.renderedHtml) }] : []),
-    ],
-    items: [],
-    payments: [],
-    terms: {},
-    include_ppn: doc.ppn !== 'exclude',
+    specs: [{ key: '__docstate', label: 'docstate', value: JSON.stringify(doc) }, ...(doc.renderedHtml ? [{ key: '__html', label: 'html', value: String(doc.renderedHtml) }] : [])],
+    items: doc.items || [], payments: [], terms: doc.termin || {}, designs: doc.pilihDesain || {},
+    include_ppn: doc.ppn !== 'exclude', price_mode: String(doc.modeHarga || 'satuan'),
   };
-  const { error } = await (supabase as any).from('sph').upsert(row);
-  if (error) { console.error('Error saving document:', error); return false; }
-  return true;
+  try {
+    const response = await fetch(`/api/data?table=sph&id=${encodeURIComponent(String(doc.id))}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row),
+    });
+    if (response.ok) return true;
+    if (response.status !== 404) { console.error('Error saving document:', await response.text()); return false; }
+    const createResponse = await fetch('/api/data?table=sph', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row) });
+    if (!createResponse.ok) { console.error('Error creating document:', await createResponse.text()); return false; }
+    return true;
+  } catch (error) { console.error('Error saving document:', error); return false; }
 }
 
 export async function loadDocumentList(): Promise<any[]> {
   try {
-    const r = await fetch('/api/data?table=sph');
+    const r = await fetch(`/api/data?table=sph&_=${Date.now()}`, { cache: 'no-store' });
     if (!r.ok) return [];
     const { data } = await r.json();
     return data || [];
@@ -275,25 +270,40 @@ export async function loadDocumentById(id: string): Promise<any | null> {
     const specs: any[] = raw.specs || [];
     const docstateSpec = specs.find((s: any) => s.key === '__docstate');
     if (docstateSpec) {
-      try { const parsed = JSON.parse(docstateSpec.value); parsed.specs = specs; return parsed; } catch { /* fall through */ }
+      try {
+        const parsed = JSON.parse(docstateSpec.value);
+        const merged = { ...raw, ...parsed };
+        const state = (parsed.state && typeof parsed.state === 'object') ? parsed.state : {};
+        for (const key of ['namaPerusahaan','namaCustomer','nikCustomer','alamatCustomer','kotaProyek','sapaan']) {
+          if (merged[key] == null || merged[key] === '') merged[key] = state[key] ?? parsed[key] ?? raw[key];
+        }
+        return { ...merged, specs };
+      } catch { /* fall through */ }
     }
     return raw;
   } catch { return null; }
 }
 
 export async function deleteDocument(id: string): Promise<boolean> {
-  const { error } = await (supabase as any).from('sph').delete().eq('id', id);
-  if (error) { console.error('Error deleting document:', error); return false; }
-  return true;
+  try {
+    const response = await fetch(`/api/data?table=sph&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error('Error deleting document:', detail);
+      return false;
+    }
+    return true;
+  } catch (error) { console.error('Error deleting document:', error); return false; }
 }
 
 export async function updateDocumentStatus(id: string, status: 'draft' | 'final'): Promise<boolean> {
-  const { error } = await (supabase as any)
-    .from('sph')
-    .update({ status })
-    .eq('id', id);
-  if (error) { console.error('Error updating document status:', error); return false; }
-  return true;
+  try {
+    const response = await fetch(`/api/data?table=sph&id=${encodeURIComponent(id)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+    });
+    if (!response.ok) { console.error('Error updating document status:', await response.text()); return false; }
+    return true;
+  } catch (error) { console.error('Error updating document status:', error); return false; }
 }
 
 // ============================================================

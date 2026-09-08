@@ -5,7 +5,6 @@ import { loadSPHById, formatCurrency, formatDate, calculateItemTotal } from '@/l
 import { SPH, DesainOption, DESAIN } from '@/lib/sph-types';
 import { useState, useEffect, Fragment } from 'react';
 import { pageSPH, pageSPK } from '@/lib/sph-generator';
-import { supabase } from '@/integrations/supabase/client';
 
 // Ensure every .page div has the hex-bg img (handles old saved HTML that lacks it)
 const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
@@ -498,7 +497,7 @@ export default function SPHPreview() {
   // Detect generator document: loadSPHById already tries to parse __docstate.
   // If the returned object has a `mode` field (SPH/SPK) and `state` sub-object,
   // it came from the new generator — use GeneratorPreview.
-  const isGenerator = (data.mode === 'SPH' || data.mode === 'SPK') && data.state;
+  const isGenerator = (data.mode === 'SPH' || data.mode === 'SPK') && (data.state || data.items || data.termin);
 
   if (isGenerator) {
     let html = '';
@@ -507,7 +506,14 @@ export default function SPHPreview() {
     // The stored renderedHtml may be stale (saved before injectDeco was added).
     if (data.state) {
       try {
-        const st = data.state;
+        const st = {
+          ...(data.state || {}),
+          namaPerusahaan: data.state?.namaPerusahaan || data.namaPerusahaan || data.nama_perusahaan || data.kepada || '',
+          namaCustomer: data.state?.namaCustomer || data.namaCustomer || data.nama_customer || data.nama_pic || '',
+          sapaan: data.state?.sapaan || data.sapaan || 'Bapak',
+          alamatCustomer: data.state?.alamatCustomer || data.alamatCustomer || data.alamat_customer || '',
+          kotaProyek: data.state?.kotaProyek || data.kotaProyek || data.kota_proyek || '',
+        };
         const docMode: string = data.mode || 'SPH';
         const normState = {
           ...st,

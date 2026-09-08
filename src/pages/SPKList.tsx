@@ -4,7 +4,7 @@ import { FileText, PlusCircle, Trash2, Copy, Eye, CheckCircle } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { loadDocumentList, deleteDocument, saveDocument, formatDate, generateId, updateDocumentStatus, getDocumentSalesName } from '@/lib/sph-utils';
+import { loadDocumentList, deleteDocument, saveDocument, formatDate, generateId, updateDocumentStatus, getDocumentSalesName, extractDocumentState, getNextNoUrut, noSuratSPK } from '@/lib/sph-utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -71,11 +71,20 @@ export default function SPKList() {
 
   const handleDuplicate = async (doc: any) => {
     if (!user) return;
+    const source = extractDocumentState(doc);
+    const tanggal = new Date().toISOString().split('T')[0];
+    const noUrut = await getNextNoUrut('SPK');
     const newDoc = {
-      ...JSON.parse(JSON.stringify(doc)),
+      ...source,
+      state: { ...(source.state || {}), ...source, mode: 'SPK', noUrut: String(noUrut), tanggal },
       id: generateId(),
-      tanggal: new Date().toISOString().split('T')[0],
+      mode: 'SPK',
+      noUrut,
+      nomorSPH: noSuratSPK(String(noUrut), tanggal, source.formatNoSPK === 'lama' ? 'lama' : 'standar'),
+      tanggal,
       status: 'draft',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     const ok = await saveDocument(newDoc, user.id);
     if (ok) {

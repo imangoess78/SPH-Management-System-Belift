@@ -8,6 +8,8 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 
 // Same SPK filter as SPKList.tsx
 function isSPK(doc: any): boolean {
+  const number = String(doc.nomor_sph || doc.nomorSPH || '').toUpperCase();
+  if (number.includes('/SPK/')) return true;
   const specs: any[] = doc.specs || [];
   const ds = specs.find((s: any) => s.key === '__docstate');
   if (ds) {
@@ -20,12 +22,20 @@ function isSPK(doc: any): boolean {
 }
 
 function isSPH(doc: any): boolean {
+  // Nomor surat adalah sumber klasifikasi utama. Dokumen lama seperti
+  // 001/SPH/... dapat memiliki __docstate tanpa field mode atau mode yang
+  // tidak sinkron, sehingga jangan sampai hilang dari Dashboard.
+  const number = String(doc.nomor_sph || doc.nomorSPH || '').toUpperCase();
+  if (number.includes('/SPH/')) return true;
+  if (number.includes('/SPK/')) return false;
+
   const specs: any[] = doc.specs || [];
   const ds = specs.find((s: any) => s.key === '__docstate');
   if (ds) {
     try {
       const parsed = JSON.parse(ds.value);
-      return parsed.mode === 'SPH';
+      if (parsed.mode === 'SPH') return true;
+      if (parsed.mode === 'SPK') return false;
     } catch { /* ignore */ }
   }
   // Docs without __docstate that aren't SPK are treated as SPH

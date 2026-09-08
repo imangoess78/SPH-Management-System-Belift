@@ -4,6 +4,10 @@ CREATE TABLE IF NOT EXISTS app_users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('admin','staff')),
   full_name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected','disabled')),
+  approved_at TEXT,
+  approved_by TEXT,
+  rejection_reason TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

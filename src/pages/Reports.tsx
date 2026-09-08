@@ -4,7 +4,7 @@ import {
   AlertTriangle, BarChart3, CheckCircle2, Clock3, FileText, Medal,
   ArrowRight, ClipboardList, TrendingUp, XCircle,
 } from 'lucide-react';
-import { loadDocumentList, formatDate, getDocumentSalesName } from '@/lib/sph-utils';
+import { loadDocumentList, formatDate, getDocumentSalesName, getDocumentValidityStatus } from '@/lib/sph-utils';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -24,6 +24,10 @@ function periodKey(doc: any): string {
 }
 
 function getMode(doc: any): 'SPH' | 'SPK' {
+  if (doc.mode === 'SPH' || doc.mode === 'SPK') return doc.mode;
+  const number = String(doc.nomor_sph || doc.nomorSPH || '').toUpperCase();
+  if (number.includes('/SPK/')) return 'SPK';
+  if (number.includes('/SPH/')) return 'SPH';
   const state = (doc.specs || []).find((item: any) => item?.key === '__docstate');
   if (state?.value) {
     try {
@@ -67,8 +71,9 @@ export default function Reports() {
     const sph = periodDocuments.filter(doc => getMode(doc) === 'SPH');
     const spk = periodDocuments.filter(doc => getMode(doc) === 'SPK');
     const enriched = sph.map(doc => {
-      const age = daysSince(doc.tanggal || doc.created_at?.slice(0, 10), now);
-      return { ...doc, age, daysLeft: VALIDITY_DAYS - age };
+      const validity = getDocumentValidityStatus(doc, now);
+      const daysLeft = validity.daysLeft;
+      return { ...doc, age: Math.max(0, VALIDITY_DAYS - daysLeft), daysLeft, validityStatus: validity.status };
     });
     const salesMap = new Map<string, { name: string; total: number; final: number; expired: number }>();
     sph.forEach(doc => {
@@ -76,7 +81,7 @@ export default function Reports() {
       const row = salesMap.get(name) || { name, total: 0, final: 0, expired: 0 };
       row.total += 1;
       if (doc.status === 'final') row.final += 1;
-      if (doc.status !== 'final' && daysSince(doc.tanggal || doc.created_at?.slice(0, 10), now) >= VALIDITY_DAYS) row.expired += 1;
+      if (doc.status !== 'final' && getDocumentValidityStatus(doc, now).status === 'expired') row.expired += 1;
       salesMap.set(name, row);
     });
     return {
@@ -84,7 +89,7 @@ export default function Reports() {
       draft: sph.filter(doc => doc.status === 'draft'),
       final: sph.filter(doc => doc.status === 'final'),
       nearing: enriched.filter(doc => doc.status !== 'final' && doc.daysLeft >= 0 && doc.daysLeft <= 7).sort((a, b) => a.daysLeft - b.daysLeft),
-      expired: enriched.filter(doc => doc.status !== 'final' && doc.daysLeft < 0).sort((a, b) => b.age - a.age),
+      expired: enriched.filter(doc => doc.status !== 'final' && doc.daysLeft < 0).sort((a, b) => a.daysLeft - b.daysLeft),
       sales: Array.from(salesMap.values()).sort((a, b) => (b.final / b.total) - (a.final / a.total) || b.final - a.final || b.total - a.total),
     };
   }, [documents, now, period]);

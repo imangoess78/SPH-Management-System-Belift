@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Pencil, Trash2, ImageIcon, RefreshCw, Upload, X, Search, Users } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';

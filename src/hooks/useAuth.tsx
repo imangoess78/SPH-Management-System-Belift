@@ -25,7 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applyUser = (u: User | null) => { setUser(u); setRole(u?.role ?? null); setFullName(u?.fullName ?? ''); setSession(u ? { user: u } : null); };
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(({ user }) => applyUser(user)).finally(() => setLoading(false));
+    let active = true;
+    fetch(`/api/auth/session?_=${Date.now()}`, { credentials: 'same-origin', cache: 'no-store' })
+      .then(async r => {
+        if (!r.ok) throw new Error(`Session check failed: ${r.status}`);
+        return r.json();
+      })
+      .then(({ user }) => { if (active) applyUser(user); })
+      .catch(() => { if (active) applyUser(null); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   const signIn = async (email: string, password: string) => {
