@@ -18,6 +18,7 @@ interface DesignItem {
   name: string;
   sku: string;
   image_url: string | null;
+  keterangan: string | null;
   created_at: string;
 }
 
@@ -124,6 +125,7 @@ export default function MasterData() {
   const [editingDesign, setEditingDesign] = useState<DesignItem | null>(null);
   const [formDesignName, setFormDesignName] = useState('');
   const [formDesignSku, setFormDesignSku] = useState('');
+  const [formDesignKeterangan, setFormDesignKeterangan] = useState('');
   const [formDesignCategory, setFormDesignCategory] = useState('Cabin');
   const [designImageFile, setDesignImageFile] = useState<File | null>(null);
   const [designImagePreview, setDesignImagePreview] = useState<string | null>(null);
@@ -201,6 +203,7 @@ export default function MasterData() {
     setEditingDesign(null);
     setFormDesignName('');
     setFormDesignSku('');
+    setFormDesignKeterangan('');
     setFormDesignCategory(activeCategory);
     setDesignImageFile(null);
     setDesignImagePreview(null);
@@ -211,6 +214,7 @@ export default function MasterData() {
     setEditingDesign(item);
     setFormDesignName(item.name);
     setFormDesignSku(item.sku);
+    setFormDesignKeterangan(item.keterangan || '');
     setFormDesignCategory(item.category);
     setDesignImageFile(null);
     setDesignImagePreview(item.image_url);
@@ -248,11 +252,11 @@ export default function MasterData() {
       else { toast.error('Gagal mengupload gambar'); setDesignSaving(false); return; }
     }
     if (editingDesign) {
-      const response = await fetch(`/api/data?table=design_items&id=${encodeURIComponent(editingDesign.id)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: formDesignName, sku: formDesignSku, image_url: imageUrl }) });
+      const response = await fetch(`/api/data?table=design_items&id=${encodeURIComponent(editingDesign.id)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: formDesignName, sku: formDesignSku, keterangan: formDesignKeterangan, image_url: imageUrl }) });
       if (!response.ok) toast.error('Gagal mengupdate desain');
       else { toast.success('Desain berhasil diupdate'); setDesignDialogOpen(false); fetchDesignItems(); }
     } else {
-      const response = await fetch('/api/data?table=design_items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ category: formDesignCategory, name: formDesignName, sku: formDesignSku, image_url: imageUrl }) });
+      const response = await fetch('/api/data?table=design_items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ category: formDesignCategory, name: formDesignName, sku: formDesignSku, keterangan: formDesignKeterangan, image_url: imageUrl }) });
       if (!response.ok) toast.error('Gagal menambahkan desain');
       else { toast.success('Desain berhasil ditambahkan'); setDesignDialogOpen(false); fetchDesignItems(); }
     }
@@ -592,6 +596,12 @@ export default function MasterData() {
                     <Input id="design-sku" value={formDesignSku} onChange={e => setFormDesignSku(e.target.value)}
                       placeholder="Contoh: CB-PSTL-001" className="h-9" />
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="design-ket" className="text-sm">Keterangan (model / warna)</Label>
+                  <Input id="design-ket" value={formDesignKeterangan} onChange={e => setFormDesignKeterangan(e.target.value)}
+                    placeholder="Contoh: warna Champagne Gold / model Panoramic" className="h-9" />
+                  <p className="text-xs text-muted-foreground">Muncul di bawah nama desain pada dokumen SPH/SPK.</p>
                 </div>
                 <ImageUploadZone
                   fileInputRef={designFileInputRef}

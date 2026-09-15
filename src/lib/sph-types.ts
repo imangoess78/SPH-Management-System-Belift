@@ -32,6 +32,10 @@ export interface DesainPilihan {
   addon: string;
 }
 
+// Keterangan modifikasi bebas per gambar desain di halaman Opsi Desain.
+// Hanya dicetak bila diisi (opsional).
+export type DesainCatatan = { [k: string]: string };
+
 // Full document state — saved to Supabase
 export interface DocState {
   id: string;
@@ -83,6 +87,9 @@ export interface DocState {
   // Desain
   tampilDesain: boolean;
   pilihDesain: DesainPilihan;
+  finishingStruktur: string;
+  // Keterangan modifikasi per kategori desain (opsional, hanya dicetak bila diisi)
+  catatanDesain: DesainCatatan;
 
   // Syarat & kondisi
   ppn: 'exclude' | 'include';
@@ -122,7 +129,6 @@ export const KATALOG_DEFAULT: Omit<KatalogItem, 'qty' | 'hp' | 'hi'>[] = [
   {id:"I1",  kel:"INSTALASI", nama:"Instalasi",                   sat:"Unit", on:true,  inc:false},
   {id:"I1a", kel:"INSTALASI", nama:"Mekanikal",                   sat:"Ls",   on:true,  inc:true,  par:"I1"},
   {id:"I1b", kel:"INSTALASI", nama:"Elektrikal",                  sat:"Ls",   on:true,  inc:true,  par:"I1"},
-  {id:"I1c", kel:"INSTALASI", nama:"Struktur Steel",              sat:"Ls",   on:true,  inc:true,  par:"I1"},
   {id:"I2",  kel:"INSTALASI", nama:"Testing & Commissioning",     sat:"Ls",   on:true,  inc:true},
   {id:"I3",  kel:"INSTALASI", nama:"Mob - Demobilisasi",          sat:"Ls",   on:true,  inc:true},
   {id:"I4",  kel:"INSTALASI", nama:"Free Maintenance",            sat:"Ls",   on:true,  inc:true},
@@ -134,6 +140,8 @@ export const KATALOG_DEFAULT: Omit<KatalogItem, 'qty' | 'hp' | 'hi'>[] = [
   {id:"S1d", kel:"SIPIL", nama:"Control Panel / Jamb Pintu",      sat:"Ls", on:false, inc:true,  par:"S1"},
   {id:"S1e", kel:"SIPIL", nama:"Sirkulasi Udara Ruang Mesin",     sat:"Ls", on:false, inc:true,  par:"S1"},
   {id:"S1f", kel:"SIPIL", nama:"Finishing Sill",                  sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1g", kel:"SIPIL", nama:"Struktur Steel",                  sat:"Ls", on:false, inc:true,  par:"S1"},
+  {id:"S1h", kel:"SIPIL", nama:"Struktur Aluminium",              sat:"Ls", on:false, inc:true,  par:"S1"},
   {id:"S2",  kel:"SIPIL", nama:"Elektrikal / Kelistrikan",        sat:"Ls", on:false, inc:false},
   {id:"S2a", kel:"SIPIL", nama:"Daya Listrik & Sub Panel",        sat:"Ls", on:false, inc:true,  par:"S2"},
   {id:"S2b", kel:"SIPIL", nama:"Grounding Khusus Lift",           sat:"Ls", on:false, inc:true,  par:"S2"},
@@ -207,6 +215,7 @@ export const OPT = {
   freeMtn:      ['3 (tiga) bulan','6 (enam) bulan','12 (dua belas) bulan'],
   garSpare:     ['1 (satu) tahun','2 (dua) tahun','3 (tiga) tahun'],
   garMesin:     ['3 (tiga) tahun','5 (lima) tahun','10 (sepuluh) tahun'],
+  finishingStruktur: ['Finishing Dinding Kaca','Finishing Dinding ACP','Finishing Dinding Lainnya'],
 };
 
 // ============================================================
@@ -217,6 +226,7 @@ export interface DesainOption {
   nama: string;   // clean name — used in printed document
   label?: string; // display label with SKU — used in form dropdowns only
   img: string;
+  ket?: string;   // keterangan bebas (model / warna) dari Master Data
 }
 
 // ── Placeholder images — ganti dengan foto produk asli Belift ──────────────────
@@ -269,6 +279,13 @@ export const DESAIN: Record<string, DesainOption[]> = {
 export const DESAIN_LABEL: Record<string, string> = {
   cabin:'Cabin', floor:'Floor', ceiling:'Ceiling', door:'Door',
   cop:'COP', lop:'LOP', struktur:'Struktur', addon:'Add On',
+};
+
+// Jenis keterangan yang ditampilkan untuk desain terpilih (jika tidak diisi manual
+// di Master Data): cabin → model, struktur → warna.
+export const KET_LABEL: Record<string, string> = {
+  cabin:'Model', floor:'Model', ceiling:'Model', door:'Model',
+  cop:'Model', lop:'Model', struktur:'Warna', addon:'Keterangan',
 };
 
 // ============================================================

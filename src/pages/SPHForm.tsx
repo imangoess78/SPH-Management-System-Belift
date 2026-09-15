@@ -2,11 +2,11 @@
 //  GENERATOR SPH & SPK — BELIFT
 //  Split-panel: form (left) + live A4 preview (right)
 // ============================================================
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, Fragment } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
-  OPT, KEL_LABEL, SYARAT, TERMIN_AWAL, DESAIN, DESAIN_LABEL, ASET, HARI_ID,
+  OPT, KEL_LABEL, SYARAT, TERMIN_AWAL, DESAIN, DESAIN_LABEL, KET_LABEL, ASET, HARI_ID,
   makeDefaultItems,
 } from '@/lib/sph-types';
 import {
@@ -32,6 +32,10 @@ interface S {
   ppn: 'exclude' | 'include'; masaBerlaku: string; freeMtn: string; garSpare: string; garMesin: string;
   waktuPengadaan: string; waktuInstalasi: string;
   tampilTtd: boolean; tampilDesain: boolean;
+  finishingStruktur: string;
+  // Keterangan modifikasi bebas per kategori desain (opsional).
+  // Hanya dicetak di halaman Opsi Desain bila diisi.
+  catatanDesain: Record<string, string>;
   sales: string; jabatanTtd: string; direktur: string; rekening: string;
 }
 
@@ -46,6 +50,7 @@ const DEFAULT_S: S = {
   ppn:'exclude', masaBerlaku:'3 Minggu', freeMtn:OPT.freeMtn[1], garSpare:OPT.garSpare[1], garMesin:OPT.garMesin[1],
   waktuPengadaan:'2 Bulan', waktuInstalasi:'1,5 Bulan',
   tampilTtd:true, tampilDesain:true,
+  finishingStruktur:'', catatanDesain:{},
   sales:'Imam Solikhin', jabatanTtd:'Sales', direktur:'Adhie Kurnia',
   rekening:'BANK BCA : 1662996330 - KCP Cimanggis, Depok',
 };
@@ -82,6 +87,51 @@ function namaDesain(k: string, pilihDesain: DesainPilihan, desain?: Record<strin
   return o ? o.nama : '';
 }
 
+// Keterangan desain terpilih — pakai `keterangan` dari Master Data bila diisi,
+// kalau kosong pakai default: Struktur → warna (nama tanpa prefix "Struktur "),
+// kategori lain (mis. Cabin) → nama desain itu sendiri (model).
+function ketDesain(k: string, pilihDesain: DesainPilihan, desain?: Record<string, DesainOption[]>): string {
+  const list = (desain || DESAIN)[k] || [];
+  const o = list.find(x => x.kode === pilihDesain[k as keyof DesainPilihan]);
+  if (!o) return '';
+  const manual = String(o.ket || '').trim();
+  if (manual) return manual;
+  if (k === 'struktur') return o.nama.replace(/^struktur\s+/i, '').trim();
+  return o.nama;
+}
+
+// Nama desain untuk ditampilkan di dokumen. Untuk kategori Struktur, prefix
+// "Struktur " dibuang karena label kategori sudah menuliskan "Struktur".
+function namaTampil(k: string, o: DesainOption): string {
+  if (k === 'struktur') return String(o.nama || '').replace(/^struktur\s+/i, '').trim() || o.nama;
+  return o.nama;
+}
+
+// Status struktur dari Tabel harga → bagian Pekerjaan Sipil
+function strukturStatus(items: KatalogItem[]): { steel: boolean; alu: boolean; ada: boolean; label: string } {
+  const on = (id: string) => items.some(i => i.id === id && i.on);
+  const steel = on('S1g'), alu = on('S1h');
+  return {
+    steel, alu, ada: steel || alu,
+    label: steel && alu ? 'Struktur Steel & Aluminium' : alu ? 'Struktur Aluminium' : steel ? 'Struktur Steel' : '',
+  };
+}
+
+// Migrasi dokumen lama: Struktur Steel (I1c) pindah dari INSTALASI ke SIPIL (S1g)
+// dan item Struktur Aluminium (S1h) ditambahkan bila belum ada.
+function normalizeStrukturItems(list: KatalogItem[]): KatalogItem[] {
+  if (!Array.isArray(list) || !list.length) return list;
+  let out = list.map(it => it.id === 'I1c'
+    ? { ...it, id: 'S1g', kel: 'SIPIL', nama: 'Struktur Steel', par: 'S1', on: false }
+    : { ...it });
+  if (!out.some(i => i.id === 'S1h')) {
+    const alu: KatalogItem = { id:'S1h', kel:'SIPIL', nama:'Struktur Aluminium', sat:'Ls', on:false, inc:true, par:'S1', qty:1, hp:0, hi:0 };
+    const idx = out.findIndex(i => i.id === 'S1g');
+    out = idx >= 0 ? [...out.slice(0, idx + 1), alu, ...out.slice(idx + 1)] : [...out, alu];
+  }
+  return out;
+}
+
 // ── Document generation helpers used locally ────────────────
 
 // Split address into max 2 lines for the letterhead:
@@ -111,7 +161,11 @@ function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: bo
     '<div class="sig-nm">'+esc(nama)+'</div><div>'+esc(jabatan)+'</div>';
 }
 
-function specRows(s: S, pilihDesain: DesainPilihan, desain?: Record<string, DesainOption[]>): string {
+function specRows(s: S, pilihDesain: DesainPilihan, desain?: Record<string, DesainOption[]>, adaStruktur = true): string {
+  const ketCabin = ketDesain('cabin', pilihDesain, desain);
+  const ketStruktur = ketDesain('struktur', pilihDesain, desain);
+  // Nilai baris "Struktur" cukup warna/model — label barisnya sendiri sudah "Struktur"
+  const namaStruktur = ketDesain('struktur', pilihDesain, desain);
   const d: [string, string, boolean?][] = [
     ['Type', s.tipeMesin], ['Loading Capacity', s.kapasitas], ['Speed', s.kecepatan],
     ['Stops/Floors/Doors', s.sfd], ['Floor Name', s.namaLantai], ['Base Floor', s.baseFloor],
@@ -128,9 +182,21 @@ function specRows(s: S, pilihDesain: DesainPilihan, desain?: Record<string, Desa
     ['Door', namaDesain('door', pilihDesain, desain) || 'As at Pict'],
     ['COP', namaDesain('cop', pilihDesain, desain) || 'As at Pict'],
     ['LOP', namaDesain('lop', pilihDesain, desain) || 'As at Pict'],
-    ['Struktur', namaDesain('struktur', pilihDesain, desain) || '—'],
     ['Language', 'English'], ['Brand', 'BELIFT'],
   ];
+  // Keterangan desain (model / warna) hanya ditampilkan jika menambah info
+  if (d.some(([l]) => l === 'Cabin decoration')) {
+    const idx = d.findIndex(([l]) => l === 'Cabin decoration');
+    if (ketCabin && !d[idx][1].toLowerCase().includes(ketCabin.toLowerCase()))
+      d.splice(idx + 1, 0, ['Cabin model', ketCabin]);
+  }
+  if (adaStruktur && pilihDesain.struktur) {
+    d.splice(d.findIndex(([l]) => l === 'Language'), 0, ['Struktur', namaStruktur || '—']);
+    if (ketStruktur && !(namaStruktur || '').toLowerCase().includes(ketStruktur.toLowerCase()))
+      d.splice(d.findIndex(([l]) => l === 'Language'), 0, ['Struktur warna', ketStruktur]);
+  }
+  if (s.finishingStruktur)
+    d.splice(d.findIndex(([l]) => l === 'Language'), 0, ['Struktur finishing', s.finishingStruktur]);
   return d.map((r, i) =>
     '<tr><td>'+String(i+1).padStart(3,'0')+'</td><td>'+esc(r[0])+'</td><td'+(r[2]?' class="hl"':'')+'>'+esc(r[1])+'</td></tr>'
   ).join('');
@@ -178,20 +244,30 @@ function terminDoc(items: KatalogItem[], termin: Record<string,TerminItem[]>, mo
   }).join('');
 }
 
-function desainDoc(s: S, pilihDesain: DesainPilihan, desain?: Record<string, DesainOption[]>): string {
+function desainDoc(s: S, pilihDesain: DesainPilihan, desain?: Record<string, DesainOption[]>, adaStruktur = true): string {
   const src = desain || DESAIN;
-  const dipilih = Object.keys(DESAIN_LABEL).filter(k => pilihDesain[k as keyof DesainPilihan]);
+  const dipilih = Object.keys(DESAIN_LABEL).filter(k => {
+    if (!pilihDesain[k as keyof DesainPilihan]) return false;
+    // Struktur hanya tampil bila bagian Sipil memilih Struktur Steel / Aluminium
+    if (k === 'struktur' && !adaStruktur) return false;
+    return true;
+  });
   if (!s.tampilDesain || !dipilih.length) return '';
-  console.log('[desainDoc] pilihDesain:', JSON.stringify(pilihDesain));
-  console.log('[desainDoc] src keys+items:', Object.keys(src).map(k => k+':'+src[k].map(o=>o.kode+'|'+(o.img||'').slice(0,40)).join(',')));
   const cards = dipilih.map(k => {
     const selectedKode = pilihDesain[k as keyof DesainPilihan];
     const o = (src[k]||[]).find(x => x.kode === selectedKode);
-    console.log('[desainDoc] k='+k+' selectedKode='+selectedKode+' found='+!!o+' img='+o?.img?.slice(0,60));
     if (!o) return '';
+    const ket = ketDesain(k, pilihDesain, src);
+    const nm = namaTampil(k, o);
+    let ketTxt = '';
+    if (ket && ket.toLowerCase() !== nm.toLowerCase())
+      ketTxt = '<span class="cap-sub">'+(KET_LABEL[k]||'Keterangan')+': '+esc(ket)+'</span>';
+    // Keterangan modifikasi manual — opsional, hanya muncul bila diisi.
+    const cat = String((s.catatanDesain || {})[k] || '').trim();
+    const catTxt = cat ? '<span class="cap-note"><b>Modifikasi:</b> '+esc(cat)+'</span>' : '';
     return '<div class="dcard"><div class="box">' +
-      (o.img ? '<img src="'+o.img+'" alt="'+esc(o.nama)+'">' : '<div class="ph">Gambar '+DESAIN_LABEL[k]+'<br>'+esc(o.kode)+'</div>') +
-      '</div><div class="cap"><b>'+DESAIN_LABEL[k]+'</b>'+esc(o.nama)+'</div></div>';
+      (o.img ? '<img src="'+o.img+'" alt="'+esc(nm)+'">' : '<div class="ph">Gambar '+DESAIN_LABEL[k]+'<br>'+esc(o.kode)+'</div>') +
+      '</div><div class="cap"><b>'+DESAIN_LABEL[k]+'</b>'+esc(nm)+ketTxt+catTxt+'</div></div>';
   }).join('');
   return '<div class="page cont"><h3 class="secttl">Opsi Desain — '+esc(s.tipeKabin)+'</h3>' +
     '<div class="dgrid">'+cards+'</div>' +
@@ -203,7 +279,11 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
   const d = parseDate(s.tanggal);
   const hariMap: Record<string,number> = {'2 Minggu':14,'3 Minggu':21,'1 Bulan':31,'2 Bulan':61};
   const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku]||21)*864e5);
-  const adaSipil = totalKel(items,'SIPIL',mode) > 0;
+  const st = strukturStatus(items);
+  const adaSipil = kelAktif(items).includes('SIPIL') || totalKel(items,'SIPIL',mode) > 0;
+  const stRow = st.label
+    ? '<strong>'+esc(st.label)+'</strong>' + (s.finishingStruktur ? ' dengan <strong>'+esc(s.finishingStruktur)+'</strong>' : '')
+    : (s.finishingStruktur ? '<strong>'+esc(s.finishingStruktur)+'</strong>' : '');
   const gt = grandTotal(items, mode);
   return injectDeco('' +
   '<div class="page">'+kop('INQUIRY', s.alamatKantor)+
@@ -219,8 +299,8 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     ' – '+esc(s.mpm)+' – Floors/Stops/Doors '+esc(s.sfd)+'.</p>'+
     '<h4>2. Pemasangan</h4><p>Biaya pemasangan termasuk Mobilisasi, Test-Commissioning, Mob-demobilisasi, '+
     '<strong>Free Maintenance '+esc(s.freeMtn)+', Garansi Spare Part '+esc(s.garSpare)+', Garansi Mesin '+esc(s.garMesin)+'</strong>.</p>'+
-    (adaSipil?'<h4>3. Pekerjaan Sipil</h4><p>Pekerjaan sipil dikerjakan oleh PT Belift Amanah Indonesia berdasarkan '+
-    'SPK tersendiri.</p>':'')+
+    (adaSipil?'<h4>3. Pekerjaan Sipil</h4><p>Pekerjaan sipil'+(stRow?' termasuk '+stRow:'')+
+    ' dikerjakan oleh PT Belift Amanah Indonesia berdasarkan SPK tersendiri.</p>':'')+
     '<p><strong>*</strong> Semua Harga <strong>'+(s.ppn==='exclude'?'Exclude':'Include')+'</strong> PPN 11%</p>'+
     '<h4>Waktu Pelaksanaan:</h4><p>Maksimal 3,5 Bulan sudah test commissioning sejak Kontrak ditanda tangani dan '+
     'pembayaran pertama diterima.</p></div><div class="pgnum">1</div></div>'+
@@ -231,10 +311,10 @@ function pageSPH(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     '</strong> PPN 11%. Baris bertanda <em>Include</em> sudah tercakup dalam harga item induknya.</p>'+
     '<div class="pgnum">2</div></div>'+
 
-  desainDoc(s, pilihDesain, liveDesain)+
+  desainDoc(s, pilihDesain, liveDesain, st.ada)+
 
   '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator '+esc(s.tipeKabin)+
-    ' With Traction Description</th></tr>'+specRows(s,pilihDesain,liveDesain)+'</table><div class="pgnum">·</div></div>'+
+    ' With Traction Description</th></tr>'+specRows(s,pilihDesain,liveDesain,st.ada)+'</table><div class="pgnum">·</div></div>'+
 
   '<div class="page cont"><p style="font-weight:700;text-decoration:underline;margin-bottom:5mm">Syarat dan Kondisi Penawaran :</p>'+
     '<ol class="ol">'+
@@ -257,6 +337,10 @@ function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
   const d = parseDate(s.tanggal);
   const hari = HARI_ID[d.getDay()];
   const gt = grandTotal(items, mode);
+  const st = strukturStatus(items);
+  const stPasang = st.label
+    ? '<li>Pemasangan '+esc(st.label)+(s.finishingStruktur?' dengan '+esc(s.finishingStruktur):'')+'</li>'
+    : (s.finishingStruktur ? '<li>'+esc(s.finishingStruktur)+'</li>' : '');
 
   // Pasal block: flowing, no forced page break per pasal
   function P(n: number, t: string, b: string) {
@@ -354,7 +438,7 @@ function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
     '<li>Pembuatan pit</li></ul>'+
     '<p><strong>Lingkup Pekerjaan PIHAK KEDUA</strong></p>'+
     '<ul class="ul"><li>Produksi dan pengadaan elevator sesuai spesifikasi</li>'+
-    '<li>Pemasangan Struktur Steel</li>'+
+    stPasang+
     '<li>Pengiriman elevator hingga sampai di Lokasi</li>'+
     '<li>Instalasi dan pemasangan elevator</li>'+
     '<li>Pemeriksaan dan uji kelayakan, commissioning</li>'+
@@ -412,10 +496,10 @@ function pageSPK(s: S, items: KatalogItem[], termin: Record<string,TerminItem[]>
 
   '</div>'+ // tutup .spk-body
 
-  desainDoc(s, pilihDesain, liveDesain)+
+  desainDoc(s, pilihDesain, liveDesain, st.ada)+
 
   '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator '+esc(s.tipeKabin)+
-    ' With Traction Description</th></tr>'+specRows(s,pilihDesain,liveDesain)+'</table>'+
+    ' With Traction Description</th></tr>'+specRows(s,pilihDesain,liveDesain,st.ada)+'</table>'+
     '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>'+
     '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>');
 }
@@ -539,7 +623,7 @@ function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
     if (!result[cat]) result[cat] = [];
     // Avoid duplicate kode
     if (!result[cat].find(o => o.kode === kode)) {
-      result[cat].push({ kode, nama, label, img });
+      result[cat].push({ kode, nama, label, img, ket: String(row.keterangan || '').trim() || undefined });
     }
   });
   return result;
@@ -577,15 +661,16 @@ function applyDocState(
     'tipeMesin','traksi','dayaMesin','power','pintu','bukaanPintu',
     'tinggiKabin','shaftSize','cabinSize','pitDepth','namaLantai','baseFloor',
     'ppn','masaBerlaku','freeMtn','garSpare','garMesin','waktuPengadaan','waktuInstalasi',
-    'tampilTtd','tampilDesain','sales','jabatanTtd','direktur','rekening',
+    'tampilTtd','tampilDesain','finishingStruktur','catatanDesain','sales','jabatanTtd','direktur','rekening',
   ];
   const merged: S = { ...DEFAULT_S };
   keys.forEach(k => { if (st[k] !== undefined) (merged as any)[k] = st[k]; });
   setS(merged);
 
   if (doc.modeHarga || doc.state?.modeHarga) setModeHarga((doc.modeHarga || doc.state?.modeHarga) as ModeHarga);
-  if (Array.isArray(doc.items) && doc.items.length) setItems(doc.items);
-  else if (Array.isArray(doc.state?.items) && doc.state.items.length) setItems(doc.state.items);
+  const rawItems = (Array.isArray(doc.items) && doc.items.length) ? doc.items
+    : (Array.isArray(doc.state?.items) && doc.state.items.length) ? doc.state.items : null;
+  if (rawItems) setItems(normalizeStrukturItems(rawItems));
   if (doc.termin && typeof doc.termin === 'object') setTermin(doc.termin);
   if (doc.pilihDesain && typeof doc.pilihDesain === 'object') setPilihDesain(doc.pilihDesain);
 }
@@ -692,9 +777,23 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     setItems(prev => {
       const next = prev.map((it, i) => i === idx ? { ...it, [k]: (k==='on'||k==='inc') ? v : num(v as unknown) } : it);
       if (k === 'inc' && v) { next[idx].hp = 0; next[idx].hi = 0; }
-      if (k === 'on' && !prev[idx].par) {
-        const pid = prev[idx].id;
-        next.forEach(x => { if (x.par === pid) x.on = v as boolean; });
+      if (k === 'on') {
+        const it = prev[idx];
+        if (!it.par) {
+          // Induk dicentang/dimatikan → seluruh anaknya ikut.
+          next.forEach(x => { if (x.par === it.id) x.on = v as boolean; });
+        } else if (!(v as boolean)) {
+          // Anak dimatikan → induk ikut mati bila tak ada anak lain yang menyala.
+          const masihAda = next.some(x => x.par === it.par && x.on && x.id !== it.id);
+          if (!masihAda) {
+            const p = next.find(x => x.id === it.par);
+            if (p) p.on = false;
+          }
+        } else {
+          // Anak dinyalakan → pastikan induknya menyala supaya barisnya ikut terhitung.
+          const p = next.find(x => x.id === it.par);
+          if (p) p.on = true;
+        }
       }
       return next;
     });
@@ -912,7 +1011,14 @@ function FormPanel(props: FormPanelProps) {
             <option value="lumpsum">Lumpsum (harga total langsung)</option>
           </select>
         </div>
-        <PriceTable items={items} setItemField={setItemField} modeHarga={modeHarga} />
+        <PriceTable items={items} setItemField={setItemField} modeHarga={modeHarga}
+          pilihDesain={pilihDesain} setPilihDesain={setPilihDesain} liveDesain={props.liveDesain}
+          finishing={s.finishingStruktur} onFinishing={v => upd('finishingStruktur', v)}
+          catatan={s.catatanDesain || {}} onCatatan={(k, v) => {
+            const c = { ...(s.catatanDesain || {}) };
+            if (v.trim()) c[k] = v; else delete c[k];
+            upd('catatanDesain', c);
+          }} />
         <div className="f-hint" style={{marginTop:8}}>Centang <b>Include</b> kalau item sudah tercakup di harga induknya.</div>
         <button className="mini-btn" onClick={isiCepat}>Isi cepat 87/13 dari satu nilai kontrak</button>
         <div className="computed-box">
@@ -932,18 +1038,43 @@ function FormPanel(props: FormPanelProps) {
 
       <Grp title="Opsi desain">
         <Fsel label="Cetak halaman desain" value={String(s.tampilDesain)} options={['true','false']} onChange={v => upd('tampilDesain', v === 'true')} />
-        {Object.keys(DESAIN_LABEL).map(k => {
-          const list = (props.liveDesain[k] || DESAIN[k] || []);
-          return (
-            <div key={k} className="f-item">
-              <label className="f-label">{DESAIN_LABEL[k]}</label>
-              <select className="f-ctrl" value={pilihDesain[k as keyof DesainPilihan]} onChange={e => setPilihDesain({...pilihDesain, [k]: e.target.value})}>
-                <option value="">Pilih desain…</option>
-                {list.map(o => <option key={o.kode} value={o.kode}>{o.label ?? o.nama}</option>)}
-              </select>
-            </div>
-          );
-        })}
+        {(Object.keys(DESAIN_LABEL) as (keyof DesainPilihan)[])
+          .filter(k => k !== 'struktur')
+          .map(k => {
+            const list = (props.liveDesain[k] || DESAIN[k] || []);
+            return (
+              <div key={k} className="f-item">
+                <label className="f-label">{DESAIN_LABEL[k]}</label>
+                <select className="f-ctrl" value={pilihDesain[k]} onChange={e => setPilihDesain({...pilihDesain, [k]: e.target.value})}>
+                  <option value="">Pilih desain…</option>
+                  {list.map(o => <option key={o.kode} value={o.kode}>{o.label ?? o.nama}</option>)}
+                </select>
+                {(() => {
+                  const o = list.find(x => x.kode === pilihDesain[k]);
+                  if (!o) return null;
+                  const ket = ketDesain(k, pilihDesain, props.liveDesain);
+                  if (!ket || ket.toLowerCase() === String(o.nama).toLowerCase()) return null;
+                  return <div className="f-hint">{KET_LABEL[k] || 'Keterangan'}: {ket}</div>;
+                })()}
+                {/* Keterangan modifikasi opsional — hanya tercetak bila diisi. */}
+                {pilihDesain[k] && (
+                  <input className="f-ctrl note-inp" type="text"
+                    placeholder="Keterangan modifikasi (opsional, mis. handle diganti silver)"
+                    value={(s.catatanDesain || {})[k] || ''}
+                    onChange={e => {
+                      const v = e.target.value;
+                      const c = { ...(s.catatanDesain || {}) };
+                      if (v.trim()) c[k] = v; else delete c[k];
+                      upd('catatanDesain', c);
+                    }} />
+                )}
+              </div>
+            );
+          })}
+        <div className="f-hint">
+          Desain & finishing <b>Struktur</b> diatur di <b>Tabel harga → Pekerjaan Sipil</b>, muncul saat
+          item <b>Struktur Steel</b> / <b>Struktur Aluminium</b> dicentang.
+        </div>
       </Grp>
 
       <Grp title="Unit lift &amp; spesifikasi">
@@ -1045,9 +1176,55 @@ function FormPanel(props: FormPanelProps) {
 }
 
 // ── Price Table ──────────────────────────────────────────────
-function PriceTable({ items, setItemField, modeHarga }: { items: KatalogItem[]; setItemField: (i: number, k: keyof KatalogItem, v: unknown) => void; modeHarga: ModeHarga }) {
+function PriceTable({ items, setItemField, modeHarga, pilihDesain, setPilihDesain, liveDesain, finishing, onFinishing, catatan, onCatatan }:
+  { items: KatalogItem[]; setItemField: (i: number, k: keyof KatalogItem, v: unknown) => void; modeHarga: ModeHarga;
+    pilihDesain: DesainPilihan; setPilihDesain: (p: DesainPilihan) => void;
+    liveDesain: Record<string, DesainOption[]>; finishing: string; onFinishing: (v: string) => void;
+    catatan: Record<string,string>; onCatatan: (k: string, v: string) => void }) {
   const q = modeHarga === 'satuan';
   let lastKel = '';
+  // Pilih desain + finishing struktur ditampilkan langsung di bawah daftar Pekerjaan Sipil
+  let lastSipil = -1;
+  items.forEach((it, i) => { if (it.kel === 'SIPIL') lastSipil = i; });
+  const adaStruktur = items.some(i => (i.id === 'S1g' || i.id === 'S1h') && i.on);
+  const listStruktur = (liveDesain['struktur'] || DESAIN['struktur'] || []);
+  const ketStruktur = ketDesain('struktur', pilihDesain, liveDesain);
+  const selStruktur = pilihDesain.struktur;
+  const strukturPick = (
+    <tr className="struktur-pick">
+      <td></td>
+      <td colSpan={q ? 5 : 4}>
+        {adaStruktur ? (
+          <div className="spk-grid">
+            <div className="spk-field">
+              <label className="f-label">Desain struktur</label>
+              <select className="f-ctrl" value={selStruktur} onChange={e => setPilihDesain({ ...pilihDesain, struktur: e.target.value })}>
+                <option value="">Pilih desain…</option>
+                {listStruktur.map(o => <option key={o.kode} value={o.kode}>{o.label ?? o.nama}</option>)}
+              </select>
+            </div>
+            <div className="spk-field">
+              <label className="f-label">Finishing struktur</label>
+              <select className="f-ctrl" value={finishing} onChange={e => onFinishing(e.target.value)}>
+                <option value="">— Belum dipilih —</option>
+                {OPT.finishingStruktur.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            {ketStruktur && <div className="spk-ket">Warna: {ketStruktur}</div>}
+            <div className="spk-field" style={{gridColumn:'1 / -1'}}>
+              <label className="f-label">Keterangan modifikasi (opsional)</label>
+              <input className="f-ctrl note-inp" type="text"
+                placeholder="Mis. handle diganti silver, kaca extra clear"
+                value={catatan['struktur'] || ''}
+                onChange={e => onCatatan('struktur', e.target.value)} />
+            </div>
+          </div>
+        ) : (
+          <div className="f-hint">Pilih <b>Struktur Steel</b> atau <b>Struktur Aluminium</b> di atas untuk mengatur desain &amp; finishing struktur.</div>
+        )}
+      </td>
+    </tr>
+  );
   return (
     <table className="ptbl">
       <thead>
@@ -1065,9 +1242,9 @@ function PriceTable({ items, setItemField, modeHarga }: { items: KatalogItem[]; 
           const kelHeader = it.kel !== lastKel ? (lastKel = it.kel, null) : null;
           const d = it.inc;
           return (
-            <>
+            <Fragment key={it.id}>
               {kelHeader}
-              <tr key={it.id} className={(it.par ? 'sub-row ' : '') + (it.on ? '' : 'off-row')}>
+              <tr className={(it.par ? 'sub-row ' : '') + (it.on ? '' : 'off-row')}>
                 <td className="tc"><input type="checkbox" checked={it.on} onChange={e => setItemField(idx,'on',e.target.checked)} /></td>
                 <td dangerouslySetInnerHTML={{__html: it.nama}} />
                 {q && <td><input type="number" min={0} value={it.qty} disabled={d} onChange={e => setItemField(idx,'qty',e.target.value)} /></td>}
@@ -1075,7 +1252,8 @@ function PriceTable({ items, setItemField, modeHarga }: { items: KatalogItem[]; 
                 <td><input type="number" min={0} value={it.hi} disabled={d} onChange={e => setItemField(idx,'hi',e.target.value)} /></td>
                 <td className="tc"><input type="checkbox" checked={it.inc} onChange={e => setItemField(idx,'inc',e.target.checked)} /></td>
               </tr>
-            </>
+              {idx === lastSipil && strukturPick}
+            </Fragment>
           );
         })}
       </tbody>

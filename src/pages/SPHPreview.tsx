@@ -458,7 +458,7 @@ function mergeDesainFromDB(dbRows: any[]): Record<string, DesainOption[]> {
     const label = sku ? `${nama} [${sku}]` : nama;
     if (!result[cat]) result[cat] = [];
     if (!result[cat].find(o => o.kode === kode)) {
-      result[cat].push({ kode, nama, label, img });
+      result[cat].push({ kode, nama, label, img, ket: String(row.keterangan || '').trim() || undefined });
     }
   });
   return result;

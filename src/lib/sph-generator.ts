@@ -5,7 +5,7 @@
 // ============================================================
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
-  ASET, DESAIN, DESAIN_LABEL, KEL_LABEL, HARI_ID,
+  ASET, DESAIN, DESAIN_LABEL, KET_LABEL, KEL_LABEL, HARI_ID,
 } from './sph-types';
 import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords,
@@ -23,6 +23,9 @@ export interface GenState {
   ppn: 'exclude' | 'include'; masaBerlaku: string; freeMtn: string; garSpare: string; garMesin: string;
   waktuPengadaan: string; waktuInstalasi: string;
   tampilTtd: boolean; tampilDesain: boolean;
+  finishingStruktur: string;
+  // Keterangan modifikasi bebas per kategori desain (opsional, hanya dicetak bila diisi)
+  catatanDesain?: Record<string, string>;
   sales: string; jabatanTtd: string; direktur: string; rekening: string;
 }
 
@@ -58,6 +61,36 @@ function namaDesain(k: string, pilihDesain: DesainPilihan, liveDesain?: Record<s
   return o ? o.nama : '';
 }
 
+// Keterangan desain terpilih — pakai `keterangan` dari Master Data bila diisi,
+// kalau kosong pakai default: Struktur → warna (nama tanpa prefix "Struktur "),
+// kategori lain (mis. Cabin) → nama desain itu sendiri (model).
+function ketDesain(k: string, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+  const list = (liveDesain && liveDesain[k]?.length ? liveDesain[k] : DESAIN[k]) || [];
+  const o = list.find(x => x.kode === pilihDesain[k as keyof DesainPilihan]);
+  if (!o) return '';
+  const manual = String(o.ket || '').trim();
+  if (manual) return manual;
+  if (k === 'struktur') return o.nama.replace(/^struktur\s+/i, '').trim();
+  return o.nama;
+}
+
+// Nama desain untuk ditampilkan di dokumen. Untuk kategori Struktur, prefix
+// "Struktur " dibuang karena label kategori sudah menuliskan "Struktur".
+function namaTampil(k: string, o: DesainOption): string {
+  if (k === 'struktur') return String(o.nama || '').replace(/^struktur\s+/i, '').trim() || o.nama;
+  return o.nama;
+}
+
+// Status struktur dari Tabel harga → bagian Pekerjaan Sipil
+function strukturStatus(items: KatalogItem[]): { steel: boolean; alu: boolean; ada: boolean; label: string } {
+  const on = (id: string) => items.some(i => i.id === id && i.on);
+  const steel = on('S1g'), alu = on('S1h');
+  return {
+    steel, alu, ada: steel || alu,
+    label: steel && alu ? 'Struktur Steel & Aluminium' : alu ? 'Struktur Aluminium' : steel ? 'Struktur Steel' : '',
+  };
+}
+
 // Split address into max 2 lines for the letterhead:
 // 5+ segments -> 2 + rest | 3 segments -> 1 + 2 | <=2 -> single line
 function alamat2Baris(alamat: string): string {
@@ -84,7 +117,11 @@ function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: bo
     '<div class="sig-nm">' + esc(nama) + '</div><div>' + esc(jabatan) + '</div>';
 }
 
-function specRows(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+function specRows(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>, adaStruktur = true): string {
+  const ketCabin = ketDesain('cabin', pilihDesain, liveDesain);
+  const ketStruktur = ketDesain('struktur', pilihDesain, liveDesain);
+  // Nilai baris "Struktur" cukup warna/model — label barisnya sendiri sudah "Struktur"
+  const namaStruktur = ketDesain('struktur', pilihDesain, liveDesain) || '—';
   const d: [string, string, boolean?][] = [
     ['Type', s.tipeMesin], ['Loading Capacity', s.kapasitas], ['Speed', s.kecepatan],
     ['Stops/Floors/Doors', s.sfd], ['Floor Name', s.namaLantai], ['Base Floor', s.baseFloor],
@@ -101,9 +138,19 @@ function specRows(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<s
     ['Door', namaDesain('door', pilihDesain, liveDesain) || 'As at Pict'],
     ['COP', namaDesain('cop', pilihDesain, liveDesain) || 'As at Pict'],
     ['LOP', namaDesain('lop', pilihDesain, liveDesain) || 'As at Pict'],
-    ['Struktur', namaDesain('struktur', pilihDesain, liveDesain) || '—'],
     ['Language', 'English'], ['Brand', 'BELIFT'],
   ];
+  // Keterangan desain (model / warna) hanya ditampilkan jika menambah info
+  const cabIdx = d.findIndex(([l]) => l === 'Cabin decoration');
+  if (cabIdx >= 0 && ketCabin && !d[cabIdx][1].toLowerCase().includes(ketCabin.toLowerCase()))
+    d.splice(cabIdx + 1, 0, ['Cabin model', ketCabin]);
+  if (adaStruktur && pilihDesain.struktur) {
+    d.splice(d.findIndex(([l]) => l === 'Language'), 0, ['Struktur', namaStruktur]);
+    if (ketStruktur && !namaStruktur.toLowerCase().includes(ketStruktur.toLowerCase()))
+      d.splice(d.findIndex(([l]) => l === 'Language'), 0, ['Struktur warna', ketStruktur]);
+  }
+  if (s.finishingStruktur)
+    d.splice(d.findIndex(([l]) => l === 'Language'), 0, ['Struktur finishing', s.finishingStruktur]);
   return d.map((r, i) =>
     '<tr><td>' + String(i + 1).padStart(3, '0') + '</td><td>' + esc(r[0]) + '</td><td' + (r[2] ? ' class="hl"' : '') + '>' + esc(r[1]) + '</td></tr>'
   ).join('');
@@ -151,16 +198,29 @@ function terminDoc(items: KatalogItem[], termin: Record<string, TerminItem[]>, m
   }).join('');
 }
 
-function desainDoc(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
-  const dipilih = Object.keys(DESAIN_LABEL).filter(k => pilihDesain[k as keyof DesainPilihan]);
+function desainDoc(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>, adaStruktur = true): string {
+  const dipilih = Object.keys(DESAIN_LABEL).filter(k => {
+    if (!pilihDesain[k as keyof DesainPilihan]) return false;
+    // Struktur pada halaman desain hanya muncul bila bagian Sipil memilih Struktur Aluminium
+    if (k === 'struktur' && !adaStruktur) return false;
+    return true;
+  });
   if (!s.tampilDesain || !dipilih.length) return '';
   const cards = dipilih.map(k => {
     const src = (liveDesain && liveDesain[k]?.length ? liveDesain[k] : DESAIN[k]) || [];
     const o = src.find(x => x.kode === pilihDesain[k as keyof DesainPilihan]);
     if (!o) return '';
+    const ket = ketDesain(k, pilihDesain, liveDesain);
+    const nm = namaTampil(k, o);
+    let ketTxt = '';
+    if (ket && ket.toLowerCase() !== nm.toLowerCase())
+      ketTxt = '<span class="cap-sub">' + (KET_LABEL[k] || 'Keterangan') + ': ' + esc(ket) + '</span>';
+    // Keterangan modifikasi manual — opsional, hanya muncul bila diisi.
+    const cat = String((s.catatanDesain || {})[k] || '').trim();
+    const catTxt = cat ? '<span class="cap-note"><b>Modifikasi:</b> ' + esc(cat) + '</span>' : '';
     return '<div class="dcard"><div class="box">' +
-      (o.img ? '<img src="' + o.img + '" alt="' + esc(o.nama) + '" crossorigin="anonymous">' : '<div class="ph">Gambar ' + DESAIN_LABEL[k] + '<br>' + esc(o.kode) + '</div>') +
-      '</div><div class="cap"><b>' + DESAIN_LABEL[k] + '</b>' + esc(o.nama) + '</div></div>';
+      (o.img ? '<img src="' + o.img + '" alt="' + esc(nm) + '" crossorigin="anonymous">' : '<div class="ph">Gambar ' + DESAIN_LABEL[k] + '<br>' + esc(o.kode) + '</div>') +
+      '</div><div class="cap"><b>' + DESAIN_LABEL[k] + '</b>' + esc(nm) + ketTxt + catTxt + '</div></div>';
   }).join('');
   return '<div class="page cont"><h3 class="secttl">Opsi Desain — ' + esc(s.tipeKabin) + '</h3>' +
     '<div class="dgrid">' + cards + '</div>' +
@@ -173,7 +233,11 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
   const d = parseDate(s.tanggal);
   const hariMap: Record<string, number> = { '2 Minggu': 14, '3 Minggu': 21, '1 Bulan': 31, '2 Bulan': 61 };
   const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku] || 21) * 864e5);
-  const adaSipil = totalKel(items, 'SIPIL', modeH) > 0;
+  const adaSipil = kelAktif(items).includes('SIPIL') || totalKel(items, 'SIPIL', modeH) > 0;
+  const st = strukturStatus(items);
+  const stRow = st.label
+    ? '<strong>' + esc(st.label) + '</strong>' + (s.finishingStruktur ? ' dengan <strong>' + esc(s.finishingStruktur) + '</strong>' : '')
+    : (s.finishingStruktur ? '<strong>' + esc(s.finishingStruktur) + '</strong>' : '');
   const gt = grandTotal(items, modeH);
   const raw = '' +
     '<div class="page">' + kop('INQUIRY', s.alamatKantor) +
@@ -189,7 +253,7 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
     ' – ' + esc(s.mpm) + ' – Floors/Stops/Doors ' + esc(s.sfd) + '.</p>' +
     '<h4>2. Pemasangan</h4><p>Biaya pemasangan termasuk Mobilisasi, Test-Commissioning, Mob-demobilisasi, ' +
     '<strong>Free Maintenance ' + esc(s.freeMtn) + ', Garansi Spare Part ' + esc(s.garSpare) + ', Garansi Mesin ' + esc(s.garMesin) + '</strong>.</p>' +
-    (adaSipil ? '<h4>3. Pekerjaan Sipil</h4><p>Pekerjaan sipil dikerjakan oleh PT Belift Amanah Indonesia berdasarkan SPK tersendiri.</p>' : '') +
+    (adaSipil ? '<h4>3. Pekerjaan Sipil</h4><p>Pekerjaan sipil' + (stRow ? ' termasuk ' + stRow : '') + ' dikerjakan oleh PT Belift Amanah Indonesia berdasarkan SPK tersendiri.</p>' : '') +
     '<p><strong>*</strong> Semua Harga <strong>' + (s.ppn === 'exclude' ? 'Exclude' : 'Include') + '</strong> PPN 11%</p>' +
     '<h4>Waktu Pelaksanaan:</h4><p>Maksimal 3,5 Bulan sudah test commissioning sejak Kontrak ditanda tangani dan pembayaran pertama diterima.</p></div><div class="pgnum">1</div></div>' +
 
@@ -199,10 +263,10 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
     '</strong> PPN 11%. Baris bertanda <em>Include</em> sudah tercakup dalam harga item induknya.</p>' +
     '<div class="pgnum">2</div></div>' +
 
-    desainDoc(s, pilihDesain, liveDesain) +
+    desainDoc(s, pilihDesain, liveDesain, st.ada) +
 
     '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator ' + esc(s.tipeKabin) +
-    ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain) + '</table><div class="pgnum">·</div></div>' +
+    ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain, st.ada) + '</table><div class="pgnum">·</div></div>' +
 
     '<div class="page cont"><p style="font-weight:700;text-decoration:underline;margin-bottom:5mm">Syarat dan Kondisi Penawaran :</p>' +
     '<ol class="ol">' +
@@ -225,6 +289,10 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
   const d = parseDate(s.tanggal);
   const hari = HARI_ID[d.getDay()];
   const gt = grandTotal(items, modeH);
+  const st = strukturStatus(items);
+  const stPasang = st.label
+    ? '<li>Pemasangan ' + esc(st.label) + (s.finishingStruktur ? ' dengan ' + esc(s.finishingStruktur) : '') + '</li>'
+    : (s.finishingStruktur ? '<li>' + esc(s.finishingStruktur) + '</li>' : '');
 
   // Build termin paragraphs matching the reference doc style (per-termin detailed paragraph)
   function terminParagraphs(): string {
@@ -345,7 +413,7 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
       '<p><strong>Lingkup Pekerjaan PIHAK KEDUA</strong></p>' +
       '<p>Merupakan pekerjaan utama pengadaan hingga pemasangan Elevator melingkupi ;</p>' +
       '<ul class="ul"><li>Produksi dan pengadaan elevator sesuai permintaan dan spesifikasi</li>' +
-      '<li>Pemasangan Struktur Steel</li>' +
+      stPasang +
       '<li>Pengiriman elevator hingga sampai di Lokasi,</li>' +
       '<li>Instalasi dan pemasangan elevator sesuai standard dengan pekerjaan diluar lingkup pekerjaan PIHAK PERTAMA,</li>' +
       '<li>Pemeriksaan dan uji kelayakan, commissioning penggunaan lift</li>' +
@@ -405,10 +473,10 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
     '</div>' + // tutup .spk-body
 
     // ── Desain + Spesifikasi ──────────────────────────────────
-    desainDoc(s, pilihDesain, liveDesain) +
+    desainDoc(s, pilihDesain, liveDesain, st.ada) +
 
     '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator ' + esc(s.tipeKabin) +
-    ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain) + '</table>' +
+    ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain, st.ada) + '</table>' +
     '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>' +
     '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>';
   return injectDeco(raw);

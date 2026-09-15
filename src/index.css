@@ -236,6 +236,18 @@
   .ptbl input:disabled { background: #F7F4F1; color: #B5AAA1; }
   .ptbl input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--orange); }
   .ptbl td.c { text-align: center; }
+  /* Panel desain + finishing struktur, muncul di bawah daftar Pekerjaan Sipil */
+  .ptbl tr.struktur-pick > td { padding: 6px 4px 10px; border-bottom: 1px solid #EADFD4; background: #FCFAF8; }
+  .ptbl tr.struktur-pick .spk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+  .ptbl tr.struktur-pick .spk-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .ptbl tr.struktur-pick .f-label { font-size: 10.5px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: .3px; }
+  .ptbl tr.struktur-pick .f-ctrl { width: 100%; padding: 5px 7px; font-size: 12px; border: 1px solid #E2D9D1; border-radius: 6px; background: #fff; }
+  .ptbl tr.struktur-pick .spk-ket { grid-column: 1 / -1; font-size: 11px; color: var(--orange); font-weight: 600; }
+  .ptbl tr.struktur-pick .f-hint { font-size: 11px; color: var(--sub); }
+  @media (max-width: 560px) { .ptbl tr.struktur-pick .spk-grid { grid-template-columns: 1fr; } }
+  /* Text box keterangan modifikasi desain (opsional) */
+  .note-inp { margin-top: 5px; font-size: 12px; border-style: dashed !important; color: var(--ink); }
+  .note-inp::placeholder { color: #A99C93; font-size: 11.5px; }
   .off td:nth-child(n+2) { opacity: .4; }
 
   .chipbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -366,6 +378,8 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .dcard .box .ph { font-size: 8pt; color: #B5AAA1; padding: 4mm; line-height: 1.4; }
 .dcard .cap { font-size: 8.5pt; margin-top: 1.5mm; font-style: italic; }
 .dcard .cap b { font-style: normal; display: block; font-size: 9pt; }
+.dcard .cap .cap-sub { display: block; font-style: normal; font-size: 7.5pt; color: #8A7F76; margin-top: .5mm; letter-spacing: .1pt; }
+.dcard .cap .cap-note { display: block; font-style: normal; font-size: 7.5pt; color: #8A7F76; margin-top: .8mm; line-height: 1.35; }
 .sign { display: flex; justify-content: space-between; margin-top: 10mm; text-align: center; font-size: 10pt; }
 .sign > div { width: 74mm; }
 .sigbox { position: relative; height: 30mm; margin-top: 2mm; }
