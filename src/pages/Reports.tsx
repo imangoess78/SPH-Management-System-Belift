@@ -81,15 +81,15 @@ export default function Reports() {
       const row = salesMap.get(name) || { name, total: 0, final: 0, expired: 0 };
       row.total += 1;
       if (doc.status === 'final') row.final += 1;
-      if (doc.status !== 'final' && getDocumentValidityStatus(doc, now).status === 'expired') row.expired += 1;
+      if (doc.status === 'final' && getDocumentValidityStatus(doc, now).status === 'expired') row.expired += 1;
       salesMap.set(name, row);
     });
     return {
       sph, spk, enriched,
       draft: sph.filter(doc => doc.status === 'draft'),
       final: sph.filter(doc => doc.status === 'final'),
-      nearing: enriched.filter(doc => doc.status !== 'final' && doc.daysLeft >= 0 && doc.daysLeft <= 7).sort((a, b) => a.daysLeft - b.daysLeft),
-      expired: enriched.filter(doc => doc.status !== 'final' && doc.daysLeft < 0).sort((a, b) => a.daysLeft - b.daysLeft),
+      nearing: enriched.filter(doc => doc.status === 'final' && doc.daysLeft >= 0 && doc.daysLeft <= 7).sort((a, b) => a.daysLeft - b.daysLeft),
+      expired: enriched.filter(doc => doc.status === 'final' && doc.daysLeft < 0).sort((a, b) => a.daysLeft - b.daysLeft),
       sales: Array.from(salesMap.values()).sort((a, b) => (b.final / b.total) - (a.final / a.total) || b.final - a.final || b.total - a.total),
     };
   }, [documents, now, period]);
@@ -152,7 +152,7 @@ export default function Reports() {
         row.sph += 1;
         if (doc.status === 'final') row.final += 1;
         const age = daysSince(documentDate(doc), now);
-        if (doc.status !== 'final' && age >= VALIDITY_DAYS) row.expired += 1;
+        if (doc.status === 'final' && age >= VALIDITY_DAYS) row.expired += 1;
       } else row.spk += 1;
       map.set(key, row);
     });
@@ -268,8 +268,8 @@ export default function Reports() {
     </div>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <section className="bg-card rounded-xl border shadow-sm p-5"><div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-warning" /><div><h2 className="section-title">Mendekati tenggat</h2><p className="text-xs text-muted-foreground">Draft dengan sisa waktu maksimal 7 hari</p></div></div><span className="badge-draft text-xs px-2 py-1 rounded-full">{report.nearing.length}</span></div>{report.nearing.length ? <div className="space-y-2">{report.nearing.map(doc => <DocumentRow key={doc.id} doc={doc} />)}</div> : <p className="text-sm text-muted-foreground py-6 text-center"><Clock3 className="w-7 h-7 mx-auto mb-2 opacity-40" />Tidak ada SPH yang mendekati tenggat.</p>}</section>
-      <section className="bg-card rounded-xl border shadow-sm p-5"><div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><XCircle className="w-5 h-5 text-destructive" /><div><h2 className="section-title">SPH sudah expired</h2><p className="text-xs text-muted-foreground">Draft melewati masa berlaku 21 hari</p></div></div><span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive font-semibold">{report.expired.length}</span></div>{report.expired.length ? <div className="space-y-2">{report.expired.slice(0, 8).map(doc => <DocumentRow key={doc.id} doc={doc} expired />)}</div> : <p className="text-sm text-muted-foreground py-6 text-center"><CheckCircle2 className="w-7 h-7 mx-auto mb-2 text-success opacity-60" />Tidak ada SPH expired.</p>}</section>
+      <section className="bg-card rounded-xl border shadow-sm p-5"><div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-warning" /><div><h2 className="section-title">Mendekati tenggat</h2><p className="text-xs text-muted-foreground">SPH final dengan sisa waktu maksimal 7 hari</p></div></div><span className="badge-draft text-xs px-2 py-1 rounded-full">{report.nearing.length}</span></div>{report.nearing.length ? <div className="space-y-2">{report.nearing.map(doc => <DocumentRow key={doc.id} doc={doc} />)}</div> : <p className="text-sm text-muted-foreground py-6 text-center"><Clock3 className="w-7 h-7 mx-auto mb-2 opacity-40" />Tidak ada SPH yang mendekati tenggat.</p>}</section>
+      <section className="bg-card rounded-xl border shadow-sm p-5"><div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><XCircle className="w-5 h-5 text-destructive" /><div><h2 className="section-title">SPH sudah expired</h2><p className="text-xs text-muted-foreground">SPH final melewati masa berlaku 21 hari</p></div></div><span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive font-semibold">{report.expired.length}</span></div>{report.expired.length ? <div className="space-y-2">{report.expired.slice(0, 8).map(doc => <DocumentRow key={doc.id} doc={doc} expired />)}</div> : <p className="text-sm text-muted-foreground py-6 text-center"><CheckCircle2 className="w-7 h-7 mx-auto mb-2 text-success opacity-60" />Tidak ada SPH expired.</p>}</section>
     </div>
 
     {period === 'all' && <section className="bg-card rounded-xl border shadow-sm p-5 mt-6"><div className="flex items-center gap-2 mb-4"><BarChart3 className="w-5 h-5 text-primary" /><div><h2 className="section-title">Breakdown per bulan</h2><p className="text-xs text-muted-foreground">Perbandingan SPH, finalisasi, SPK, dan expired berdasarkan bulan pembuatan</p></div></div><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-sm"><thead><tr className="border-b bg-muted/50"><th className="text-left p-3 font-medium text-muted-foreground">Bulan</th><th className="text-right p-3 font-medium text-muted-foreground">SPH</th><th className="text-right p-3 font-medium text-muted-foreground">Final</th><th className="text-right p-3 font-medium text-muted-foreground">SPK</th><th className="text-right p-3 font-medium text-muted-foreground">Expired</th><th className="text-right p-3 font-medium text-muted-foreground">Finalisasi</th></tr></thead><tbody className="divide-y">{monthlyBreakdown.map(row => { const [year, month] = row.month.split('-'); const rate = row.sph ? Math.round((row.final / row.sph) * 100) : 0; return <tr key={row.month}><td className="p-3 font-medium">{monthNames[Number(month) - 1]} {year}</td><td className="p-3 text-right">{row.sph}</td><td className="p-3 text-right text-success font-medium">{row.final}</td><td className="p-3 text-right text-purple-500 font-medium">{row.spk}</td><td className="p-3 text-right text-destructive font-medium">{row.expired}</td><td className="p-3 text-right">{rate}%</td></tr>; })}</tbody></table></div></section>}
