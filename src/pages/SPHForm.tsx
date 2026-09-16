@@ -7,7 +7,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
   OPT, KEL_LABEL, SYARAT, TERMIN_AWAL, DESAIN, DESAIN_LABEL, KET_LABEL, ASET, HARI_ID,
-  makeDefaultItems,
+  makeDefaultItems, normalizeStrukturItems,
 } from '@/lib/sph-types';
 import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords, fmtID,
@@ -117,20 +117,10 @@ function strukturStatus(items: KatalogItem[]): { steel: boolean; alu: boolean; a
   };
 }
 
-// Migrasi dokumen lama: Struktur Steel (I1c) pindah dari INSTALASI ke SIPIL (S1g)
-// dan item Struktur Aluminium (S1h) ditambahkan bila belum ada.
-function normalizeStrukturItems(list: KatalogItem[]): KatalogItem[] {
-  if (!Array.isArray(list) || !list.length) return list;
-  let out = list.map(it => it.id === 'I1c'
-    ? { ...it, id: 'S1g', kel: 'SIPIL', nama: 'Struktur Steel', par: 'S1', on: false }
-    : { ...it });
-  if (!out.some(i => i.id === 'S1h')) {
-    const alu: KatalogItem = { id:'S1h', kel:'SIPIL', nama:'Struktur Aluminium', sat:'Ls', on:false, inc:true, par:'S1', qty:1, hp:0, hi:0 };
-    const idx = out.findIndex(i => i.id === 'S1g');
-    out = idx >= 0 ? [...out.slice(0, idx + 1), alu, ...out.slice(idx + 1)] : [...out, alu];
-  }
-  return out;
-}
+// Migrasi dokumen lama (I1c → S1g + sisip S1h) kini tinggal di `@/lib/sph-types`
+// agar form, preview, dan generator memakai aturan yang sama persis.
+// Jangan hidupkan kembali salinan lokal di sini — versi lama memaksa `on:false`
+// sehingga centang Struktur hilang saat dokumen lama dibuka.
 
 // ── Document generation helpers used locally ────────────────
 
@@ -566,6 +556,8 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .dcard .box .ph{font-size:8pt;color:#B5AAA1;padding:4mm;line-height:1.4}
 .dcard .cap{font-size:8.5pt;margin-top:1.5mm;font-style:italic}
 .dcard .cap b{font-style:normal;display:block;font-size:9pt}
+.dcard .cap .cap-sub{display:block;font-style:normal;font-size:7.5pt;color:#8A7F76;margin-top:.5mm;letter-spacing:.1pt}
+.dcard .cap .cap-note{display:block;font-style:normal;font-size:7.5pt;color:#8A7F76;margin-top:.8mm;line-height:1.35}
 .sign{display:flex;justify-content:space-between;margin-top:10mm;text-align:center;font-size:10pt}
 .sign>div{width:74mm}
 .sigbox{position:relative;height:30mm;margin-top:2mm}

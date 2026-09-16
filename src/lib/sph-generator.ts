@@ -6,6 +6,7 @@
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
   ASET, DESAIN, DESAIN_LABEL, KET_LABEL, KEL_LABEL, HARI_ID,
+  normalizeStrukturItems,
 } from './sph-types';
 import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords,
@@ -230,6 +231,9 @@ function desainDoc(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<
 
 // ── Main generators ─────────────────────────────────────────
 export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+  // Dokumen lama menyimpan Struktur Steel sebagai `I1c` di INSTALASI. Normalisasi di sini
+  // supaya hasil cetak SPH sama dengan yang tampil di form (dan centangnya tidak hilang).
+  items = normalizeStrukturItems(items);
   const d = parseDate(s.tanggal);
   const hariMap: Record<string, number> = { '2 Minggu': 14, '3 Minggu': 21, '1 Bulan': 31, '2 Bulan': 61 };
   const berlaku = new Date(d.getTime() + (hariMap[s.masaBerlaku] || 21) * 864e5);
@@ -286,6 +290,9 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
 }
 
 export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+  // Sama seperti pageSPH: dokumen lama menyimpan Struktur Steel sebagai `I1c`
+  // (INSTALASI). Tanpa normalisasi, klausul "Pemasangan Struktur" hilang dari SPK.
+  items = normalizeStrukturItems(items);
   const d = parseDate(s.tanggal);
   const hari = HARI_ID[d.getDay()];
   const gt = grandTotal(items, modeH);

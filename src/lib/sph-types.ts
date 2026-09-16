@@ -151,6 +151,36 @@ export function makeDefaultItems(): KatalogItem[] {
   return KATALOG_DEFAULT.map(k => ({ ...k, qty: 1, hp: 0, hi: 0 }));
 }
 
+/**
+ * Migrasi item dokumen lama: `I1c` (Struktur Steel, kel INSTALASI) → `S1g`
+ * (kel SIPIL, par S1) supaya sebaris dengan item sipil lain.
+ *
+ * PENTING: status centang (`on`) serta `qty`/`hp`/`hi` IKUT dipertahankan.
+ * Versi sebelumnya memaksa `on:false`, sehingga dokumen lama yang memakai
+ * Struktur Steel kehilangan centangnya begitu dibuka — panel struktur hilang,
+ * klausul "Pemasangan Struktur" ikut hilang dari dokumen SPH/SPK, dan bila
+ * disimpan kerusakannya permanen.
+ *
+ * `S1h` (Struktur Aluminium) disisipkan tepat setelah `S1g` bila belum ada, dan
+ * induk `S1` dinyalakan bila salah satu anaknya menyala (sinkron induk↔anak).
+ */
+export function normalizeStrukturItems(list: KatalogItem[]): KatalogItem[] {
+  if (!Array.isArray(list) || !list.length) return list;
+  let out = list.map(it => it.id === 'I1c'
+    ? { ...it, id: 'S1g', kel: 'SIPIL', nama: 'Struktur Steel', par: 'S1' }
+    : { ...it });
+  if (!out.some(i => i.id === 'S1h')) {
+    const alu: KatalogItem = { id:'S1h', kel:'SIPIL', nama:'Struktur Aluminium', sat:'Ls', on:false, inc:true, par:'S1', qty:1, hp:0, hi:0 };
+    const idx = out.findIndex(i => i.id === 'S1g');
+    out = idx >= 0 ? [...out.slice(0, idx + 1), alu, ...out.slice(idx + 1)] : [...out, alu];
+  }
+  if (out.some(i => i.par === 'S1' && i.on)) {
+    const induk = out.find(i => i.id === 'S1');
+    if (induk) induk.on = true;
+  }
+  return out;
+}
+
 export const KEL_LABEL: Record<string, string> = {
   PENGADAAN: 'Pengadaan Lift',
   INSTALASI: 'Instalasi & Maintenance',

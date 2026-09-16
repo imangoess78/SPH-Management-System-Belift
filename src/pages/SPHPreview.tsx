@@ -65,6 +65,8 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .dcard .box .ph{font-size:8pt;color:#B5AAA1;padding:4mm;line-height:1.4}
 .dcard .cap{font-size:8.5pt;margin-top:1.5mm;font-style:italic}
 .dcard .cap b{font-style:normal;display:block;font-size:9pt}
+.dcard .cap .cap-sub{display:block;font-style:normal;font-size:7.5pt;color:#8A7F76;margin-top:.5mm;letter-spacing:.1pt}
+.dcard .cap .cap-note{display:block;font-style:normal;font-size:7.5pt;color:#8A7F76;margin-top:.8mm;line-height:1.35}
 .sign{display:flex;justify-content:space-between;margin-top:10mm;text-align:center;font-size:10pt}
 .sign>div{width:74mm}
 .sigbox{position:relative;height:30mm;margin-top:2mm}
