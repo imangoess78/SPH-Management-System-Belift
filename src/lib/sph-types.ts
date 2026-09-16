@@ -169,11 +169,36 @@ export function normalizeStrukturItems(list: KatalogItem[]): KatalogItem[] {
   let out: KatalogItem[] = list.map(it => it.id === 'I1c'
     ? { ...it, id: 'S1g', kel: 'SIPIL' as const, nama: 'Struktur Steel', par: 'S1' }
     : { ...it });
+
   if (!out.some(i => i.id === 'S1h')) {
-    const alu: KatalogItem = { id:'S1h', kel:'SIPIL', nama:'Struktur Aluminium', sat:'Ls', on:false, inc:true, par:'S1', qty:1, hp:0, hi:0 };
-    const idx = out.findIndex(i => i.id === 'S1g');
-    out = idx >= 0 ? [...out.slice(0, idx + 1), alu, ...out.slice(idx + 1)] : [...out, alu];
+    const def = KATALOG_DEFAULT.find(k => k.id === 'S1h');
+    const alu: KatalogItem = def
+      ? { ...(def as KatalogItem), qty: 1, hp: 0, hi: 0 }
+      : { id:'S1h', kel:'SIPIL', nama:'Struktur Aluminium', sat:'Ls', on:false, inc:true, par:'S1', qty:1, hp:0, hi:0 };
+    out = [...out, alu];
   }
+
+  // ── PINDAHKAN anak-anak S1 ke blok SIPIL ──────────────────────────────
+  // `I1c` (kel INSTALASI) hanya di-rename jadi `S1g`, tidak dipindah posisinya,
+  // sehingga Struktur Steel/Aluminium tetap tampil di bawah "Instalasi &
+  // Maintenance" di form SPK. Di sini urutannya dirapikan: semua anak S1
+  // dikeluarkan dari posisi lamanya lalu disisipkan tepat setelah induk `S1`,
+  // mengikuti urutan katalog (S1a..S1h) — jadi sebaris dengan item sipil lain.
+  const ANAK_S1 = ['S1a','S1b','S1c','S1d','S1e','S1f','S1g','S1h'];
+  const ord = (id: string) => { const k = ANAK_S1.indexOf(id); return k < 0 ? 999 : k; };
+  const anak = out.filter(i => i.par === 'S1').sort((a, b) => ord(a.id) - ord(b.id));
+  const sisa = out.filter(i => i.par !== 'S1');
+
+  let pos = sisa.findIndex(i => i.id === 'S1');
+  if (pos < 0) {
+    // tak ada induk S1 → taruh di akhir blok SIPIL, atau di akhir array
+    let lastSipil = -1;
+    sisa.forEach((i, idx) => { if (i.kel === 'SIPIL') lastSipil = idx; });
+    if (lastSipil < 0) return [...sisa, ...anak];
+    pos = lastSipil;
+  }
+  out = [...sisa.slice(0, pos + 1), ...anak, ...sisa.slice(pos + 1)];
+
   if (out.some(i => i.par === 'S1' && i.on)) {
     const induk = out.find(i => i.id === 'S1');
     if (induk) induk.on = true;

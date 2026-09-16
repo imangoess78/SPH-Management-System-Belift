@@ -773,9 +773,16 @@ function PriceTable({ items, setItemField, modeHarga, pilihDesain, setPilihDesai
     catatan: Record<string,string>; onCatatan: (k: string, v: string) => void }) {
   const q = modeHarga === 'satuan';
   let lastKel = '';
-  // Pilih desain + finishing struktur ditampilkan langsung di bawah daftar Pekerjaan Sipil
+  // Pilih desain + finishing struktur ditampilkan langsung di bawah baris
+  // Struktur (S1g/S1h). Kalau dokumen tak punya baris itu, jatuh ke baris
+  // Pekerjaan Sipil terakhir. Anchor-nya baris S1*, bukan `kel === 'SIPIL'`
+  // terakhir — karena S2/S2a/S2b (Elektrikal) ada DI BAWAH S1g/S1h, jadi
+  // "SIPIL terakhir" akan menaruh panel ini terpisah dari barisnya.
   let lastSipil = -1;
   items.forEach((it, i) => { if (it.kel === 'SIPIL') lastSipil = i; });
+  let lastS1 = -1;
+  items.forEach((it, i) => { if (it.par === 'S1') lastS1 = i; });
+  const anchorRow = lastS1 >= 0 ? lastS1 : lastSipil;
   const adaStruktur = items.some(i => (i.id === 'S1g' || i.id === 'S1h') && i.on);
   const listStruktur = (liveDesain['struktur'] || DESAIN['struktur'] || []);
   const ketStruktur = ketDesain('struktur', pilihDesain, liveDesain);
@@ -842,7 +849,7 @@ function PriceTable({ items, setItemField, modeHarga, pilihDesain, setPilihDesai
                 <td><input type="number" min={0} value={it.hi} disabled={d} onChange={e => setItemField(idx,'hi',e.target.value)} /></td>
                 <td className="tc"><input type="checkbox" checked={it.inc} onChange={e => setItemField(idx,'inc',e.target.checked)} /></td>
               </tr>
-              {idx === lastSipil && strukturPick}
+              {idx === anchorRow && strukturPick}
             </Fragment>
           );
         })}
