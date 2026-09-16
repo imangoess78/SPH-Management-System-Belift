@@ -34,14 +34,13 @@ export type ModeHarga = 'satuan' | 'lumpsum';
 export type DocMode = 'SPH' | 'SPK';
 
 // ── Helpers ──────────────────────────────────────────────────
-function esc(s: unknown): string {
-  return String(s == null ? '' : s).replace(/[<>"]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+export function esc(s: unknown): string {
+  return String(s == null ? '' : s).replace(/[<>"]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;'})[c]!);
 }
 
-// Inject decorative hexagon (bottom-right) inside every .page div
+// ── Inject hex-bg img into every .page div ──────────────────
 const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
-function injectDeco(html: string): string {
-  // Match opening tag of every .page div (with optional class additions) and inject img right after >
+export function injectDeco(html: string): string {
   return html.replace(/(<div class="page(?:[^"]*)"[^>]*>)/g, '$1' + HEX_IMG);
 }
 
@@ -110,8 +109,9 @@ function kop(t: string, alamatKantor: string): string {
     alamat2Baris(alamatKantor) + '<br>info@belift.co.id</div></div>';
 }
 
-function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean): string {
-  const img = ASET.ttd[nama] || '';
+// signatureUrl: bila diisi (dari DB sales), pakai itu; kalau tidak, fallback ke ASET.ttd
+function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean, signatureUrl?: string): string {
+  const img = signatureUrl || ASET.ttd[nama] || '';
   const cap = (pakaiCap && ASET.capPerusahaan) ? '<img class="cap" src="' + ASET.capPerusahaan + '" alt="">' : '';
   const sig = img ? '<img class="ttd" src="' + img + '" alt="">' : '';
   return '<div class="sigbox">' + (tampilTtd ? cap + sig : '') + '</div>' +
@@ -230,7 +230,7 @@ function desainDoc(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<
 }
 
 // ── Main generators ─────────────────────────────────────────
-export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>, signatureUrl?: string): string {
   // Dokumen lama menyimpan Struktur Steel sebagai `I1c` di INSTALASI. Normalisasi di sini
   // supaya hasil cetak SPH sama dengan yang tampil di form (dan centangnya tidak hilang).
   items = normalizeStrukturItems(items);
@@ -285,7 +285,7 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
     '<p>Demikian penawaran ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>' +
     '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="width:74mm;text-align:center">' +
 '<img src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin:0 auto 2mm">'+
-    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd) + '</div></div><div class="pgnum">·</div></div>';
+    ttdBlok(s.sales, s.jabatanTtd, true, s.tampilTtd, signatureUrl) + '</div></div><div class="pgnum">·</div></div>';
   return injectDeco(raw);
 }
 
