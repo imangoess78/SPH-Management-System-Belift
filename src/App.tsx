@@ -20,6 +20,13 @@ import EmergencyBackup from "./pages/EmergencyBackup";
 import AdminUsers from "./pages/AdminUsers";
 import Reports from "./pages/Reports";
 import Kalkulator from "./pages/Kalkulator";
+import LeadsList from "./pages/crm/LeadsList";
+import LeadInput from "./pages/crm/LeadInput";
+import Kanban from "./pages/crm/Kanban";
+import IklanDashboard from "./pages/crm/IklanDashboard";
+import DokumenPage from "./pages/crm/Dokumen";
+import ApprovalDiskon from "./pages/crm/ApprovalDiskon";
+import CrmMaster from "./pages/crm/CrmMaster";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
 function SPKNewOrForm() {
@@ -71,6 +78,14 @@ function AppRoutes() {
               <Route path="/spk" element={<SPKList />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/master" element={<MasterData />} />
+              <Route path="/crm/leads" element={<LeadsList />} />
+              <Route path="/crm/leads/baru" element={<LeadInput />} />
+              <Route path="/crm/leads/:id" element={<LeadInput />} />
+              <Route path="/crm/kanban" element={<Kanban />} />
+              <Route path="/crm/iklan" element={<IklanDashboard />} />
+              <Route path="/crm/dokumen" element={<DokumenPage />} />
+              <Route path="/crm/diskon" element={<ApprovalDiskon />} />
+              <Route path="/crm/master" element={<CrmMaster />} />
               <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
               <Route path="/admin/user" element={<AdminOnly><AdminUsers /></AdminOnly>} />
               <Route path="/admin/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />
