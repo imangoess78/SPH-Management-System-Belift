@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import EmergencyBackup from "./pages/EmergencyBackup";
 import AdminUsers from "./pages/AdminUsers";
 import Reports from "./pages/Reports";
+import Kalkulator from "./pages/Kalkulator";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
 function SPKNewOrForm() {
@@ -51,6 +52,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      {/* Publik: kalkulator harga per komponen — tanpa login */}
+      <Route path="/kalkulator" element={<Kalkulator />} />
       {/* Generator: full-bleed, no AppLayout sidebar */}
       <Route path="/sph/new" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
       <Route path="/sph/:id" element={<ProtectedRoute><SPHForm defaultMode="SPH" /></ProtectedRoute>} />
