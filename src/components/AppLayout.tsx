@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck, Calculator } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/spk', icon: FileText, label: 'Riwayat SPK' },
   { to: '/reports', icon: BarChart3, label: 'Laporan' },
   { to: '/master', icon: Database, label: 'Master Data' },
+  { to: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
   { to: '/settings', icon: Settings, label: 'Pengaturan' },
   { to: '/admin/emergency-backup', icon: ShieldCheck, label: 'Emergency Backup', adminOnly: true },
   { to: '/admin/users', icon: ShieldCheck, label: 'Manajemen Akun', adminOnly: true },
