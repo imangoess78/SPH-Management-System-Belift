@@ -120,18 +120,18 @@ export default function IklanDashboard() {
             Berapa biaya yang keluar untuk setiap lead, penawaran, dan deal — per kanal.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Select value={periode} onValueChange={setPeriode}>
-            <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 min-w-[150px] flex-1 sm:w-[180px] sm:flex-none"><SelectValue /></SelectTrigger>
             <SelectContent>
               {pilihanPeriode.map(p => <SelectItem key={p} value={p}>{labelPeriode(p)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={muat} disabled={memuat}>
+          <Button variant="outline" size="sm" onClick={muat} disabled={memuat} className="shrink-0">
             <RefreshCw className={`w-4 h-4 mr-1.5 ${memuat ? 'animate-spin' : ''}`} />Muat ulang
           </Button>
           {bolehKelolaMaster && (
-            <Button size="sm" onClick={() => setDialog(true)}>
+            <Button size="sm" onClick={() => setDialog(true)} className="shrink-0 whitespace-nowrap">
               <Plus className="w-4 h-4 mr-1.5" />Input Biaya Iklan
             </Button>
           )}
