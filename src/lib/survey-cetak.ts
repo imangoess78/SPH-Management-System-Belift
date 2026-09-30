@@ -361,7 +361,12 @@ export interface BahanCetakPo {
   dibuat_oleh: string | null;
 }
 
-export function cetakPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string, pic?: string) {
+/**
+ * HTML dokumen PO Pabrik — DIPISAH dari cetakPo() supaya bisa dipakai dua
+ * tempat: pratinjau di layar (PoPreview) dan cetak (window.print / pop-up).
+ * Kalau isinya digandakan, pratinjau dan hasil cetak pasti akan berbeda.
+ */
+export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string, pic?: string): string {
   const rev = revisi[0];
   const dt = (rev?.dt || null) as DataTeknis | null;
   const pakaiPabrik = pabrik || po.pabrik;
@@ -399,10 +404,12 @@ export function cetakPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string
       '<div><div class="sigbox"></div><span class="sig-nm"> </span><div class="sig-jab">' + esc(j) + '</div></div>').join('')
     + '</div>';
 
-  cetakHtml(
-    bingkai('PO Pabrik', 'PO', po.no_po || '—', 'Pesanan ke Pabrik — ' + (po.nama_prospek || ''), isiHtml),
-    'PO Pabrik',
-  );
+  return bingkai('PO Pabrik', 'PO', po.no_po || '—', 'Pesanan ke Pabrik — ' + (po.nama_prospek || ''), isiHtml);
+}
+
+/** Cetak PO lewat pop-up (perilaku lama dipertahankan). */
+export function cetakPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string, pic?: string) {
+  cetakHtml(htmlPo(po, revisi, pabrik, pic), 'PO Pabrik');
 }
 
 /** Ringkasan teks PO untuk ditempel ke surel / aplikasi lain. */

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Save, Send, GitCompare, Printer, Lock, Unlock, AlertTriangle, History, Factory,
+  ArrowLeft, Save, Send, GitCompare, Printer, Lock, Unlock, AlertTriangle, History, Factory, Eye,
 } from 'lucide-react';
 import { poApi, type BalikanPoDetail } from '@/lib/survey-api';
 import { cetakPo, salinRingkasPo } from '@/lib/survey-cetak';
@@ -136,6 +136,9 @@ export default function PoDetail() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => { salinRingkasPo(po, d.revisi); toast.success('Tersalin'); }}>
             Salin ringkas
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/po/${id}/preview`)}>
+            <Eye className="w-4 h-4 mr-1.5" /> Preview
           </Button>
           <Button variant="outline" size="sm" onClick={() => cetakPo(po, d.revisi, pabrik, pic)}>
             <Printer className="w-4 h-4 mr-1.5" /> Cetak PO

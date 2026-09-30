@@ -33,6 +33,7 @@ import SurveyPilihLead from "./pages/survey/SurveyPilihLead";
 import SurveyLacak from "./pages/survey/SurveyLacak";
 import PoList from "./pages/po/PoList";
 import PoDetail from "./pages/po/PoDetail";
+import PoPreview from "./pages/po/PoPreview";
 import PoPilihProyek from "./pages/po/PoPilihProyek";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
@@ -120,6 +121,7 @@ function AppRoutes() {
               <Route path="/po/pilih" element={<AdminOnly><PoPilihProyek /></AdminOnly>} />
               <Route path="/po/baru" element={<AdminOnly><PoDetail /></AdminOnly>} />
               <Route path="/po/:id" element={<AdminOnly><PoDetail /></AdminOnly>} />
+              <Route path="/po/:id/preview" element={<AdminOnly><PoPreview /></AdminOnly>} />
               <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
               <Route path="/admin/user" element={<AdminOnly><AdminUsers /></AdminOnly>} />
               <Route path="/admin/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />

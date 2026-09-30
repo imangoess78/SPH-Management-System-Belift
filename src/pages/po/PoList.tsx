@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Factory, Search, ArrowRight, Plus, GitCompare } from 'lucide-react';
+import { Factory, Search, ArrowRight, Plus, GitCompare, Eye } from 'lucide-react';
 import { poApi } from '@/lib/survey-api';
 import type { PoRow } from '@/lib/survey-types';
 import { useCrmUser } from '@/hooks/useCrmUser';
@@ -139,6 +139,9 @@ export default function PoList() {
                     <td className="p-2.5">
                       <div className="flex justify-end gap-1">
                         {(b.jml_revisi || 0) > 0 && <GitCompare className="w-4 h-4 text-muted-foreground self-center" />}
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/po/${b.id}/preview`)}>
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Lihat
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => navigate(`/po/${b.id}`)}>
                           Buka <ArrowRight className="w-3.5 h-3.5 ml-1" />
                         </Button>
