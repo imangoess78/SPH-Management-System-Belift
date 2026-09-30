@@ -31,6 +31,7 @@ import SurveyList from "./pages/survey/SurveyList";
 import SurveyForm from "./pages/survey/SurveyForm";
 import SurveyPilihLead from "./pages/survey/SurveyPilihLead";
 import SurveyLacak from "./pages/survey/SurveyLacak";
+import SurveyPreview from "./pages/survey/SurveyPreview";
 import PoList from "./pages/po/PoList";
 import PoDetail from "./pages/po/PoDetail";
 import PoPreview from "./pages/po/PoPreview";
@@ -106,12 +107,14 @@ function AppRoutes() {
               <Route path="/survey/sales/pilih" element={<AdminOnly><SurveyPilihLead jenis="sales" /></AdminOnly>} />
               <Route path="/survey/sales/baru" element={<AdminOnly><SurveyForm jenis="sales" /></AdminOnly>} />
               <Route path="/survey/sales/:id" element={<AdminOnly><SurveyForm jenis="sales" /></AdminOnly>} />
+              <Route path="/survey/sales/:id/preview" element={<AdminOnly><SurveyPreview jenis="sales" /></AdminOnly>} />
 
               {/* ── Final Survey ── */}
               <Route path="/survey/final" element={<AdminOnly><SurveyList jenis="final" /></AdminOnly>} />
               <Route path="/survey/final/pilih" element={<AdminOnly><SurveyPilihLead jenis="final" /></AdminOnly>} />
               <Route path="/survey/final/baru" element={<AdminOnly><SurveyForm jenis="final" /></AdminOnly>} />
               <Route path="/survey/final/:id" element={<AdminOnly><SurveyForm jenis="final" /></AdminOnly>} />
+              <Route path="/survey/final/:id/preview" element={<AdminOnly><SurveyPreview jenis="final" /></AdminOnly>} />
 
               {/* ── Lacak perubahan data teknis ── */}
               <Route path="/lacak/:idLead" element={<AdminOnly><SurveyLacak /></AdminOnly>} />

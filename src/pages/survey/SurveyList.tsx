@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
-  Plus, Search, Lock, Unlock, ArrowRight, ClipboardList, Printer, Trash2, History,
+  Plus, Search, Lock, Unlock, ArrowRight, ClipboardList, Printer, Trash2, History, Eye,
 } from 'lucide-react';
 import { surveyApi, type BarisSurvey } from '@/lib/survey-api';
 import { useCrmUser } from '@/hooks/useCrmUser';
@@ -184,6 +184,9 @@ export default function SurveyList({ jenis }: { jenis: 'sales' | 'final' }) {
                     <td className="p-2.5"><StatusBadge status={b.status_terakhir} /></td>
                     <td className="p-2.5">
                       <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`${induk}/${b.id}/preview`)}>
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Lihat
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => navigate(`${induk}/${b.id}`)}>
                           Buka <ArrowRight className="w-3.5 h-3.5 ml-1" />
                         </Button>

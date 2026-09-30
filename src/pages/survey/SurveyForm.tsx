@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Save, Lock, Unlock, Printer, Copy, AlertTriangle, CheckCircle2,
+  ArrowLeft, Save, Lock, Unlock, Printer, Copy, AlertTriangle, CheckCircle2, Eye,
   ClipboardCheck, History, Ban,
 } from 'lucide-react';
 import { surveyApi } from '@/lib/survey-api';
@@ -237,6 +237,11 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm"
+            onClick={() => navigate(`/${final ? 'survey/final' : 'survey/sales'}/${id}/preview`)}
+            disabled={!id}>
+            <Eye className="w-4 h-4 mr-1.5" /> Preview Dokumen
+          </Button>
           <Button variant="outline" size="sm" onClick={() => cetakSurvey({
             jenis, judul, noSurvey, tgl, kodeProyek, namaProspek, kodeLead,
             surveyor, pjLapangan, pjTelp, jamKerja, dt, dokumentasi, pekerjaan, kesimpulan, ttd,

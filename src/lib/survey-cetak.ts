@@ -38,14 +38,13 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 .page{width:210mm;min-height:297mm;background:#fff url('/corner-shape-bg.png') no-repeat left top;background-size:33.8mm auto;
   padding:18mm 17mm 16mm;position:relative;overflow:hidden;font-size:10.5pt;line-height:1.5;page-break-after:always;break-after:page}
 .page:last-child{page-break-after:auto;break-after:auto}
-.page::before{content:"";position:absolute;left:0;top:0;width:34mm;height:24mm;background:#D95103;border-bottom-right-radius:9mm}
-.page::after{content:"";position:absolute;left:6mm;top:0;width:26mm;height:20mm;border:.7pt solid #fff;border-top:0;border-bottom-right-radius:8mm}
+.page .hex-bg{position:absolute;right:0;bottom:0;width:80mm;height:auto;pointer-events:none;z-index:0;display:block}
 .lethead{display:flex;justify-content:space-between;align-items:flex-start;margin-left:5mm;gap:10mm}
-.doctype{font-size:46pt;color:#da5d1a;letter-spacing:.02em;line-height:1;margin-top:14mm;font-weight:500}
+.doctype{font-family:'Barlow',sans-serif;font-size:52pt;color:#da5d1a;letter-spacing:.02em;line-height:1;margin-top:14mm;font-weight:500}
 .co{text-align:right;font-size:8.5pt;color:#4A3A2E;line-height:1.45;margin-top:2mm}
 .co .mark-logo{height:10mm;width:auto;display:block;margin-left:auto}
 .co .ent{font-size:11pt;color:#A63F04;font-weight:500;margin-bottom:1mm}
-.docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:17pt;font-weight:600;color:#2B1B10;margin:6mm 0 1mm}
+.docno{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:19pt;font-weight:600;color:#D95103;letter-spacing:.08em;margin:9mm 0 6mm}
 .subdocno{text-align:center;font-size:9pt;color:#7A6E66;margin-bottom:6mm}
 h2{font-size:11pt;margin:6mm 0 2mm;font-weight:700;color:#A63F04;border-bottom:.7pt solid #DFD8D1;padding-bottom:1mm}
 h3{font-size:10pt;margin:4mm 0 1.5mm;font-weight:700}
@@ -58,7 +57,7 @@ td.nilai{width:62%}
 .sigbox{height:20mm;position:relative;margin-top:2mm}
 .sig-nm{font-weight:700;border-top:.6pt solid #2B1B10;padding-top:1.5mm;display:inline-block;min-width:52mm}
 .sig-jab{font-size:8.5pt;color:#7A6E66}
-.pgnum{position:absolute;left:17mm;bottom:9mm;font-size:8.5pt;color:#7A6E66}
+.pgnum{position:absolute;left:17mm;bottom:9mm;font-size:9pt;color:#7A6E66}
 .paraf{position:absolute;right:17mm;bottom:9mm;font-size:8pt;color:#7A6E66}
 .temuan{padding:2mm 2.5mm;border-left:2.5pt solid #DFD8D1;margin-bottom:2mm;font-size:9.5pt;background:#FAF8F6}
 .temuan.kritis{border-left-color:#9C0006;background:#FDF3F3}
@@ -72,6 +71,9 @@ td.nilai{width:62%}
 .galeri figcaption{font-size:7.5pt;color:#7A6E66;text-align:center;margin-top:.5mm}
 `;
 
+/** Dekorasi sudut kanan-bawah, sama seperti dokumen SPH/SPK. */
+const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
+
 /** Bingkai halaman + kop, sama untuk semua jenis dokumen. */
 export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: string, isiHtml: string): string {
   return '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">'
@@ -80,9 +82,9 @@ export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: 
     + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
     + '<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">'
     + '<style>' + GAYA + '</style></head><body>'
-    + '<div class="page">'
+    + '<div class="page">' + HEX_IMG
     + '<div class="lethead"><div class="doctype">' + esc(jenisDok) + '</div>'
-    + '<div class="co"><img class="mark-logo" src="/logo.png" alt="Belift">'
+    + '<div class="co"><img class="mark-logo" src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin-left:auto">'
     + '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>' + esc(ALAMAT_KANTOR) + '<br>info@belift.co.id</div></div>'
     + '<div class="docno">' + esc(nomor) + '</div>'
     + (sub ? '<div class="subdocno">' + esc(sub) + '</div>' : '')
@@ -198,7 +200,11 @@ export interface BahanCetakSurvey {
   dikunciPada?: string | null;
 }
 
-export function cetakSurvey(b: BahanCetakSurvey) {
+/**
+ * HTML dokumen Survey — dipisah dari cetakSurvey() supaya pratinjau di layar
+ * (SurveyPreview) memakai isi yang SAMA PERSIS dengan hasil cetak.
+ */
+export function htmlSurvey(b: BahanCetakSurvey): string {
   const final = b.jenis === 'final';
   const kepala = '<h2>Identitas Proyek</h2><table>'
     + '<tr><th>Kode Proyek</th><td class="nilai"><strong>' + isi(b.kodeProyek) + '</strong></td></tr>'
@@ -224,11 +230,13 @@ export function cetakSurvey(b: BahanCetakSurvey) {
     + (b.catatanLapangan ? '<h2>Catatan Lapangan</h2><div class="kotak">' + esc(b.catatanLapangan).replace(/\n/g, '<br>') + '</div>' : '')
     + blokTtd(b.ttd, final);
 
-  cetakHtml(
-    bingkai(b.judul, final ? 'FINAL SURVEY' : 'SURVEY', b.noSurvey || '—',
-      'Hasil Survey Teknis — ' + b.namaProspek, isiHtml),
-    b.judul,
-  );
+  return bingkai(b.judul, final ? 'FINAL SURVEY' : 'SURVEY', b.noSurvey || '—',
+    'Hasil Survey Teknis — ' + b.namaProspek, isiHtml);
+}
+
+/** Cetak Survey lewat pop-up (perilaku lama dipertahankan). */
+export function cetakSurvey(b: BahanCetakSurvey) {
+  cetakHtml(htmlSurvey(b), b.judul);
 }
 
 // ── 2. Ringkasan teks untuk aplikasi KOM ────────────────────
