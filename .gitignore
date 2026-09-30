@@ -34,3 +34,4 @@ migration/tmp/
 # alamat proyek, kontak sales). Repositori ini PUBLIK, jadi TIDAK BOLEH
 # di-commit. Simpan backup di penyimpanan lokal/terenkripsi saja.
 migration/backup-*/
+__pycache__/

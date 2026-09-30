@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, BarChart3, CheckCircle2, Clock3, FileText, Medal,
-  ArrowRight, ClipboardList, TrendingUp, XCircle,
+  ArrowRight, ClipboardList, TrendingUp, XCircle, Lock, Factory, Users, Filter,
 } from 'lucide-react';
 import { loadDocumentList, formatDate, getDocumentSalesName, getDocumentValidityStatus } from '@/lib/sph-utils';
+import { muatBahanAlur, TAHAP, type BahanAlur, type BarisAlur } from '@/lib/alur';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -63,6 +64,53 @@ export default function Reports() {
   useEffect(() => {
     loadDocumentList().then(setDocuments).finally(() => setLoading(false));
   }, []);
+
+  // Alur proyek (Survey Sales → Final Survey → PO) dimuat terpisah supaya
+  // Laporan SPH/SPK tetap tampil walau salah satu sumber alur gagal.
+  const [alur, setAlur] = useState<BahanAlur | null>(null);
+  useEffect(() => {
+    muatBahanAlur().then(setAlur).catch(() => setAlur(null));
+  }, []);
+
+  // Saringan periode untuk alur. Bawaannya "semua" supaya angka alur tidak
+  // diam-diam kosong hanya karena dokumen SPH-nya jatuh di bulan lain.
+  const [periodeAlur, setPeriodeAlur] = useState('all');
+  const alurTersaring = useMemo(() => {
+    if (!alur) return [] as BarisAlur[];
+    if (periodeAlur === 'all') return alur.baris;
+    return alur.baris.filter(b => b.tanggal.startsWith(periodeAlur));
+  }, [alur, periodeAlur]);
+
+  const ringkasAlur = useMemo(() => {
+    const n = alurTersaring.length;
+    const hitung = (f: (b: BarisAlur) => boolean) => alurTersaring.filter(f).length;
+    const rate = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+    return {
+      lead: n,
+      survey: hitung(b => b.surveySales),
+      sphSpk: hitung(b => b.sph || b.spk),
+      final: hitung(b => b.finalSurvey),
+      finalTerkunci: hitung(b => b.finalTerkunci),
+      po: hitung(b => b.po),
+      poTinggalTerbit: hitung(b => b.po && !b.poTerbit),
+      perluTinjau: hitung(b => b.revisiSetelahFinal),
+      persenSurvey: rate(hitung(b => b.surveySales), n),
+      persenSph: rate(hitung(b => b.sph || b.spk), n),
+      persenFinal: rate(hitung(b => b.finalSurvey), n),
+      persenPo: rate(hitung(b => b.po), n),
+    };
+  }, [alurTersaring]);
+
+  /** Daftar bulan yang ada datanya di alur (untuk saringan periode). */
+  const opsiPeriodeAlur = useMemo(() => {
+    const set = new Set((alur?.baris || []).map(b => b.tanggal.slice(0, 7)).filter(Boolean));
+    return Array.from(set).sort().reverse();
+  }, [alur]);
+
+  const labelPeriodeAlur = (kunci: string) => {
+    const [y, m] = kunci.split('-');
+    return `${monthNames[Number(m) - 1]} ${y}`;
+  };
 
   const report = useMemo(() => {
     const periodDocuments = period === 'all'
@@ -193,7 +241,7 @@ export default function Reports() {
 
   return <div>
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
-      <div><h1 className="text-2xl font-bold">Laporan</h1><p className="text-sm text-muted-foreground mt-1">Evaluasi efektivitas SPH hingga beranjak ke SPK</p></div>
+      <div><h1 className="text-2xl font-bold">Laporan</h1><p className="text-sm text-muted-foreground mt-1">Evaluasi alur penjualan: lead, survey, SPH/SPK, hingga PO pabrik</p></div>
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center"><Select value={yearFilter} onValueChange={value => { setYearFilter(value); setMonthFilter('all'); }}><SelectTrigger className="w-full sm:w-32"><SelectValue placeholder="Tahun" /></SelectTrigger><SelectContent><SelectItem value="all">Semua tahun</SelectItem>{availableYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent></Select><Select value={monthFilter} onValueChange={setMonthFilter} disabled={yearFilter === 'all'}><SelectTrigger className="w-full sm:w-36"><SelectValue placeholder="Bulan" /></SelectTrigger><SelectContent><SelectItem value="all">Semua bulan</SelectItem>{availableMonths.map(month => <SelectItem key={month} value={month}>{monthNames[Number(month) - 1]}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground whitespace-nowrap">Masa berlaku: <strong>21 hari</strong></p></div>
     </div>
 
@@ -203,6 +251,142 @@ export default function Reports() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center"><div><p className="text-lg font-bold">{report.sph.length}</p><p className="text-[11px] text-muted-foreground">SPH</p></div><div><p className="text-lg font-bold">{report.draft.length}</p><p className="text-[11px] text-muted-foreground">Draft</p></div><div><p className="text-lg font-bold">{report.final.length}</p><p className="text-[11px] text-muted-foreground">Final</p></div><div><p className="text-lg font-bold">{report.spk.length}</p><p className="text-[11px] text-muted-foreground">SPK</p></div></div>
       </div>
     </section>
+
+    {/* ── Alur Proyek: Lead → Survey → SPH/SPK → Final Survey → PO ── */}
+    {alur && (
+      <section className="bg-card rounded-xl border shadow-sm p-5 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-primary" />
+            <div>
+              <h2 className="section-title">Alur proyek lengkap</h2>
+              <p className="text-xs text-muted-foreground">
+                Dari lead masuk sampai PO terbit — {alurTersaring.length} lead pada periode ini
+              </p>
+            </div>
+          </div>
+          <Select value={periodeAlur} onValueChange={setPeriodeAlur}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Periode alur" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua periode</SelectItem>
+              {opsiPeriodeAlur.map(p => <SelectItem key={p} value={p}>{labelPeriodeAlur(p)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {alurTersaring.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">Belum ada lead pada periode ini.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+              {[
+                { ikon: ClipboardList, label: 'Lead Baru', nilai: ringkasAlur.lead, catatan: 'Titik awal', warna: 'bg-primary' },
+                { ikon: ClipboardList, label: 'Survey Sales', nilai: ringkasAlur.survey, catatan: `${ringkasAlur.persenSurvey}% dari lead`, warna: 'bg-sky-500' },
+                { ikon: FileText, label: 'SPH / SPK', nilai: ringkasAlur.sphSpk, catatan: `${ringkasAlur.persenSph}% dari lead`, warna: 'bg-purple-500' },
+                { ikon: Lock, label: 'Final Survey', nilai: ringkasAlur.final, catatan: `${ringkasAlur.finalTerkunci} terkunci`, warna: 'bg-amber-500' },
+                { ikon: Factory, label: 'PO Pabrik', nilai: ringkasAlur.po, catatan: `${ringkasAlur.poTinggalTerbit} belum terbit`, warna: 'bg-success' },
+              ].map((k, i) => (
+                <div key={k.label} className="rounded-lg border border-border p-3">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <k.ikon className="w-3.5 h-3.5" />
+                    <span className="text-xs font-medium">{i + 1}. {k.label}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground mt-1.5">{k.nilai}</p>
+                  <p className="text-xs text-muted-foreground">{k.catatan}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Corong: berapa yang bertahan di tiap tahap */}
+            <div className="space-y-3 mb-4">
+              {[
+                { label: 'Lead masuk', nilai: ringkasAlur.lead, persen: 100, warna: 'bg-primary' },
+                { label: 'Dapat Survey Sales', nilai: ringkasAlur.survey, persen: ringkasAlur.persenSurvey, warna: 'bg-sky-500' },
+                { label: 'Terbit SPH / SPK', nilai: ringkasAlur.sphSpk, persen: ringkasAlur.persenSph, warna: 'bg-purple-500' },
+                { label: 'Final Survey', nilai: ringkasAlur.final, persen: ringkasAlur.persenFinal, warna: 'bg-amber-500' },
+                { label: 'PO Pabrik', nilai: ringkasAlur.po, persen: ringkasAlur.persenPo, warna: 'bg-success' },
+              ].map(item => (
+                <div key={item.label}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>{item.label}</span>
+                    <span><strong>{displayNumber(item.nilai)}</strong> <span className="text-muted-foreground">({item.persen}%)</span></span>
+                  </div>
+                  <Progress value={item.persen} className="h-2" indicatorClassName={item.warna} />
+                </div>
+              ))}
+            </div>
+
+            {ringkasAlur.perluTinjau > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 mb-4">
+                <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-medium text-destructive">
+                    {ringkasAlur.perluTinjau} proyek berubah setelah Final Survey dikunci
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Data teknis acuan pabrik berbeda dari hasil survey terkunci. Tinjau sebelum produksi berjalan.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Kode Proyek</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Customer</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Sales</th>
+                    {TAHAP.map(t => <th key={t.nama} className="text-center p-3 font-medium text-muted-foreground">{t.pendek}</th>)}
+                    <th className="text-right p-3 font-medium text-muted-foreground">Tahap</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {alurTersaring.slice(0, 25).map(b => (
+                    <tr key={b.id_lead} className="hover:bg-muted/30">
+                      <td className="p-3 whitespace-nowrap">
+                        <Link to={`/lacak/${b.id_lead}`} className="font-medium text-primary hover:underline">
+                          {b.kode_proyek}
+                        </Link>
+                      </td>
+                      <td className="p-3 max-w-[200px] truncate">{b.nama_prospek}</td>
+                      <td className="p-3 text-muted-foreground whitespace-nowrap">{b.sales}</td>
+                      <td className="p-3 text-center text-muted-foreground">●</td>
+                      <td className="p-3 text-center">
+                        {b.surveySales ? <span className="text-success">✓</span> : <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="p-3 text-center">
+                        {b.sph || b.spk ? <span className="text-success">✓</span> : <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="p-3 text-center">
+                        {b.finalSurvey
+                          ? <span className={b.finalTerkunci ? 'text-success' : 'text-amber-500'}>{b.finalTerkunci ? '🔒' : '✓'}</span>
+                          : <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="p-3 text-center">
+                        {b.po
+                          ? <span className={b.poTerbit ? 'text-success' : 'text-amber-500'}>{b.poTerbit ? '✓' : '…'}</span>
+                          : <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="p-3 text-right whitespace-nowrap">
+                        <span className="inline-block px-2 py-0.5 rounded-full border border-border text-[11px] font-medium">
+                          {b.tahap + 1}/5 · {b.tahapNama}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {alurTersaring.length > 25 && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Menampilkan 25 dari {alurTersaring.length} lead. Persempit periode untuk melihat sisanya.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+    )}
 
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
       <Stat icon={FileText} label="Total SPH" value={report.sph.length} note={`${report.draft.length} draft · ${report.final.length} final`} />

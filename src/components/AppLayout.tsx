@@ -2,12 +2,15 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck, Calculator, Target, KanbanSquare, Clock3, BadgePercent, Table2, TrendingUp, ClipboardList, ClipboardCheck, Factory, GitCompare, Ruler } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import type { KunciHalaman } from '../../shared/akses';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Grup menu — disusun MENGIKUTI ALUR KERJA (permintaan klien, lihat PRD baris 271):
 //   CRM/Leads → Survey Sales → SPH → SPK → Final Survey → PO Pabrik
 // Menu pendukung (Laporan, Master, Kalkulator, Pengaturan) diletakkan paling bawah.
-const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof LayoutDashboard; label: string; adminOnly?: boolean }[] }[] = [
+// `izin` = halaman yang berwenang membuka menu ini. Menu disembunyikan bila
+// akun tidak punya izinnya. Ini hanya kerapian — API tetap menolak sendiri.
+const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof LayoutDashboard; label: string; izin?: KunciHalaman }[] }[] = [
   {
     judul: null,
     item: [
@@ -17,12 +20,12 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
   {
     judul: 'CRM Sales',
     item: [
-      { to: '/crm/leads', icon: Target, label: 'Leads' },
-      { to: '/crm/kanban', icon: KanbanSquare, label: 'Papan Kanban' },
-      { to: '/crm/diskon', icon: BadgePercent, label: 'Approval Diskon' },
-      { to: '/crm/dokumen', icon: Clock3, label: 'Meja Dokumen' },
-      { to: '/crm/iklan', icon: TrendingUp, label: 'Efektivitas Iklan' },
-      { to: '/crm/master', icon: Table2, label: 'Master CRM' },
+      { to: '/crm/leads', icon: Target, label: 'Leads', izin: 'crm' },
+      { to: '/crm/kanban', icon: KanbanSquare, label: 'Papan Kanban', izin: 'crm' },
+      { to: '/crm/diskon', icon: BadgePercent, label: 'Approval Diskon', izin: 'crm' },
+      { to: '/crm/dokumen', icon: Clock3, label: 'Meja Dokumen', izin: 'crm' },
+      { to: '/crm/iklan', icon: TrendingUp, label: 'Efektivitas Iklan', izin: 'crm' },
+      { to: '/crm/master', icon: Table2, label: 'Master CRM', izin: 'master' },
     ],
   },
   {
@@ -31,24 +34,24 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
     item: [
       // Sementara hanya admin: modul baru, sedang ditinjau sebelum dibuka
       // untuk semua peran. Hapus adminOnly untuk membuka ke semua pengguna.
-      { to: '/survey/sales', icon: ClipboardList, label: '1. Survey Sales', adminOnly: true },
+      { to: '/survey/sales', icon: ClipboardList, label: '1. Survey Sales', izin: 'survey_sales' },
       { to: '/sph/new', icon: PlusCircle, label: '2a. Buat SPH Baru' },
       { to: '/sph', icon: FileText, label: '2b. Riwayat SPH' },
       { to: '/spk/new', icon: PlusCircle, label: '3a. Buat SPK Baru' },
       { to: '/spk', icon: FileText, label: '3b. Riwayat SPK' },
-      { to: '/survey/final', icon: ClipboardCheck, label: '4. Final Survey', adminOnly: true },
-      { to: '/po', icon: Factory, label: '5. PO Pabrik', adminOnly: true },
+      { to: '/survey/final', icon: ClipboardCheck, label: '4. Final Survey', izin: 'survey_final' },
+      { to: '/po', icon: Factory, label: '5. PO Pabrik', izin: 'po' },
     ],
   },
   {
     judul: null,
     item: [
-      { to: '/reports', icon: BarChart3, label: 'Laporan' },
-      { to: '/master', icon: Database, label: 'Master Data' },
+      { to: '/reports', icon: BarChart3, label: 'Laporan', izin: 'laporan' },
+      { to: '/master', icon: Database, label: 'Master Data', izin: 'master' },
       { to: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
       { to: '/settings', icon: Settings, label: 'Pengaturan' },
-      { to: '/admin/emergency-backup', icon: ShieldCheck, label: 'Emergency Backup', adminOnly: true },
-      { to: '/admin/users', icon: ShieldCheck, label: 'Manajemen Akun', adminOnly: true },
+      { to: '/admin/emergency-backup', icon: ShieldCheck, label: 'Emergency Backup', izin: 'backup' },
+      { to: '/admin/users', icon: ShieldCheck, label: 'Manajemen Akun', izin: 'akun' },
     ],
   },
 ];
@@ -75,7 +78,7 @@ function SidebarContent({
   isMobileOverlay?: boolean;
 }) {
   const location = useLocation();
-  const { fullName, role, signOut } = useAuth();
+  const { fullName, role, signOut, izin: daftarIzin } = useAuth();
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -102,7 +105,7 @@ function SidebarContent({
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {NAV_GROUPS.map((grup, gi) => {
-          const item = grup.item.filter(i => !i.adminOnly || role === 'admin');
+          const item = grup.item.filter(i => !i.izin || daftarIzin.includes(i.izin) || daftarIzin.includes('*'));
           if (item.length === 0) return null;
           return (
             <div key={gi} className={grup.judul ? 'pt-2' : ''}>

@@ -506,15 +506,24 @@ export default function SPHPreview() {
 
     // Always regenerate from state so we get the latest layout + hex-bg injection.
     // The stored renderedHtml may be stale (saved before injectDeco was added).
-    if (data.state) {
+    // Dokumen tersimpan dalam dua bentuk:
+    //   (a) bersarang — { mode, state:{...}, items, termin }
+    //   (b) rata      — { mode, namaPerusahaan, items, termin }  tanpa `state`
+    // Bentuk (b) dulu tidak pernah dirender karena syaratnya `if (data.state)`,
+    // sehingga html tidak pernah dibuat dan preview tampil kosong walaupun
+    // datanya lengkap.
+    const sumber = (data.state && typeof data.state === 'object' && Object.keys(data.state).length)
+      ? data.state
+      : data;
+    if (sumber) {
       try {
         const st = {
-          ...(data.state || {}),
-          namaPerusahaan: data.state?.namaPerusahaan || data.namaPerusahaan || data.nama_perusahaan || data.kepada || '',
-          namaCustomer: data.state?.namaCustomer || data.namaCustomer || data.nama_customer || data.nama_pic || '',
-          sapaan: data.state?.sapaan || data.sapaan || 'Bapak',
-          alamatCustomer: data.state?.alamatCustomer || data.alamatCustomer || data.alamat_customer || '',
-          kotaProyek: data.state?.kotaProyek || data.kotaProyek || data.kota_proyek || '',
+          ...sumber,
+          namaPerusahaan: sumber.namaPerusahaan || data.namaPerusahaan || data.nama_perusahaan || data.kepada || '',
+          namaCustomer: sumber.namaCustomer || data.namaCustomer || data.nama_customer || data.nama_pic || '',
+          sapaan: sumber.sapaan || data.sapaan || 'Bapak',
+          alamatCustomer: sumber.alamatCustomer || data.alamatCustomer || data.alamat_customer || '',
+          kotaProyek: sumber.kotaProyek || data.kotaProyek || data.kota_proyek || '',
         };
         const docMode: string = data.mode || 'SPH';
         const normState = {

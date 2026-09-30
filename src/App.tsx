@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import type { KunciHalaman } from "../shared/akses";
 import AppLayout from "./components/AppLayout";
 import Index from "./pages/Index";
 import SPHForm from "./pages/SPHForm";
@@ -59,6 +60,20 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="p-6">Memuat...</div>;
   return user?.role === 'admin' ? <>{children}</> : <Navigate to="/" replace />;
 }
+
+/**
+ * Penjaga rute berbasis izin.
+ *
+ * Ini hanya kerapian tampilan — supaya orang tidak mendarat di halaman yang
+ * isinya akan kosong. Pengamanan sebenarnya ada di API: setiap endpoint
+ * memanggil wajibHalaman() dan menolak dengan 403.
+ */
+function Boleh({ izin, children }: { izin: KunciHalaman; children: React.ReactNode }) {
+  const { izin: daftar, loading } = useAuth();
+  if (loading) return null;
+  return daftar.includes(izin) || daftar.includes('*') ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth();
 
@@ -85,8 +100,8 @@ function AppRoutes() {
               <Route path="/sph/:id/preview" element={<SPHPreview />} />
               <Route path="/spk/:id/preview" element={<SPHPreview />} />
               <Route path="/spk" element={<SPKList />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/master" element={<MasterData />} />
+              <Route path="/reports" element={<Boleh izin="laporan"><Reports /></Boleh>} />
+              <Route path="/master" element={<Boleh izin="master"><MasterData /></Boleh>} />
               <Route path="/crm/leads" element={<LeadsList />} />
               <Route path="/crm/leads/baru" element={<LeadInput />} />
               <Route path="/crm/leads/:id" element={<LeadInput />} />
@@ -103,32 +118,32 @@ function AppRoutes() {
                   di src/components/AppLayout.tsx. */}
 
               {/* ── Survey Sales ── */}
-              <Route path="/survey/sales" element={<AdminOnly><SurveyList jenis="sales" /></AdminOnly>} />
-              <Route path="/survey/sales/pilih" element={<AdminOnly><SurveyPilihLead jenis="sales" /></AdminOnly>} />
-              <Route path="/survey/sales/baru" element={<AdminOnly><SurveyForm jenis="sales" /></AdminOnly>} />
-              <Route path="/survey/sales/:id" element={<AdminOnly><SurveyForm jenis="sales" /></AdminOnly>} />
-              <Route path="/survey/sales/:id/preview" element={<AdminOnly><SurveyPreview jenis="sales" /></AdminOnly>} />
+              <Route path="/survey/sales" element={<Boleh izin="survey_sales"><SurveyList jenis="sales" /></Boleh>} />
+              <Route path="/survey/sales/pilih" element={<Boleh izin="survey_sales"><SurveyPilihLead jenis="sales" /></Boleh>} />
+              <Route path="/survey/sales/baru" element={<Boleh izin="survey_sales"><SurveyForm jenis="sales" /></Boleh>} />
+              <Route path="/survey/sales/:id" element={<Boleh izin="survey_sales"><SurveyForm jenis="sales" /></Boleh>} />
+              <Route path="/survey/sales/:id/preview" element={<Boleh izin="survey_sales"><SurveyPreview jenis="sales" /></Boleh>} />
 
               {/* ── Final Survey ── */}
-              <Route path="/survey/final" element={<AdminOnly><SurveyList jenis="final" /></AdminOnly>} />
-              <Route path="/survey/final/pilih" element={<AdminOnly><SurveyPilihLead jenis="final" /></AdminOnly>} />
-              <Route path="/survey/final/baru" element={<AdminOnly><SurveyForm jenis="final" /></AdminOnly>} />
-              <Route path="/survey/final/:id" element={<AdminOnly><SurveyForm jenis="final" /></AdminOnly>} />
-              <Route path="/survey/final/:id/preview" element={<AdminOnly><SurveyPreview jenis="final" /></AdminOnly>} />
+              <Route path="/survey/final" element={<Boleh izin="survey_final"><SurveyList jenis="final" /></Boleh>} />
+              <Route path="/survey/final/pilih" element={<Boleh izin="survey_final"><SurveyPilihLead jenis="final" /></Boleh>} />
+              <Route path="/survey/final/baru" element={<Boleh izin="survey_final"><SurveyForm jenis="final" /></Boleh>} />
+              <Route path="/survey/final/:id" element={<Boleh izin="survey_final"><SurveyForm jenis="final" /></Boleh>} />
+              <Route path="/survey/final/:id/preview" element={<Boleh izin="survey_final"><SurveyPreview jenis="final" /></Boleh>} />
 
               {/* ── Lacak perubahan data teknis ── */}
-              <Route path="/lacak/:idLead" element={<AdminOnly><SurveyLacak /></AdminOnly>} />
+              <Route path="/lacak/:idLead" element={<Boleh izin="crm"><SurveyLacak /></Boleh>} />
 
               {/* ── PO Pabrik ── */}
-              <Route path="/po" element={<AdminOnly><PoList /></AdminOnly>} />
-              <Route path="/po/pilih" element={<AdminOnly><PoPilihProyek /></AdminOnly>} />
-              <Route path="/po/baru" element={<AdminOnly><PoDetail /></AdminOnly>} />
-              <Route path="/po/:id" element={<AdminOnly><PoDetail /></AdminOnly>} />
-              <Route path="/po/:id/preview" element={<AdminOnly><PoPreview /></AdminOnly>} />
-              <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
-              <Route path="/admin/user" element={<AdminOnly><AdminUsers /></AdminOnly>} />
-              <Route path="/admin/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />
-              <Route path="/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />
+              <Route path="/po" element={<Boleh izin="po"><PoList /></Boleh>} />
+              <Route path="/po/pilih" element={<Boleh izin="po"><PoPilihProyek /></Boleh>} />
+              <Route path="/po/baru" element={<Boleh izin="po"><PoDetail /></Boleh>} />
+              <Route path="/po/:id" element={<Boleh izin="po"><PoDetail /></Boleh>} />
+              <Route path="/po/:id/preview" element={<Boleh izin="po"><PoPreview /></Boleh>} />
+              <Route path="/admin/users" element={<Boleh izin="akun"><AdminUsers /></Boleh>} />
+              <Route path="/admin/user" element={<Boleh izin="akun"><AdminUsers /></Boleh>} />
+              <Route path="/admin/emergency-backup" element={<Boleh izin="backup"><EmergencyBackup /></Boleh>} />
+              <Route path="/emergency-backup" element={<Boleh izin="backup"><EmergencyBackup /></Boleh>} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

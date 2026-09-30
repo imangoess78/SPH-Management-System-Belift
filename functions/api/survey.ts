@@ -1,4 +1,6 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
+import { boleh } from '../../shared/akses';
+import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
 
 interface Env { sph_management_db: D1Database }
 
@@ -151,7 +153,7 @@ async function nomorSurvey(tgl: string, env: Env) {
 
 // ── Handler ─────────────────────────────────────────────────
 
-async function daftar(url: URL, env: Env) {
+async function daftar(url: URL, env: Env, akses: Akses) {
   const jenis = url.searchParams.get('jenis');
   const idLead = url.searchParams.get('id_lead');
   const kunci = url.searchParams.get('terkunci');
@@ -166,6 +168,11 @@ async function daftar(url: URL, env: Env) {
     where.push('(l.nama_prospek LIKE ? OR l.kode_lead LIKE ? OR s.kode_proyek LIKE ? OR s.no_survey LIKE ?)');
     const like = `%${q}%`; params.push(like, like, like, like);
   }
+  // Batasan data: sales hanya melihat survey miliknya. Pemilik survey
+  // ditentukan oleh kolom `surveyor` (nama sales yang mengerjakan).
+  const batas = saringPemilik(akses, 's.surveyor');
+  if (batas.sql) { where.push(batas.sql.replace(/^ AND /, '')); params.push(...batas.params); }
+
   const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
 
   const res = await env.sph_management_db.prepare(
@@ -182,11 +189,16 @@ async function daftar(url: URL, env: Env) {
   return ok({ data });
 }
 
-async function detail(id: string, env: Env) {
-  const row = await env.sph_management_db.prepare(
+async function detail(id: string, env: Env, akses: Akses) {
+  const row: any = await env.sph_management_db.prepare(
     `SELECT s.*, l.nama_prospek, l.kode_lead, l.kota, l.sales, l.status_terakhir, l.no_spk, l.tgl_spk
      FROM survey_teknis s LEFT JOIN crm_leads l ON l.id = s.id_lead WHERE s.id=?`).bind(id).first();
   if (!row) return ok({ error: 'Survey tidak ditemukan' }, 404);
+
+  // Survey milik sales lain tidak boleh dibuka walau id-nya diketahui.
+  if (!bolehSentuh(akses, row.surveyor, 'lihat') && !bolehSentuh(akses, row.sales, 'lihat')) {
+    return ok({ error: 'Survey ini bukan milik Anda.' }, 403);
+  }
 
   const riwayat = await env.sph_management_db
     .prepare(`SELECT * FROM survey_riwayat WHERE jenis='survey' AND id_ref=? ORDER BY datetime(waktu) DESC LIMIT 100`)
@@ -347,13 +359,19 @@ async function lacak(idLead: string, env: Env) {
 // ── Router ──────────────────────────────────────────────────
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
-  const session = await getSession(request, env);
-  if (!session) return ok({ error: 'Unauthorized' }, 401);
-
   const url = new URL(request.url);
   const method = request.method;
   const id = url.searchParams.get('id');
   const resource = url.searchParams.get('resource') || 'survey';
+  const jenis = url.searchParams.get('jenis');
+
+  // Hak akses per jenis survey: Survey Sales dan Final Survey punya
+  // halaman sendiri, jadi bisa dibuka/ditutup terpisah per akun.
+  const halaman = resource === 'survey' && jenis === 'final' ? 'survey_final' : 'survey_sales';
+  const cek = await wajibHalaman(request, env, halaman);
+  if ('tolak' in cek) return cek.tolak;
+  const akses = cek.akses;
+  const session = { user_id: akses.userId };
 
   let body: Record<string, unknown> = {};
   if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
@@ -363,13 +381,42 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   try {
     switch (resource) {
       case 'survey':
-        if (method === 'GET') return id ? detail(id, env) : daftar(url, env);
-        if (method === 'POST' || method === 'PUT') return simpan(method, id, body, env, session.user_id);
-        if (method === 'DELETE') { if (!id) return ok({ error: 'id wajib diisi' }, 400); return hapus(id, env, session.user_id); }
+        if (method === 'GET') return id ? detail(id, env, akses) : daftar(url, env, akses);
+        if (method === 'POST' || method === 'PUT') {
+          if (akses.cakupanUbah === 'tidak') {
+            return ok({ error: 'Peran Anda tidak berwenang mengubah data.' }, 403);
+          }
+          if (method === 'PUT' && id) {
+            const milik: any = await env.sph_management_db
+              .prepare('SELECT surveyor FROM survey_teknis WHERE id=?').bind(id).first();
+            if (!milik) return ok({ error: 'Survey tidak ditemukan' }, 404);
+            if (!bolehSentuh(akses, milik.surveyor, 'ubah')) {
+              return ok({ error: 'Survey ini bukan milik Anda, tidak dapat diubah.' }, 403);
+            }
+          }
+          return simpan(method, id, body, env, session.user_id);
+        }
+        if (method === 'DELETE') {
+          if (!id) return ok({ error: 'id wajib diisi' }, 400);
+          if (!boleh(akses.izin, 'hapus_data')) {
+            return ok({ error: 'Peran Anda tidak berwenang menghapus data.' }, 403);
+          }
+          const milik: any = await env.sph_management_db
+            .prepare('SELECT surveyor FROM survey_teknis WHERE id=?').bind(id).first();
+          if (!milik) return ok({ error: 'Survey tidak ditemukan' }, 404);
+          if (!bolehSentuh(akses, milik.surveyor, 'ubah')) {
+            return ok({ error: 'Survey ini bukan milik Anda, tidak dapat dihapus.' }, 403);
+          }
+          return hapus(id, env, session.user_id);
+        }
         break;
       case 'kunci': {
         if (method !== 'POST') break;
         if (!id) return ok({ error: 'id wajib diisi' }, 400);
+        // Hanya yang berwenang mengunci Final Survey.
+        if (!boleh(akses.izin, 'kunci_final')) {
+          return ok({ error: 'Peran Anda tidak berwenang mengunci Final Survey.' }, 403);
+        }
         const aksi = url.searchParams.get('aksi') === 'buka' ? 'buka' : 'kunci';
         return kunci(id, aksi, body, env, session.user_id);
       }
@@ -381,9 +428,12 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       }
       case 'proyek': {
         if (method === 'GET') {
+          // Proyek hanya menampilkan lead yang boleh dilihat pengguna.
+          const batas = saringPemilik(akses, 'l.sales');
           const res = await env.sph_management_db.prepare(
             `SELECT p.*, l.nama_prospek, l.kode_lead FROM proyek p LEFT JOIN crm_leads l ON l.id=p.id_lead
-             ORDER BY datetime(p.created_at) DESC LIMIT 500`).all();
+             WHERE 1=1${batas.sql}
+             ORDER BY datetime(p.created_at) DESC LIMIT 500`).bind(...batas.params).all();
           return ok({ data: res.results || [] });
         }
         break;

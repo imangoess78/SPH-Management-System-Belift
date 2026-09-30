@@ -1,14 +1,142 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
+import { boleh } from '../../shared/akses';
+import { json, wajibHalaman, type Akses } from '../lib/akses';
+
 interface Env { sph_management_db: D1Database }
-const allowed = new Set(['sph','design_items','sales','profiles','user_roles']);
-const jsonColumns = new Set(['specs','items','payments','terms','payments','designs','include_ppn']);
-async function auth(request: Request, env: Env) { const sid=(request.headers.get('cookie')||'').match(/(?:^|; )sph_session=([^;]+)/)?.[1]; if(!sid)return null; return env.sph_management_db.prepare('SELECT user_id FROM app_sessions WHERE id=? AND expires_at>?').bind(sid,new Date().toISOString()).first<{user_id:string}>(); }
-export const onRequest: PagesFunction<Env> = async ({request,env}) => {
- const session=await auth(request,env); if(!session)return Response.json({error:'Unauthorized'},{status:401});
- const url=new URL(request.url), table=url.searchParams.get('table')||''; if(!allowed.has(table))return Response.json({error:'Invalid table'},{status:400});
- const id=url.searchParams.get('id');
- if(request.method==='GET'){let sql=`SELECT * FROM ${table}`, params:string[]=[]; if(table==='sph'&&id){sql+=' WHERE id=?';params=[id]} else if(table==='sph'&&url.searchParams.get('status')){sql+=' WHERE status=?';params=[url.searchParams.get('status')!]} else sql+=' ORDER BY created_at DESC'; const result=await env.sph_management_db.prepare(sql).bind(...params).all(); const data=(result.results||[]).map((row:any)=>{const out={...row};for(const k of jsonColumns)if(typeof out[k]==='string')try{out[k]=JSON.parse(out[k])}catch{} return out});return Response.json({data},{headers:{'cache-control':'no-store, no-cache, must-revalidate'}});}
- if(request.method==='POST'||request.method==='PUT'){const body=await request.json() as Record<string,unknown>; const clean=Object.fromEntries(Object.entries(body).filter(([k])=>!['id','created_at','updated_at'].includes(k)).map(([k,v])=>[k,jsonColumns.has(k)&&typeof v!=='string'?JSON.stringify(v):v])); if(request.method==='PUT'&&!id)return Response.json({error:'id required'},{status:400}); if(request.method==='PUT'){const entries=Object.entries(clean);const result=await env.sph_management_db.prepare(`UPDATE ${table} SET ${entries.map(([k])=>`${k}=?`).join(',')}, updated_at=? WHERE id=?`).bind(...entries.map(([,v])=>v),new Date().toISOString(),id).run();if(!result.meta?.changes)return Response.json({error:'Not found'},{status:404});}else{const newId=String(body.id || crypto.randomUUID()), entries=Object.entries({...clean,id:newId,created_at:new Date().toISOString(),updated_at:new Date().toISOString()});await env.sph_management_db.prepare(`INSERT INTO ${table} (${entries.map(([k])=>k).join(',')}) VALUES (${entries.map(()=>'?').join(',')})`).bind(...entries.map(([,v])=>v)).run();}return Response.json({ok:true});}
- if(request.method==='DELETE'){if(!id)return Response.json({error:'id required'},{status:400});const result=await env.sph_management_db.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();if(!result.meta?.changes)return Response.json({error:'Not found'},{status:404});return Response.json({ok:true});}
- return new Response('Method Not Allowed',{status:405});
+
+const jsonColumns = new Set(['specs', 'items', 'payments', 'terms', 'designs', 'include_ppn']);
+
+/**
+ * Tabel yang boleh diakses lewat endpoint generik ini, beserta halaman yang
+ * mengawasinya. `sph` = dokumen penawaran/kontrak, `sales` = daftar sales.
+ */
+const TABEL: Record<string, { halaman: 'sph' | 'master'; pemilik?: string }> = {
+  sph: { halaman: 'sph', pemilik: 'nama_sales' },
+  sales: { halaman: 'master' },
+  design_items: { halaman: 'master' },
+  profiles: { halaman: 'master' },
+  user_roles: { halaman: 'master' },
+};
+
+export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
+  const url = new URL(request.url);
+  const table = url.searchParams.get('table') || '';
+  const aturan = TABEL[table];
+  if (!aturan) return json({ error: 'Invalid table' }, 400);
+
+  const cek = await wajibHalaman(request, env, aturan.halaman);
+  if ('tolak' in cek) return cek.tolak;
+  const akses: Akses = cek.akses;
+
+  const id = url.searchParams.get('id');
+
+  // ── Batasan kepemilikan untuk dokumen SPH/SPK ──
+  // Sales hanya boleh melihat dokumennya sendiri. Dicocokkan lewat `user_id`
+  // (paling pasti) atau `nama_sales` (cadangan untuk dokumen lama).
+  //
+  // Penting: dokumen yang `user_id`-nya menunjuk ke akun yang TIDAK ADA di
+  // app_users TIDAK dianggap milik siapa pun. Kalau tidak begitu, dokumen itu
+  // akan muncul di daftar setiap sales — kebocoran yang justru terlihat seperti
+  // "data lengkap" sehingga tidak disadari.
+  const batasPemilik = aturan.pemilik && akses.cakupanLihat === 'sendiri'
+    ? `((user_id = ? AND user_id IN (SELECT id FROM app_users))
+        OR (user_id IS NULL AND lower(trim(coalesce(nama_sales,''))) <> ''
+            AND lower(trim(nama_sales)) IN (lower(trim(?)), lower(trim(?)))))`
+    : null;
+  const paramPemilik = batasPemilik ? [akses.userId, akses.namaSales, akses.nama] : [];
+
+  if (request.method === 'GET') {
+    let sql = `SELECT * FROM ${table}`;
+    const params: unknown[] = [];
+    const where: string[] = [];
+
+    if (id) { where.push('id = ?'); params.push(id); }
+    else if (table === 'sph' && url.searchParams.get('status')) {
+      where.push('status = ?'); params.push(url.searchParams.get('status')!);
+    }
+    if (batasPemilik) { where.push(batasPemilik); params.push(...paramPemilik); }
+
+    if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
+    else sql += ' ORDER BY created_at DESC';
+
+    const result = await env.sph_management_db.prepare(sql).bind(...params).all();
+    const data = (result.results || []).map((row: any) => {
+      const out = { ...row };
+      for (const k of jsonColumns) {
+        if (typeof out[k] === 'string') { try { out[k] = JSON.parse(out[k]); } catch { /* biarkan */ } }
+      }
+      return out;
+    });
+    return json({ data });
+  }
+
+  // ── Ubah data: perlu wewenang ubah ──
+  if (request.method === 'POST' || request.method === 'PUT') {
+    if (akses.cakupanUbah === 'tidak') {
+      return json({ error: 'Peran Anda tidak berwenang mengubah data.' }, 403);
+    }
+
+    const body = await request.json() as Record<string, unknown>;
+
+    // Menyentuh dokumen milik orang lain butuh izin ubah_semua.
+    if (request.method === 'PUT') {
+      if (!id) return json({ error: 'id required' }, 400);
+      if (batasPemilik) {
+        const milik = await env.sph_management_db
+          .prepare(`SELECT 1 AS ok FROM ${table} WHERE id=? AND ${batasPemilik}`)
+          .bind(id, ...paramPemilik).first();
+        if (!milik) return json({ error: 'Dokumen ini bukan milik Anda.' }, 403);
+      }
+    }
+
+    const clean = Object.fromEntries(
+      Object.entries(body)
+        .filter(([k]) => !['id', 'created_at', 'updated_at'].includes(k))
+        .map(([k, v]) => [k, jsonColumns.has(k) && typeof v !== 'string' ? JSON.stringify(v) : v]),
+    );
+
+    // Dokumen baru otomatis milik pembuatnya bila belum ditentukan.
+    if (request.method === 'POST' && !boleh(akses.izin, 'ubah_semua')) {
+      clean.user_id = akses.userId;
+      if (!clean.nama_sales) clean.nama_sales = akses.namaSales;
+    }
+
+    if (request.method === 'PUT') {
+      const entries = Object.entries(clean);
+      if (!entries.length) return json({ error: 'Tidak ada perubahan' }, 400);
+      await env.sph_management_db
+        .prepare(`UPDATE ${table} SET ${entries.map(([k]) => `${k}=?`).join(',')}, updated_at=? WHERE id=?`)
+        .bind(...entries.map(([, v]) => v), new Date().toISOString(), id).run();
+    } else {
+      const newId = String(body.id || crypto.randomUUID());
+      const entries = Object.entries({
+        ...clean, id: newId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      await env.sph_management_db
+        .prepare(`INSERT INTO ${table} (${entries.map(([k]) => k).join(',')}) VALUES (${entries.map(() => '?').join(',')})`)
+        .bind(...entries.map(([, v]) => v)).run();
+    }
+    return json({ ok: true });
+  }
+
+  // ── Hapus data: perlu wewenang hapus ──
+  if (request.method === 'DELETE') {
+    if (!id) return json({ error: 'id required' }, 400);
+    if (!boleh(akses.izin, 'hapus_data')) {
+      return json({ error: 'Peran Anda tidak berwenang menghapus data.' }, 403);
+    }
+    if (batasPemilik) {
+      const milik = await env.sph_management_db
+        .prepare(`SELECT 1 AS ok FROM ${table} WHERE id=? AND ${batasPemilik}`)
+        .bind(id, ...paramPemilik).first();
+      if (!milik) return json({ error: 'Dokumen ini bukan milik Anda.' }, 403);
+    }
+    const result = await env.sph_management_db.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();
+    if (!result.meta?.changes) return json({ error: 'Not found' }, 404);
+    return json({ ok: true });
+  }
+
+  return new Response('Method Not Allowed', { status: 405 });
 };

@@ -1,4 +1,6 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
+import { boleh } from '../../shared/akses';
+import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
 
 interface Env { sph_management_db: D1Database }
 
@@ -140,24 +142,31 @@ function bandingkan(a: Record<string, unknown> | null, b: Record<string, unknown
 
 // ── Handler ─────────────────────────────────────────────────
 
-async function daftar(url: URL, env: Env) {
+async function daftar(url: URL, env: Env, akses: Akses) {
   const idLead = url.searchParams.get('id_lead');
-  const where = idLead ? ' WHERE p.id_lead = ?' : '';
+  // Batasan data: sales hanya melihat PO dari lead miliknya.
+  const batas = saringPemilik(akses, 'l.sales');
+  const where = idLead ? ` WHERE p.id_lead = ?${batas.sql}` : (batas.sql ? ` WHERE 1=1${batas.sql}` : '');
   const sql = `SELECT p.*, l.nama_prospek, l.kode_lead, l.kota,
                       (SELECT rev FROM po_revisi r WHERE r.id_po=p.id ORDER BY rev DESC LIMIT 1) AS rev_terakhir_dihitung,
                       (SELECT COUNT(*) FROM po_revisi r WHERE r.id_po=p.id) AS jml_revisi
                FROM po_pabrik p LEFT JOIN crm_leads l ON l.id=p.id_lead${where}
                ORDER BY datetime(p.created_at) DESC LIMIT 500`;
-  const stmt = env.sph_management_db.prepare(sql);
-  const res = await (idLead ? stmt.bind(idLead) : stmt).all();
+  const params = idLead ? [idLead, ...batas.params] : [...batas.params];
+  const res = await env.sph_management_db.prepare(sql).bind(...params).all();
   return ok({ data: res.results || [] });
 }
 
-async function detail(id: string, env: Env) {
-  const po = await env.sph_management_db.prepare(
-    `SELECT p.*, l.nama_prospek, l.kode_lead, l.kota FROM po_pabrik p LEFT JOIN crm_leads l ON l.id=p.id_lead WHERE p.id=?`)
+async function detail(id: string, env: Env, akses: Akses) {
+  const po: any = await env.sph_management_db.prepare(
+    `SELECT p.*, l.nama_prospek, l.kode_lead, l.kota, l.sales FROM po_pabrik p LEFT JOIN crm_leads l ON l.id=p.id_lead WHERE p.id=?`)
     .bind(id).first();
   if (!po) return ok({ error: 'PO tidak ditemukan' }, 404);
+
+  // PO dari lead milik sales lain tidak boleh dibuka.
+  if (!bolehSentuh(akses, po.sales, 'lihat')) {
+    return ok({ error: 'PO ini bukan milik Anda.' }, 403);
+  }
 
   const revisi = await env.sph_management_db
     .prepare('SELECT * FROM po_revisi WHERE id_po=? ORDER BY rev DESC').bind(id).all();
@@ -301,8 +310,10 @@ async function terbitkan(id: string, body: Record<string, unknown>, env: Env, us
 const revisiBaru = terbitkan;
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
-  const session = await getSession(request, env);
-  if (!session) return ok({ error: 'Unauthorized' }, 401);
+  const cek = await wajibHalaman(request, env, 'po');
+  if ('tolak' in cek) return cek.tolak;
+  const akses = cek.akses;
+  const session = { user_id: akses.userId };
 
   const url = new URL(request.url);
   const method = request.method;
@@ -315,7 +326,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   try {
     switch (resource) {
       case 'po':
-        if (method === 'GET') return id ? detail(id, env) : daftar(url, env);
+        if (method === 'GET') return id ? detail(id, env, akses) : daftar(url, env, akses);
         if (method === 'POST' || method === 'PUT') return simpan(method, id, body, env, session.user_id);
         if (method === 'DELETE') {
           if (!id) return ok({ error: 'id wajib diisi' }, 400);

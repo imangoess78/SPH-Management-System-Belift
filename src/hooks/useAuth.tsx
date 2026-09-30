@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-type User = { id: string; email?: string; role?: string; fullName?: string };
+type User = {
+  id: string; email?: string; role?: string; fullName?: string;
+  permissions?: string[]; namaSales?: string;
+};
 type Session = { user: User };
 
 interface AuthContextType {
@@ -7,6 +10,9 @@ interface AuthContextType {
   session: Session | null;
   role: string | null;
   fullName: string;
+  /** Izin efektif akun ini (gabungan peran + penyesuaian khusus). */
+  izin: string[];
+  namaSales: string;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -20,9 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [fullName, setFullName] = useState('');
+  const [izin, setIzin] = useState<string[]>([]);
+  const [namaSales, setNamaSales] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const applyUser = (u: User | null) => { setUser(u); setRole(u?.role ?? null); setFullName(u?.fullName ?? ''); setSession(u ? { user: u } : null); };
+  const applyUser = (u: User | null) => {
+    setUser(u);
+    setRole(u?.role ?? null);
+    setFullName(u?.fullName ?? '');
+    // Izin datang dari server. Tampilan hanya memakainya untuk menyembunyikan
+    // menu — penolakan yang sebenarnya terjadi di API.
+    setIzin(u?.permissions ?? []);
+    setNamaSales(u?.namaSales ?? '');
+    setSession(u ? { user: u } : null);
+  };
 
   useEffect(() => {
     let active = true;
@@ -34,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ user }) => { if (active) applyUser(user); })
       .catch(() => { if (active) applyUser(null); })
       .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    return () => { active = false; }
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -52,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, fullName, loading, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, role, fullName, izin, namaSales, loading, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
-import { FileText, PlusCircle, TrendingUp, Clock, ClipboardList } from 'lucide-react';
+import { FileText, PlusCircle, TrendingUp, Clock, ClipboardList, Lock, Factory, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { loadDocumentList, formatDate } from '@/lib/sph-utils';
+import { muatBahanAlur, TAHAP, type BahanAlur } from '@/lib/alur';
+import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
@@ -64,6 +66,14 @@ function getSalesName(doc: any): string {
 const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
+/** Kartu tahap alur — jadi tautan hanya bila pengguna boleh membuka halaman itu. */
+function KartuAlur({ ke, aktif, className, children }: {
+  ke: string; aktif: boolean; className?: string; children: React.ReactNode;
+}) {
+  if (!aktif) return <div className={className}>{children}</div>;
+  return <Link to={ke} className={className}>{children}</Link>;
+}
+
 const Index = () => {
   const [allDocs, setAllDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +91,20 @@ const Index = () => {
       setLoading(false);
     });
   }, []);
+
+  // Alur proyek (Survey → Final Survey → PO) dimuat terpisah dari daftar
+  // SPH/SPK supaya kegagalan salah satu sumber tidak mengosongkan seluruh
+  // Dasbor.
+  const [alur, setAlur] = useState<BahanAlur | null>(null);
+  useEffect(() => {
+    muatBahanAlur().then(setAlur).catch(() => setAlur(null));
+  }, []);
+
+  // Survey & PO sementara hanya untuk admin (lihat catatan di App.tsx).
+  // Tautan ke modul itu disembunyikan supaya peran lain tidak dilempar
+  // balik ke Dasbor saat mengklik.
+  const { user } = useAuth();
+  const bolehBukaModulBaru = user?.role === 'admin';
 
   // Split into SPH / SPK
   const sphList = useMemo(() => allDocs.filter(isSPH), [allDocs]);
@@ -173,6 +197,147 @@ const Index = () => {
           </Link>
         </div>
       </div>
+
+      {/* ── Alur Proyek ────────────────────────────────────────── */}
+      {alur && (
+        <>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Alur Proyek</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
+            <KartuAlur ke="/crm/leads" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">1. Lead Baru</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.leadTotal}</p>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-destructive font-medium">{alur.angka.leadHot} HOT</span>
+                {' · '}{alur.angka.leadWarm} WARM
+                {' · '}{alur.angka.leadGugur} gugur
+              </p>
+            </KartuAlur>
+
+            <KartuAlur ke="/survey/sales" aktif={bolehBukaModulBaru} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">2. Survey Sales</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.surveySales}</p>
+              <p className="text-xs text-muted-foreground">
+                {alur.angka.surveySalesSelesai} selesai
+                {' · '}{alur.angka.surveySales - alur.angka.surveySalesSelesai} draft
+              </p>
+            </KartuAlur>
+
+            <KartuAlur ke="/sph" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <FileText className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">3. SPH / SPK</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground mt-1.5">
+                {alur.angka.sph}<span className="text-base font-normal text-muted-foreground"> SPH</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {alur.angka.spk} SPK · {alur.angka.sphFinal} SPH final
+              </p>
+            </KartuAlur>
+
+            <KartuAlur ke="/survey/final" aktif={bolehBukaModulBaru} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Lock className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">4. Final Survey</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.finalSurvey}</p>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-success font-medium">{alur.angka.finalTerkunci} terkunci</span>
+                {' · '}{alur.angka.finalDraft} draft
+              </p>
+            </KartuAlur>
+
+            <KartuAlur ke="/po" aktif={bolehBukaModulBaru} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Factory className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">5. PO Pabrik</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.poTotal}</p>
+              <p className="text-xs text-muted-foreground">
+                {alur.angka.poTerbit} terbit
+                {alur.angka.jmlRevisi > 0 && <> · {alur.angka.jmlRevisi} revisi</>}
+              </p>
+            </KartuAlur>
+          </div>
+
+          {/* Peringatan: data berubah setelah Final Survey dikunci */}
+          {alur.angka.poPerluTinjau > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 mb-6">
+              <TrendingUp className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="text-xs">
+                <p className="font-medium text-amber-900">
+                  {alur.angka.poPerluTinjau} proyek berubah setelah Final Survey dikunci
+                </p>
+                <p className="text-amber-800 mt-0.5">
+                  Data teknis acuan pabrik berbeda dari hasil survey terkunci — perlu ditinjau.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Rincian per proyek */}
+          {alur.baris.length > 0 && (
+            <div className="rounded-lg border border-border bg-card mb-6 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">Rincian per Lead</p>
+                <span className="text-xs text-muted-foreground">Klik kode proyek untuk melihat lacak lengkap</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="text-left text-muted-foreground">
+                      <th className="p-2.5 font-medium">Kode Proyek</th>
+                      <th className="p-2.5 font-medium">Customer</th>
+                      <th className="p-2.5 font-medium">Sales</th>
+                      {TAHAP.map(t => <th key={t.nama} className="p-2.5 font-medium text-center">{t.pendek}</th>)}
+                      <th className="p-2.5 font-medium text-right">Tahap</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {alur.baris.slice(0, 8).map(p => (
+                      <tr key={p.id_lead} className="hover:bg-muted/30">
+                        <td className="p-2.5 whitespace-nowrap">
+                          <Link to={`/lacak/${p.id_lead}`} className="font-medium text-primary hover:underline">
+                            {p.kode_proyek}
+                          </Link>
+                        </td>
+                        <td className="p-2.5 text-muted-foreground max-w-[180px] truncate">{p.nama_prospek}</td>
+                        <td className="p-2.5 text-muted-foreground whitespace-nowrap">{p.sales}</td>
+                        <td className="p-2.5 text-center text-muted-foreground">●</td>
+                        <td className="p-2.5 text-center">
+                          {p.surveySales ? <span className="text-success">✓</span> : <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          {p.sph ? <span className="text-success">✓</span> : <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          {p.finalSurvey
+                            ? <span className={p.finalTerkunci ? 'text-success' : 'text-amber-500'}>{p.finalTerkunci ? '🔒' : '✓'}</span>
+                            : <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          {p.po ? <span className="text-success">✓</span> : <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="p-2.5 text-right">
+                          <span className="inline-block px-2 py-0.5 rounded-full border border-border text-[11px] font-medium">
+                            {p.tahap + 1}/5 · {p.tahapNama}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── SPH Stats ──────────────────────────────────────────── */}
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Statistik SPH</p>

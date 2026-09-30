@@ -1,4 +1,6 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
+import { boleh } from '../../shared/akses';
+import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
 
 interface Env { sph_management_db: D1Database }
 
@@ -95,7 +97,7 @@ function ambilKolom(body: Record<string, unknown>, cols: string[]) {
 
 // ── Handler per-resource ────────────────────────────────────
 
-async function listLeads(url: URL, env: Env) {
+async function listLeads(url: URL, env: Env, akses: Akses) {
   const where: string[] = [], params: unknown[] = [];
   const status = url.searchParams.get('status');
   const sales = url.searchParams.get('sales');
@@ -115,6 +117,13 @@ async function listLeads(url: URL, env: Env) {
     where.push('(nama_prospek LIKE ? OR no_hp LIKE ? OR kota LIKE ? OR kode_lead LIKE ? OR kebutuhan LIKE ?)');
     const like = `%${q}%`; params.push(like, like, like, like, like);
   }
+
+  // Batasan data: sales hanya boleh melihat lead miliknya sendiri.
+  // Ini wajib di server — parameter `sales` di atas hanyalah filter tampilan
+  // yang bisa dihilangkan siapa pun.
+  const batas = saringPemilik(akses, 'sales');
+  if (batas.sql) { where.push(batas.sql.replace(/^ AND /, '')); params.push(...batas.params); }
+
   const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
 
   const countRow = await env.sph_management_db
@@ -135,9 +144,14 @@ async function listLeads(url: URL, env: Env) {
   });
 }
 
-async function detailLead(id: string, env: Env) {
-  const row = await env.sph_management_db.prepare('SELECT * FROM crm_leads WHERE id=?').bind(id).first();
+async function detailLead(id: string, env: Env, akses: Akses) {
+  const row = await env.sph_management_db.prepare('SELECT * FROM crm_leads WHERE id=?').bind(id).first<any>();
   if (!row) return ok({ error: 'Lead tidak ditemukan' }, 404);
+
+  // Lead milik sales lain tidak boleh dibuka, walau id-nya diketahui.
+  if (!bolehSentuh(akses, row.sales, 'lihat')) {
+    return ok({ error: 'Lead ini bukan milik Anda.' }, 403);
+  }
   const riwayat = await env.sph_management_db
     .prepare('SELECT * FROM crm_lead_riwayat WHERE id_lead=? ORDER BY datetime(waktu) DESC LIMIT 50').bind(id).all();
   const dokumen = await env.sph_management_db
@@ -255,12 +269,16 @@ async function catatRiwayat(idLead: string, dari: string | null, ke: string, ole
 }
 
 /** Kanban: lead dikelompokkan per status, urut sesuai REF_STATUS. */
-async function kanban(url: URL, env: Env) {
+async function kanban(url: URL, env: Env, akses: Akses) {
   const sales = url.searchParams.get('sales');
   const kanal = url.searchParams.get('kode_kanal');
   const where: string[] = ["COALESCE(status_terakhir,'Lead Baru') <> 'Gugur'"], params: unknown[] = [];
   if (sales) { where.push('sales = ?'); params.push(sales); }
   if (kanal) { where.push('kode_kanal = ?'); params.push(kanal); }
+
+  // Sales hanya melihat papan miliknya sendiri.
+  const batas = saringPemilik(akses, 'sales');
+  if (batas.sql) { where.push(batas.sql.replace(/^ AND /, '')); params.push(...batas.params); }
 
   const statuses = await env.sph_management_db
     .prepare('SELECT * FROM crm_ref_status WHERE status <> ? ORDER BY urutan').bind('Gugur').all();
@@ -283,7 +301,7 @@ async function kanban(url: URL, env: Env) {
 }
 
 /** Dashboard efektivitas iklan: CPL, CAC, konversi, ROAS per kanal. */
-async function dashboard(url: URL, env: Env) {
+async function dashboard(url: URL, env: Env, akses: Akses) {
   const periode = url.searchParams.get('periode') || new Date().toISOString().slice(0, 7);
   const dari = `${periode}-01T00:00:00.000Z`;
   const [y, m] = periode.split('-').map(Number);
@@ -291,6 +309,11 @@ async function dashboard(url: URL, env: Env) {
 
   const inSph = STATUS_SPH.map(() => '?').join(',');
   const inDeal = STATUS_DEAL.map(() => '?').join(',');
+
+  // Angka efektivitas iklan juga ikut dibatasi: sales hanya melihat
+  // kanal dari lead miliknya, bukan seluruh perusahaan.
+  const batas = saringPemilik(akses, 'sales');
+  const batasSql = batas.sql ? ` AND 1=1${batas.sql}` : '';
 
   const agg = await env.sph_management_db.prepare(`
     SELECT kode_kanal,
@@ -303,9 +326,9 @@ async function dashboard(url: URL, env: Env) {
       SUM(CASE WHEN status_terakhir IN (${inDeal}) THEN 1 ELSE 0 END) AS jml_deal,
       SUM(CASE WHEN status_terakhir IN (${inSph})  THEN COALESCE(nilai_sph,0) ELSE 0 END) AS nilai_penawaran,
       SUM(CASE WHEN status_terakhir IN (${inDeal}) THEN COALESCE(nilai_sph,0) ELSE 0 END) AS nilai_deal
-    FROM crm_leads WHERE waktu_masuk >= ? AND waktu_masuk < ?
+    FROM crm_leads WHERE waktu_masuk >= ? AND waktu_masuk < ?${batasSql}
     GROUP BY kode_kanal`
-  ).bind(...STATUS_SPH, ...STATUS_DEAL, ...STATUS_SPH, ...STATUS_DEAL, dari, sampai).all();
+  ).bind(...STATUS_SPH, ...STATUS_DEAL, ...STATUS_SPH, ...STATUS_DEAL, dari, sampai, ...batas.params).all();
   const biaya = await env.sph_management_db
     .prepare('SELECT kode_kanal, SUM(biaya) AS biaya FROM crm_biaya_iklan WHERE periode=? GROUP BY kode_kanal')
     .bind(periode).all();
@@ -377,8 +400,12 @@ async function dashboard(url: URL, env: Env) {
 // ── Router ──────────────────────────────────────────────────
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
-  const session = await getSession(request, env);
-  if (!session) return ok({ error: 'Unauthorized' }, 401);
+  // Hak akses diperiksa di server. Menyembunyikan menu di tampilan tidak
+  // mengamankan apa pun — API tetap harus menolak.
+  const cek = await wajibHalaman(request, env, 'crm');
+  if ('tolak' in cek) return cek.tolak;
+  const akses = cek.akses;
+  const session = { user_id: akses.userId };
 
   const url = new URL(request.url);
   const resource = url.searchParams.get('resource') || 'leads';
@@ -394,10 +421,41 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     switch (resource) {
       // ── LEADS ──
       case 'leads':
-        if (method === 'GET') return id ? detailLead(id, env) : listLeads(url, env);
-        if (method === 'POST' || method === 'PUT') return simpanLead(method, id, body, env, session.user_id);
+        if (method === 'GET') return id ? detailLead(id, env, akses) : listLeads(url, env, akses);
+        if (method === 'POST' || method === 'PUT') {
+          // Ubah data: butuh wewenang ubah, dan hanya untuk lead sendiri
+          // kecuali punya izin ubah_semua.
+          if (akses.cakupanUbah === 'tidak') {
+            return ok({ error: 'Peran Anda tidak berwenang mengubah data.' }, 403);
+          }
+          if (method === 'PUT' && id) {
+            const milik = await env.sph_management_db.prepare('SELECT sales FROM crm_leads WHERE id=?')
+              .bind(id).first<{ sales: string | null }>();
+            if (!milik) return ok({ error: 'Lead tidak ditemukan' }, 404);
+            if (!bolehSentuh(akses, milik.sales, 'ubah')) {
+              return ok({ error: 'Lead ini bukan milik Anda, tidak dapat diubah.' }, 403);
+            }
+          }
+          // Hanya yang berwenang memindahkan lead boleh menetapkan sales lain.
+          if (body.sales !== undefined && !boleh(akses.izin, 'reassign_lead')) {
+            return ok({ error: 'Anda tidak berwenang memindahkan lead ke sales lain.' }, 403);
+          }
+          if (method === 'POST' && body.sales === undefined && !boleh(akses.izin, 'reassign_lead')) {
+            body.sales = akses.namaSales;  // lead baru otomatis milik pembuatnya
+          }
+          return simpanLead(method, id, body, env, session.user_id);
+        }
         if (method === 'DELETE') {
           if (!id) return ok({ error: 'id wajib diisi' }, 400);
+          if (!boleh(akses.izin, 'hapus_data')) {
+            return ok({ error: 'Peran Anda tidak berwenang menghapus data.' }, 403);
+          }
+          const milik = await env.sph_management_db.prepare('SELECT sales FROM crm_leads WHERE id=?')
+            .bind(id).first<{ sales: string | null }>();
+          if (!milik) return ok({ error: 'Lead tidak ditemukan' }, 404);
+          if (!bolehSentuh(akses, milik.sales, 'ubah')) {
+            return ok({ error: 'Lead ini bukan milik Anda, tidak dapat dihapus.' }, 403);
+          }
           await env.sph_management_db.prepare('DELETE FROM crm_lead_riwayat WHERE id_lead=?').bind(id).run();
           await env.sph_management_db.prepare('DELETE FROM crm_dokumen WHERE id_lead=?').bind(id).run();
           const r = await env.sph_management_db.prepare('DELETE FROM crm_leads WHERE id=?').bind(id).run();
@@ -407,11 +465,11 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
         break;
 
       case 'kanban':
-        if (method === 'GET') return kanban(url, env);
+        if (method === 'GET') return kanban(url, env, akses);
         break;
 
       case 'dashboard':
-        if (method === 'GET') return dashboard(url, env);
+        if (method === 'GET') return dashboard(url, env, akses);
         break;
 
       // ── DOKUMEN ──
