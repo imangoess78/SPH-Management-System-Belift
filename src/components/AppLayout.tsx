@@ -4,17 +4,14 @@ import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft,
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Grup menu: key = judul grup / null untuk item tanpa judul di atasnya
+// Grup menu — disusun MENGIKUTI ALUR KERJA (permintaan klien, lihat PRD baris 271):
+//   CRM/Leads → Survey Sales → SPH → SPK → Final Survey → PO Pabrik
+// Menu pendukung (Laporan, Master, Kalkulator, Pengaturan) diletakkan paling bawah.
 const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof LayoutDashboard; label: string; adminOnly?: boolean }[] }[] = [
   {
     judul: null,
     item: [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/sph/new', icon: PlusCircle, label: 'Buat SPH Baru' },
-      { to: '/sph', icon: FileText, label: 'Riwayat SPH' },
-      { to: '/spk/new', icon: PlusCircle, label: 'Buat SPK Baru' },
-      { to: '/spk', icon: FileText, label: 'Riwayat SPK' },
-      { to: '/reports', icon: BarChart3, label: 'Laporan' },
     ],
   },
   {
@@ -29,18 +26,24 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
     ],
   },
   {
-    judul: 'Survey & PO',
+    // Tahap 1–4 alur kerja setelah lead masuk
+    judul: 'Alur Proyek',
     item: [
       // Sementara hanya admin: modul baru, sedang ditinjau sebelum dibuka
       // untuk semua peran. Hapus adminOnly untuk membuka ke semua pengguna.
-      { to: '/survey/sales', icon: ClipboardList, label: 'Survey Sales', adminOnly: true },
-      { to: '/survey/final', icon: ClipboardCheck, label: 'Final Survey', adminOnly: true },
-      { to: '/po', icon: Factory, label: 'PO Pabrik', adminOnly: true },
+      { to: '/survey/sales', icon: ClipboardList, label: '1. Survey Sales', adminOnly: true },
+      { to: '/sph/new', icon: PlusCircle, label: '2a. Buat SPH Baru' },
+      { to: '/sph', icon: FileText, label: '2b. Riwayat SPH' },
+      { to: '/spk/new', icon: PlusCircle, label: '3a. Buat SPK Baru' },
+      { to: '/spk', icon: FileText, label: '3b. Riwayat SPK' },
+      { to: '/survey/final', icon: ClipboardCheck, label: '4. Final Survey', adminOnly: true },
+      { to: '/po', icon: Factory, label: '5. PO Pabrik', adminOnly: true },
     ],
   },
   {
     judul: null,
     item: [
+      { to: '/reports', icon: BarChart3, label: 'Laporan' },
       { to: '/master', icon: Database, label: 'Master Data' },
       { to: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
       { to: '/settings', icon: Settings, label: 'Pengaturan' },
