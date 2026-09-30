@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Shield, Save, ChevronDown, ChevronRight, Info, AlertTriangle,
-  RotateCcw, CheckCircle2, XCircle, Clock,
+  RotateCcw, CheckCircle2, XCircle, Clock, Ban, Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -10,10 +10,15 @@ import {
   type Peran,
 } from '../../shared/akses';
 
+interface Milik {
+  sph: number; lead: number; survey: number; po: number; total: number;
+}
+
 interface Akun {
   id: string; email: string; full_name: string | null; role: string;
   status: string; permissions: string[] | null; izin_efektif: string[];
   created_at: string; approved_at: string | null;
+  milik?: Milik;
 }
 
 export default function AdminUsers() {
@@ -88,6 +93,62 @@ export default function AdminUsers() {
     const j = await r.json();
     if (!r.ok) { setGalat(j.error || 'Gagal mengembalikan'); return; }
     setPesan(`Hak akses ${a.email} dikembalikan ke bawaan peran ${labelPeran(a.role as Peran)}.`);
+    await muat();
+  };
+
+  /**
+   * Nonaktifkan / aktifkan akun.
+   *
+   * Ini cara yang AMAN untuk mencabut akses: orangnya tidak bisa login lagi,
+   * tapi seluruh datanya tetap utuh dan tetap punya pemilik. Berbeda dengan
+   * hapus akun, yang membuat data kehilangan pemilik.
+   */
+  const ubahStatus = async (a: Akun, statusBaru: 'approved' | 'nonaktif') => {
+    setGalat(''); setPesan('');
+    const r = await fetch(`/api/admin/users?id=${encodeURIComponent(a.id)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: statusBaru }),
+    });
+    const j = await r.json();
+    if (!r.ok) { setGalat(j.error || 'Gagal mengubah status'); return; }
+    setPesan(statusBaru === 'approved'
+      ? `${a.email} diaktifkan kembali.`
+      : `${a.email} dinonaktifkan — tidak bisa login lagi, tapi datanya tetap utuh.`);
+    await muat();
+  };
+
+  /**
+   * Hapus akun. Kalau akun masih punya data, server menolak dengan 409 dan
+   * menyebutkan jumlahnya; admin harus mengonfirmasi ulang.
+   */
+  const hapusAkun = async (a: Akun, paksa = false) => {
+    setGalat(''); setPesan('');
+    const r = await fetch(`/api/admin/users?id=${encodeURIComponent(a.id)}${paksa ? '&paksa=1' : ''}`, {
+      method: 'DELETE',
+    });
+    const j = await r.json().catch(() => ({}));
+
+    if (r.status === 409 && j.butuhKonfirmasi) {
+      const m = j.milik || {};
+      const rinci = [
+        m.sph ? `${m.sph} SPH/SPK` : null,
+        m.lead ? `${m.lead} lead` : null,
+        m.survey ? `${m.survey} survey` : null,
+        m.po ? `${m.po} PO` : null,
+      ].filter(Boolean).join(', ');
+      const lanjut = window.confirm(
+        `Akun ${a.email} masih memiliki ${m.total} data (${rinci}).\n\n` +
+        `Kalau dihapus, data itu tidak akan terlihat sales mana pun — hanya admin.\n\n` +
+        `Sebaiknya NONAKTIFKAN saja supaya datanya tetap punya pemilik.\n\n` +
+        `Tetap hapus akun ini?`
+      );
+      if (lanjut) await hapusAkun(a, true);
+      return;
+    }
+
+    if (!r.ok) { setGalat(j.error || 'Gagal menghapus akun'); return; }
+    setPesan(`Akun ${a.email} dihapus.`);
     await muat();
   };
 
@@ -197,6 +258,45 @@ export default function AdminUsers() {
                     {PERAN.map(p => <option key={p} value={p}>{labelPeran(p)}</option>)}
                   </select>
 
+                  {/* Nonaktifkan = cabut akses login tanpa menghapus data.
+                      Ini pilihan yang dianjurkan untuk akun yang tidak dipakai lagi. */}
+                  {!sendiri && (
+                    <button
+                      onClick={() => ubahStatus(a, a.status === 'approved' ? 'nonaktif' : 'approved')}
+                      title={a.status === 'approved'
+                        ? 'Cabut akses login. Data tetap utuh dan tetap punya pemilik.'
+                        : 'Beri akses login kembali.'}
+                      className={`text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 ${
+                        a.status === 'approved'
+                          ? 'hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-600'
+                          : 'border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10'
+                      }`}
+                    >
+                      {a.status === 'approved'
+                        ? <><Ban className="h-3 w-3" />Nonaktifkan</>
+                        : <><CheckCircle2 className="h-3 w-3" />Aktifkan</>}
+                    </button>
+                  )}
+
+                  {/* Hapus = benar-benar hilang. Diberi peringatan bila akun masih
+                      punya data, karena data itu akan kehilangan pemilik. */}
+                  {!sendiri && (
+                    <button
+                      onClick={() => hapusAkun(a)}
+                      title={a.milik?.total
+                        ? `Akun ini memiliki ${a.milik.total} data — akan diberi peringatan`
+                        : 'Hapus akun ini'}
+                      className="text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 hover:bg-destructive/10 hover:border-destructive/40 hover:text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" />Hapus
+                      {!!a.milik?.total && (
+                        <span className="text-[10px] px-1 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium">
+                          {a.milik.total}
+                        </span>
+                      )}
+                    </button>
+                  )}
+
                   <span className="text-xs text-muted-foreground w-40 text-right hidden sm:block">
                     {ringkas(dipilih)}
                   </span>
@@ -228,6 +328,24 @@ export default function AdminUsers() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Data milik akun — admin perlu tahu ini sebelum menghapus,
+                        karena data akan kehilangan pemilik. */}
+                    {a.milik && a.milik.total > 0 && (
+                      <div className="mb-3 text-xs rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 p-2.5 flex items-start gap-2">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          Akun ini memiliki <b>{a.milik.total} data</b>
+                          {' '}({[a.milik.sph ? `${a.milik.sph} SPH/SPK` : null,
+                                   a.milik.lead ? `${a.milik.lead} lead` : null,
+                                   a.milik.survey ? `${a.milik.survey} survey` : null,
+                                   a.milik.po ? `${a.milik.po} PO` : null]
+                                  .filter(Boolean).join(', ')}).
+                          {' '}Menghapus akunnya membuat data itu tidak terlihat sales mana pun —{' '}
+                          <b>sebaiknya nonaktifkan saja</b>.
+                        </span>
+                      </div>
+                    )}
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       {GRUP.map(g => (
