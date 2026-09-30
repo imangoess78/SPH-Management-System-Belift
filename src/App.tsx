@@ -27,6 +27,13 @@ import IklanDashboard from "./pages/crm/IklanDashboard";
 import DokumenPage from "./pages/crm/Dokumen";
 import ApprovalDiskon from "./pages/crm/ApprovalDiskon";
 import CrmMaster from "./pages/crm/CrmMaster";
+import SurveyList from "./pages/survey/SurveyList";
+import SurveyForm from "./pages/survey/SurveyForm";
+import SurveyPilihLead from "./pages/survey/SurveyPilihLead";
+import SurveyLacak from "./pages/survey/SurveyLacak";
+import PoList from "./pages/po/PoList";
+import PoDetail from "./pages/po/PoDetail";
+import PoPilihProyek from "./pages/po/PoPilihProyek";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
 function SPKNewOrForm() {
@@ -86,6 +93,33 @@ function AppRoutes() {
               <Route path="/crm/dokumen" element={<DokumenPage />} />
               <Route path="/crm/diskon" element={<ApprovalDiskon />} />
               <Route path="/crm/master" element={<CrmMaster />} />
+
+              {/* ── Survey & PO — SEMENTARA HANYA ADMIN ──
+                  Modul baru, masih ditinjau sebelum dibuka untuk semua peran.
+                  Untuk membuka ke semua pengguna: hapus pembungkus <AdminOnly>
+                  di bawah, dan hapus `adminOnly: true` pada grup 'Survey & PO'
+                  di src/components/AppLayout.tsx. */}
+
+              {/* ── Survey Sales ── */}
+              <Route path="/survey/sales" element={<AdminOnly><SurveyList jenis="sales" /></AdminOnly>} />
+              <Route path="/survey/sales/pilih" element={<AdminOnly><SurveyPilihLead jenis="sales" /></AdminOnly>} />
+              <Route path="/survey/sales/baru" element={<AdminOnly><SurveyForm jenis="sales" /></AdminOnly>} />
+              <Route path="/survey/sales/:id" element={<AdminOnly><SurveyForm jenis="sales" /></AdminOnly>} />
+
+              {/* ── Final Survey ── */}
+              <Route path="/survey/final" element={<AdminOnly><SurveyList jenis="final" /></AdminOnly>} />
+              <Route path="/survey/final/pilih" element={<AdminOnly><SurveyPilihLead jenis="final" /></AdminOnly>} />
+              <Route path="/survey/final/baru" element={<AdminOnly><SurveyForm jenis="final" /></AdminOnly>} />
+              <Route path="/survey/final/:id" element={<AdminOnly><SurveyForm jenis="final" /></AdminOnly>} />
+
+              {/* ── Lacak perubahan data teknis ── */}
+              <Route path="/lacak/:idLead" element={<AdminOnly><SurveyLacak /></AdminOnly>} />
+
+              {/* ── PO Pabrik ── */}
+              <Route path="/po" element={<AdminOnly><PoList /></AdminOnly>} />
+              <Route path="/po/pilih" element={<AdminOnly><PoPilihProyek /></AdminOnly>} />
+              <Route path="/po/baru" element={<AdminOnly><PoDetail /></AdminOnly>} />
+              <Route path="/po/:id" element={<AdminOnly><PoDetail /></AdminOnly>} />
               <Route path="/admin/users" element={<AdminOnly><AdminUsers /></AdminOnly>} />
               <Route path="/admin/user" element={<AdminOnly><AdminUsers /></AdminOnly>} />
               <Route path="/admin/emergency-backup" element={<AdminOnly><EmergencyBackup /></AdminOnly>} />

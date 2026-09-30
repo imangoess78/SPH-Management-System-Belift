@@ -25,3 +25,12 @@ dist-ssr
 
 # Cloudflare wrangler local state
 .wrangler
+
+# Berkas kerja sementara (skema ekspor, data uji lokal, skrip uji sekali pakai).
+# Tidak boleh ikut ke repositori — berisi data uji, bukan bagian aplikasi.
+migration/tmp/
+
+# Backup data produksi — berisi data klien nyata (nomor SPH, nama customer,
+# alamat proyek, kontak sales). Repositori ini PUBLIK, jadi TIDAK BOLEH
+# di-commit. Simpan backup di penyimpanan lokal/terenkripsi saja.
+migration/backup-*/

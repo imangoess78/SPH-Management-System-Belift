@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck, Calculator, Target, KanbanSquare, Clock3, BadgePercent, Table2, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck, Calculator, Target, KanbanSquare, Clock3, BadgePercent, Table2, TrendingUp, ClipboardList, ClipboardCheck, Factory, GitCompare, Ruler } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -29,6 +29,16 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
     ],
   },
   {
+    judul: 'Survey & PO',
+    item: [
+      // Sementara hanya admin: modul baru, sedang ditinjau sebelum dibuka
+      // untuk semua peran. Hapus adminOnly untuk membuka ke semua pengguna.
+      { to: '/survey/sales', icon: ClipboardList, label: 'Survey Sales', adminOnly: true },
+      { to: '/survey/final', icon: ClipboardCheck, label: 'Final Survey', adminOnly: true },
+      { to: '/po', icon: Factory, label: 'PO Pabrik', adminOnly: true },
+    ],
+  },
+  {
     judul: null,
     item: [
       { to: '/master', icon: Database, label: 'Master Data' },
@@ -44,7 +54,7 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
 const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.item);
 
 // Path khusus CRM: harus persis /crm/leads, bukan ikut aktif saat di /crm/leads/123
-const PATH_PERSIS = new Set(['/sph/new', '/spk/new', '/crm/leads', '/crm/kanban', '/crm/diskon', '/crm/dokumen', '/crm/iklan', '/crm/master']);
+const PATH_PERSIS = new Set(['/sph/new', '/spk/new', '/crm/leads', '/crm/kanban', '/crm/diskon', '/crm/dokumen', '/crm/iklan', '/crm/master', '/survey/sales', '/survey/final', '/po']);
 // Path induk yang tetap aktif saat halaman anak dibuka
 const PATH_INDUK = new Set(['/sph', '/spk']);
 // Path yang boleh aktif berdampingan dengan sub-path CRM
@@ -103,8 +113,11 @@ function SidebarContent({
               )}
               <div className="space-y-1">
                 {item.map(it => {
+                  // Menu induk tetap harus aktif saat halaman anak dibuka
+                  const anakDariPath = PATH_INDUK.has(it.to) || it.to === '/survey/sales' || it.to === '/survey/final';
                   const active = location.pathname === it.to ||
-                    (!PATH_PERSIS.has(it.to) && !PATH_TANPA_AKTIF_ANAK.has(it.to) && location.pathname.startsWith(it.to));
+                    (!PATH_PERSIS.has(it.to) && !PATH_TANPA_AKTIF_ANAK.has(it.to) && location.pathname.startsWith(it.to)) ||
+                    (anakDariPath && location.pathname.startsWith(it.to + '/'));
                   return (
                     <Tooltip key={it.to}>
                       <TooltipTrigger asChild>

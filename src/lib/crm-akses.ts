@@ -42,3 +42,26 @@ export function tentukanPeran(
 export const bolehLihatSemua = (peran: string) => ['Manager', 'Direktur', 'Admin', 'Admin Sistem'].includes(peran);
 export const bolehUbahSemua = (peran: string) => ['Manager', 'Direktur', 'Admin Sistem'].includes(peran);
 export const bolehKelolaMaster = (peran: string) => ['Manager', 'Direktur', 'Admin Sistem'].includes(peran);
+
+// ── Modul Survey & PO (PRD 6A–6D) ───────────────────────────
+//  Survey Sales  : Sales mengisi untuk lead miliknya; Manager/Direktur semua.
+//  Final Survey  : Surveyor yang mengisi & mengunci; Sales hanya melihat.
+//  PO Pabrik     : Operasional (PIC PO) yang menerbitkan; Sales hanya melihat.
+
+/** Boleh mengisi Survey Sales (dan mengubahnya selama belum dikunci). */
+export const bolehIsiSurvey = (peran: string) =>
+  ['Sales', 'Manager', 'Direktur', 'Admin Sistem'].includes(peran);
+
+/** Boleh mengisi Final Survey. Surveyor pemilik prosesnya. */
+export const bolehIsiFinal = (peran: string) =>
+  ['Surveyor', 'Manager', 'Direktur', 'Admin Sistem'].includes(peran);
+
+/** Boleh mengunci / membuka kunci Final Survey — cerminan PERAN_PENGUNCI di server. */
+export const bolehKunciFinal = (peran: string) =>
+  ['Surveyor', 'Manager', 'Direktur', 'Admin Sistem'].includes(peran);
+
+/** Boleh menerbitkan PO ke pabrik — cerminan PERAN_PENERBIT di server. */
+export const bolehTerbitPO = (peran: string) =>
+  ['Operasional', 'Manager', 'Direktur', 'Admin Sistem'].includes(peran);
+
+export const isSurveyor = (peran: string) => peran === 'Surveyor';
