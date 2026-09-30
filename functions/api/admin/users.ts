@@ -34,15 +34,13 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     //
     // Sekaligus hitung jumlah data milik tiap akun: admin perlu tahu sebelum
     // menghapus akun bahwa data miliknya akan kehilangan pemilik.
-    const data = await Promise.all((results || []).map(async r => {
-      const milik = await hitungMilik(env, r.id, r.email, r.full_name);
-      return {
-        ...r,
-        role: normalisasiPeran(r.role),
-        permissions: bersihkanIzin(r.permissions ? JSON.parse(r.permissions) : null),
-        izin_efektif: izinEfektif(r.role, r.permissions),
-        milik,
-      };
+    const peta = await hitungMilikSemua(env);
+    const data = (results || []).map(r => ({
+      ...r,
+      role: normalisasiPeran(r.role),
+      permissions: bersihkanIzin(r.permissions ? JSON.parse(r.permissions) : null),
+      izin_efektif: izinEfektif(r.role, r.permissions),
+      milik: ambilMilik(peta, r.id, r.full_name),
     }));
 
     return json({ data });
@@ -201,41 +199,103 @@ function idSesiDari(request: Request): string | null {
   return (request.headers.get('cookie') || '').match(/(?:^|; )sph_session=([^;]+)/)?.[1] || null;
 }
 
-/**
- * Hitung data milik sebuah akun. Dipakai sebelum menghapus akun: kalau masih
- * ada data, penghapusan akan membuat data itu kehilangan pemilik.
- *
- * Dicocokkan lewat `user_id` (paling pasti) dan nama sales sebagai cadangan.
- * Setiap tabel dibungkus try/catch supaya kolom yang belum ada di satu
- * lingkungan tidak membuat seluruh pemeriksaan gagal.
- */
-async function hitungMilik(
-  env: Env, userId: string, email: string, nama: string | null,
-): Promise<{ sph: number; lead: number; survey: number; po: number; total: number }> {
-  const n = (v: unknown) => (typeof v === 'number' ? v : Number((v as any)?.n) || 0);
+type Milik = { sph: number; lead: number; survey: number; po: number; total: number };
+type PetaMilik = { perUserId: Map<string, Milik>; perNama: Map<string, Milik> };
 
-  const hitung = async (sql: string, ...bind: unknown[]) => {
-    try {
-      const r = await env.sph_management_db.prepare(sql).bind(...bind).first<any>();
-      return n(r);
-    } catch { return 0; }
+const kosong = (): Milik => ({ sph: 0, lead: 0, survey: 0, po: 0, total: 0 });
+
+/**
+ * Hitung data milik SETIAP akun sekaligus dengan beberapa kueri agregat.
+ *
+ * Sengaja TIDAK dilakukan satu kueri per akun: D1 akan gagal diam-diam bila
+ * puluhan kueri ditembakkan bersamaan lewat Promise.all — dan kegagalan itu
+ * sempat tersamarkan sebagai "0 data" (jadi admin diberi tahu akunnya kosong
+ * padahal berisi). Satu kueri agregat jauh lebih andal.
+ *
+ * Tiap kueri dibungkus try/catch supaya kolom yang belum ada di satu lingkungan
+ * tidak mematikan seluruh pemeriksaan.
+ */
+async function hitungMilikSemua(env: Env): Promise<PetaMilik> {
+  const perUserId = new Map<string, Milik>();
+  const perNama = new Map<string, Milik>();
+  const ambil = (m: Map<string, Milik>, kunci: string) => {
+    if (!kunci) return kosong();
+    if (!m.has(kunci)) m.set(kunci, kosong());
+    return m.get(kunci)!;
   };
 
-  const nm = (nama || '').trim();
-  const sph = await hitung(
-    `SELECT COUNT(*) n FROM sph WHERE user_id=?
-       OR (user_id IS NULL AND ?<>'' AND lower(trim(coalesce(nama_sales,''))) = lower(?))`,
-    userId, nm, nm);
-  const lead = await hitung(
-    `SELECT COUNT(*) n FROM crm_leads WHERE ?<>'' AND lower(trim(coalesce(sales,''))) = lower(?)`,
-    nm, nm);
-  const survey = await hitung(
-    `SELECT COUNT(*) n FROM survey_teknis WHERE dibuat_oleh=? OR diubah_oleh=? OR disurvey_oleh=?`,
-    userId, userId, userId);
-  const po = await hitung(
-    `SELECT COUNT(*) n FROM po_pabrik WHERE dibuat_oleh=?`, userId);
+  const jalankan = async (sql: string) => {
+    try {
+      const { results } = await env.sph_management_db.prepare(sql).all<any>();
+      return results || [];
+    } catch { return []; }
+  };
 
-  return { sph, lead, survey, po, total: sph + lead + survey + po };
+  // SPH/SPK — dipisah supaya TIDAK terhitung dobel.
+  // Baris yang sudah punya user_id dihitung lewat user_id; pencocokan nama
+  // hanya untuk baris lama yang belum punya user_id.
+  for (const r of await jalankan(
+    `SELECT user_id, COUNT(*) n FROM sph WHERE user_id IS NOT NULL GROUP BY user_id`)) {
+    const n = Number(r.n) || 0;
+    const m = ambil(perUserId, String(r.user_id));
+    m.sph += n; m.total += n;
+  }
+  for (const r of await jalankan(
+    `SELECT nama_sales, COUNT(*) n FROM sph
+      WHERE user_id IS NULL AND trim(coalesce(nama_sales,''))<>'' GROUP BY nama_sales`)) {
+    const n = Number(r.n) || 0;
+    const m = ambil(perNama, String(r.nama_sales).trim().toLowerCase());
+    m.sph += n; m.total += n;
+  }
+
+  // Lead CRM — hanya punya nama sales.
+  for (const r of await jalankan(
+    `SELECT sales, COUNT(*) n FROM crm_leads GROUP BY sales`)) {
+    const n = Number(r.n) || 0;
+    const nm = String(r.sales || '').trim().toLowerCase();
+    if (nm) { const m = ambil(perNama, nm); m.lead += n; m.total += n; }
+  }
+
+  // Survey teknis — dicatat lewat id akun.
+  for (const r of await jalankan(
+    `SELECT dibuat_oleh, COUNT(*) n FROM survey_teknis
+      WHERE dibuat_oleh IS NOT NULL GROUP BY dibuat_oleh`)) {
+    const n = Number(r.n) || 0;
+    if (r.dibuat_oleh) { const m = ambil(perUserId, String(r.dibuat_oleh)); m.survey += n; m.total += n; }
+  }
+
+  // PO pabrik — dicatat lewat id akun.
+  for (const r of await jalankan(
+    `SELECT dibuat_oleh, COUNT(*) n FROM po_pabrik
+      WHERE dibuat_oleh IS NOT NULL GROUP BY dibuat_oleh`)) {
+    const n = Number(r.n) || 0;
+    if (r.dibuat_oleh) { const m = ambil(perUserId, String(r.dibuat_oleh)); m.po += n; m.total += n; }
+  }
+
+  return { perUserId, perNama };
+}
+
+/** Ambil jumlah data milik satu akun dari peta. */
+function ambilMilik(peta: PetaMilik, userId: string, nama: string | null): Milik {
+  const a = peta.perUserId.get(userId);
+  const b = peta.perNama.get((nama || '').trim().toLowerCase());
+  if (!a) return b ? { ...b } : kosong();
+  if (!b) return { ...a };
+  return {
+    sph: a.sph + b.sph, lead: a.lead + b.lead,
+    survey: a.survey + b.survey, po: a.po + b.po,
+    total: a.total + b.total,
+  };
+}
+
+/**
+ * Hitung data milik SATU akun. Dipakai sebelum menghapus akun.
+ *
+ * Memakai peta dari `hitungMilikSemua` supaya tidak ada kueri terpisah yang
+ * bisa gagal diam-diam.
+ */
+async function hitungMilik(env: Env, userId: string, _email: string, nama: string | null): Promise<Milik> {
+  return ambilMilik(await hitungMilikSemua(env), userId, nama);
 }
 
 /** Hitung berapa akun (selain `kecuali`) yang masih bisa mengelola akun. */
