@@ -265,16 +265,24 @@ export async function saveDocument(doc: Record<string, unknown>, userId: string)
 export async function loadDocumentList(): Promise<any[]> {
   try {
     const r = await fetch(`/api/data?table=sph&_=${Date.now()}`, { cache: 'no-store' });
-    if (!r.ok) return [];
+    if (!r.ok) {
+      // Dulu `return []` begitu saja — 403 dari server tampak identik dengan
+      // "belum ada dokumen". Dasbor lalu menampilkan 0 SPH tanpa penjelasan.
+      console.error(`[SPH] gagal memuat daftar dokumen: HTTP ${r.status}`, await r.text().catch(() => ''));
+      return [];
+    }
     const { data } = await r.json();
     return data || [];
-  } catch { return []; }
+  } catch (e) { console.error('[SPH] gagal memuat daftar dokumen:', e); return []; }
 }
 
 export async function loadDocumentById(id: string): Promise<any | null> {
   try {
     const r = await fetch(`/api/data?table=sph&id=${encodeURIComponent(id)}`);
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.error(`[SPH] gagal memuat dokumen ${id}: HTTP ${r.status}`, await r.text().catch(() => ''));
+      return null;
+    }
     const { data } = await r.json();
     const raw = data?.[0];
     if (!raw) return null;

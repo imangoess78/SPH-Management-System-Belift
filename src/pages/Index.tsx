@@ -103,8 +103,14 @@ const Index = () => {
   // Survey & PO sementara hanya untuk admin (lihat catatan di App.tsx).
   // Tautan ke modul itu disembunyikan supaya peran lain tidak dilempar
   // balik ke Dasbor saat mengklik.
-  const { user } = useAuth();
-  const bolehBukaModulBaru = user?.role === 'admin';
+  //
+  // Kartu "1. Lead Baru" sebelumnya SELALU jadi tautan (`aktif={true}`),
+  // padahal halaman /crm/leads hanya boleh dibuka peran ber-izin `crm`.
+  // Akibatnya staf (tanpa `crm`) yang mengklik kartu itu langsung dilempar
+  // balik ke Dasbor tanpa penjelasan — persis bug yang sama seperti kartu
+  // Survey/PO di atas. Sekarang mengikuti izin yang sebenarnya.
+  const { izin: daftarIzin } = useAuth();
+  const bolehLihat = (kunci: string) => daftarIzin.includes(kunci) || daftarIzin.includes('*');
 
   // Split into SPH / SPK
   const sphList = useMemo(() => allDocs.filter(isSPH), [allDocs]);
@@ -202,68 +208,86 @@ const Index = () => {
       {alur && (
         <>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Alur Proyek</p>
+          {/*
+            Setiap kartu hanya muncul bila peran ini MEMANG boleh membaca
+            datanya. Sebelumnya semua kartu selalu tampil, sehingga staf
+            melihat "1. Lead Baru: 0" (padahal lead-nya ada — `/api/crm`
+            menolak staf) dan sales melihat "5. PO Pabrik: 0" (padahal
+            `/api/po` menolak sales). Angka nol palsu lebih berbahaya
+            daripada kartu yang tidak ada: tidak ada yang sadar itu salah.
+          */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
-            <KartuAlur ke="/crm/leads" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <ClipboardList className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">1. Lead Baru</span>
-              </div>
-              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.leadTotal}</p>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-destructive font-medium">{alur.angka.leadHot} HOT</span>
-                {' · '}{alur.angka.leadWarm} WARM
-                {' · '}{alur.angka.leadGugur} gugur
-              </p>
-            </KartuAlur>
+            {bolehLihat('crm') && (
+              <KartuAlur ke="/crm/leads" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">1. Lead Baru</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.leadTotal}</p>
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-destructive font-medium">{alur.angka.leadHot} HOT</span>
+                  {' · '}{alur.angka.leadWarm} WARM
+                  {' · '}{alur.angka.leadGugur} gugur
+                </p>
+              </KartuAlur>
+            )}
 
-            <KartuAlur ke="/survey/sales" aktif={bolehBukaModulBaru} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <ClipboardList className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">2. Survey Sales</span>
-              </div>
-              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.surveySales}</p>
-              <p className="text-xs text-muted-foreground">
-                {alur.angka.surveySalesSelesai} selesai
-                {' · '}{alur.angka.surveySales - alur.angka.surveySalesSelesai} draft
-              </p>
-            </KartuAlur>
+            {bolehLihat('survey_sales') && (
+              <KartuAlur ke="/survey/sales" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">2. Survey Sales</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.surveySales}</p>
+                <p className="text-xs text-muted-foreground">
+                  {alur.angka.surveySalesSelesai} selesai
+                  {' · '}{alur.angka.surveySales - alur.angka.surveySalesSelesai} draft
+                </p>
+              </KartuAlur>
+            )}
 
-            <KartuAlur ke="/sph" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <FileText className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">3. SPH / SPK</span>
-              </div>
-              <p className="text-2xl font-bold text-foreground mt-1.5">
-                {alur.angka.sph}<span className="text-base font-normal text-muted-foreground"> SPH</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {alur.angka.spk} SPK · {alur.angka.sphFinal} SPH final
-              </p>
-            </KartuAlur>
+            {bolehLihat('sph') && (
+              <KartuAlur ke="/sph" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">3. SPH / SPK</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground mt-1.5">
+                  {alur.angka.sph}<span className="text-base font-normal text-muted-foreground"> SPH</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {alur.angka.spk} SPK · {alur.angka.sphFinal} SPH final
+                </p>
+              </KartuAlur>
+            )}
 
-            <KartuAlur ke="/survey/final" aktif={bolehBukaModulBaru} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Lock className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">4. Final Survey</span>
-              </div>
-              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.finalSurvey}</p>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-success font-medium">{alur.angka.finalTerkunci} terkunci</span>
-                {' · '}{alur.angka.finalDraft} draft
-              </p>
-            </KartuAlur>
+            {bolehLihat('survey_final') && (
+              <KartuAlur ke="/survey/final" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">4. Final Survey</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.finalSurvey}</p>
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-success font-medium">{alur.angka.finalTerkunci} terkunci</span>
+                  {' · '}{alur.angka.finalDraft} draft
+                </p>
+              </KartuAlur>
+            )}
 
-            <KartuAlur ke="/po" aktif={bolehBukaModulBaru} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Factory className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">5. PO Pabrik</span>
-              </div>
-              <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.poTotal}</p>
-              <p className="text-xs text-muted-foreground">
-                {alur.angka.poTerbit} terbit
-                {alur.angka.jmlRevisi > 0 && <> · {alur.angka.jmlRevisi} revisi</>}
-              </p>
-            </KartuAlur>
+            {bolehLihat('po') && (
+              <KartuAlur ke="/po" aktif={true} className="rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Factory className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">5. PO Pabrik</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground mt-1.5">{alur.angka.poTotal}</p>
+                <p className="text-xs text-muted-foreground">
+                  {alur.angka.poTerbit} terbit
+                  {alur.angka.jmlRevisi > 0 && <> · {alur.angka.jmlRevisi} revisi</>}
+                </p>
+              </KartuAlur>
+            )}
           </div>
 
           {/* Peringatan: data berubah setelah Final Survey dikunci */}

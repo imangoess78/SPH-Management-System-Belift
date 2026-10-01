@@ -1,6 +1,6 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
-import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
+import { bolehSentuh, saringPemilik, wajibHalaman, wajibSalahSatu, type Akses } from '../lib/akses';
 
 interface Env { sph_management_db: D1Database }
 
@@ -323,10 +323,19 @@ async function hapus(id: string, env: Env, userId: string) {
 }
 
 /** Proyek + seluruh tonggak tahap — untuk halaman Lacak (PRD 6F). */
-async function lacak(idLead: string, env: Env) {
+async function lacak(idLead: string, env: Env, akses: Akses) {
   const proyek = await env.sph_management_db.prepare('SELECT * FROM proyek WHERE id_lead=?').bind(idLead).first();
-  const lead = await env.sph_management_db.prepare('SELECT * FROM crm_leads WHERE id=?').bind(idLead).first();
+  const lead = await env.sph_management_db.prepare('SELECT * FROM crm_leads WHERE id=?').bind(idLead).first<{ sales: string | null }>();
   if (!lead) return ok({ error: 'Lead tidak ditemukan' }, 404);
+
+  // Batas kepemilikan. Halaman /lacak/:idLead dibuka untuk pemilik izin `crm`
+  // MAUPUN `po` — dan sales memang punya `crm` — jadi tanpa pemeriksaan ini
+  // seorang sales bisa menulis id_lead milik sales lain di URL dan melihat
+  // seluruh dokumennya (SPH, PO, data teknis). Endpoint daftar/detail sudah
+  // disaring lewat `saringPemilik`; endpoint ini dulu terlewat.
+  if (!bolehSentuh(akses, lead.sales, 'lihat')) {
+    return ok({ error: 'Lead ini bukan milik Anda.' }, 403);
+  }
 
   const survey = await env.sph_management_db
     .prepare(`SELECT id, jenis, no_survey, tgl_survey, terkunci, dikunci_oleh, dikunci_pada, disurvey_oleh, surveyor, dt, updated_at
@@ -367,10 +376,23 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
 
   // Hak akses per jenis survey: Survey Sales dan Final Survey punya
   // halaman sendiri, jadi bisa dibuka/ditutup terpisah per akun.
-  const halaman = resource === 'survey' && jenis === 'final' ? 'survey_final' : 'survey_sales';
-  const cek = await wajibHalaman(request, env, halaman);
-  if ('tolak' in cek) return cek.tolak;
-  const akses = cek.akses;
+  //
+  // `resource=lacak` dikecualikan: isinya bukan survey, melainkan rangkuman
+  // seluruh tonggak (SPH → Final Survey → PO). Kalau ikut aturan di atas,
+  // `jenis` kosong membuat izin yang ditegakkan jatuh ke `survey_sales` —
+  // sehingga staff (punya survey_sales, tapi halaman Lacak dibuka dari detail
+  // PO) dan pengguna yang hanya punya `po` ditolak 403 tanpa alasan yang jelas.
+  let akses: Akses;
+  if (resource === 'lacak') {
+    const cekLacak = await wajibSalahSatu(request, env, ['crm', 'po']);
+    if ('tolak' in cekLacak) return cekLacak.tolak;
+    akses = cekLacak.akses;
+  } else {
+    const halaman = resource === 'survey' && jenis === 'final' ? 'survey_final' : 'survey_sales';
+    const cek = await wajibHalaman(request, env, halaman);
+    if ('tolak' in cek) return cek.tolak;
+    akses = cek.akses;
+  }
   const session = { user_id: akses.userId };
 
   let body: Record<string, unknown> = {};
@@ -424,7 +446,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
         if (method !== 'GET') break;
         const idLead = url.searchParams.get('id_lead');
         if (!idLead) return ok({ error: 'id_lead wajib diisi' }, 400);
-        return lacak(idLead, env);
+        return lacak(idLead, env, akses);
       }
       case 'proyek': {
         if (method === 'GET') {

@@ -113,6 +113,30 @@ export async function wajibIzin(
 }
 
 /**
+ * Tolak bila pengguna tidak punya SATU pun dari beberapa izin.
+ *
+ * Dipakai halaman yang memang dijangkau dari dua modul berbeda. Contohnya
+ * halaman Lacak: ditautkan dari dasbor (pemilik izin `crm`) dan dari detail
+ * PO (pemilik izin `po`). Sales tidak punya `po`, staff tidak punya `crm` —
+ * jadi menuntut salah satu saja akan mengunci sebagian pengguna yang sah.
+ */
+export async function wajibSalahSatu(
+  request: Request, env: Env, kunci: KunciHalaman[],
+): Promise<{ akses: Akses } | { tolak: Response }> {
+  const akses = await bacaAkses(request, env);
+  if (!akses) return { tolak: json({ error: 'Unauthorized' }, 401) };
+  if (!kunci.some(k => boleh(akses.izin, k))) {
+    return {
+      tolak: json({
+        error: `Akses ditolak: peran ${akses.role} tidak berwenang membuka ${kunci.join(' / ')}.`,
+        kode: 'TIDAK_BERHAK',
+      }, 403),
+    };
+  }
+  return { akses };
+}
+
+/**
  * Apakah pengguna boleh menyentuh baris milik `pemilik`.
  *
  * Aturannya: `semua` selalu boleh. `sendiri` hanya bila namanya cocok —

@@ -77,6 +77,31 @@ async function cariApprover(diskon: number | null | undefined, env: Env): Promis
   return 'Direktur';
 }
 
+/**
+ * Nama kolom sebuah tabel, dibaca dari skema D1.
+ *
+ * Dipakai agar penulisan Master CRM hanya menyertakan kolom timestamp bila
+ * tabelnya memang punya. Tabel acuan di sini tidak seragam: `crm_ref_sales`
+ * dan `crm_biaya_iklan` punya `created_at`/`updated_at`, sedangkan
+ * `crm_ref_kanal`, `crm_ref_diskon`, dan `crm_ref_status` tidak. Kode lama
+ * mengasumsikan semuanya punya, sehingga menyimpan kanal/diskon/status selalu
+ * gagal 500.
+ *
+ * Hasilnya di-cache per permintaan supaya tidak menembak D1 berulang kali.
+ */
+const cacheKolom = new Map<string, Set<string>>();
+async function kolomTabel(env: Env, table: string): Promise<Set<string>> {
+  const tersimpan = cacheKolom.get(table);
+  if (tersimpan) return tersimpan;
+  // Nama tabel berasal dari daftar tetap `pk`/`order` di atas, bukan masukan
+  // pengguna, jadi aman disisipkan ke PRAGMA.
+  const info = await env.sph_management_db.prepare(`PRAGMA table_info(${table})`).all();
+  const baris = (info.results || []) as { name: string }[];
+  const kolom = new Set<string>(baris.map(r => String(r.name)));
+  cacheKolom.set(table, kolom);
+  return kolom;
+}
+
 /** foto_lokasi disimpan sebagai JSON array — kembalikan sebagai array. */
 function parseFoto(v: unknown): unknown[] {
   if (Array.isArray(v)) return v;
@@ -533,6 +558,17 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
           const res = await (where ? stmt.bind(url.searchParams.get('periode')) : stmt).all();
           return ok({ data: res.results || [] });
         }
+        if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+          // LUBANG YANG PERNAH ADA: cabang ini dulu hanya dijaga `crm`, sehingga
+          // peran sales (punya `crm`, TIDAK punya `master`) bisa menambah,
+          // mengubah, dan menghapus Master CRM — kanal, batas diskon, daftar
+          // sales, status, biaya iklan. Menu "Master CRM" memang tersembunyi
+          // dari sales, tapi menyembunyikan menu bukan pengamanan: API-nya
+          // tetap bisa ditembak langsung. Sekarang tulis master wajib `master`.
+          if (!boleh(akses.izin, 'master')) {
+            return ok({ error: 'Akses ditolak: hanya pengelola Master Data yang boleh mengubah data acuan.', kode: 'TIDAK_BERHAK' }, 403);
+          }
+        }
         if (method === 'POST' || method === 'PUT') {
           const now = new Date().toISOString();
           const bodyClean = { ...body };
@@ -541,8 +577,19 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
           const entries = Object.entries(bodyClean);
           if (!entries.length) return ok({ error: 'Tidak ada data' }, 400);
 
+          // BUG YANG PERNAH ADA: kode ini selalu menulis `created_at` dan
+          // `updated_at`, padahal tiga tabel acuan (crm_ref_kanal,
+          // crm_ref_diskon, crm_ref_status) TIDAK punya kolom itu. Akibatnya
+          // setiap tambah/ubah di Master CRM gagal dengan 500
+          // "table crm_ref_kanal has no column named created_at" — tombol
+          // Simpan tampak rusak total. Diperiksa dulu, baru ditulis, supaya
+          // aman untuk tabel yang punya maupun tidak punya kolom timestamp.
+          const kolomAda = await kolomTabel(env, table);
+
           if (method === 'POST') {
-            const all = { ...Object.fromEntries(entries), created_at: now, updated_at: now };
+            const all: Record<string, unknown> = { ...Object.fromEntries(entries) };
+            if (kolomAda.has('created_at')) all.created_at = now;
+            if (kolomAda.has('updated_at')) all.updated_at = now;
             const e2 = Object.entries(all);
             await env.sph_management_db
               .prepare(`INSERT INTO ${table} (${e2.map(([k]) => k).join(',')}) VALUES (${e2.map(() => '?').join(',')})`)
@@ -551,9 +598,12 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
           }
           const target = id || bodyClean[key];
           if (!target) return ok({ error: `${key} wajib diisi` }, 400);
+          const set = entries.map(([k]) => `${k}=?`);
+          const nilai: unknown[] = entries.map(([, v]) => v);
+          if (kolomAda.has('updated_at')) { set.push('updated_at=?'); nilai.push(now); }
           await env.sph_management_db
-            .prepare(`UPDATE ${table} SET ${entries.map(([k]) => `${k}=?`).join(',')}, updated_at=? WHERE ${key}=?`)
-            .bind(...entries.map(([, v]) => v), now, target).run();
+            .prepare(`UPDATE ${table} SET ${set.join(',')} WHERE ${key}=?`)
+            .bind(...nilai, target).run();
           return ok({ ok: true });
         }
         if (method === 'DELETE') {

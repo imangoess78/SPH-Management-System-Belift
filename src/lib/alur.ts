@@ -202,8 +202,31 @@ export function susunBahan(m: MasukanAlur): BahanAlur {
   angka.proyek = (m.proyek || []).length;
 
   // ── Baris per lead ──
-  const baris: BarisAlur[] = (m.lead || []).map(l => {
-    const idLead = String(l.id || '');
+  //
+  // PENTING: daftar baris TIDAK boleh hanya bersumber dari `m.lead`.
+  // Staf tidak punya izin `crm`, jadi `/api/crm?resource=leads` menolaknya dan
+  // `m.lead` berisi kosong. Dulu itu membuat seluruh tabel "Rincian per Lead"
+  // lenyap — dan yang lebih berbahaya, peringatan "proyek berubah setelah
+  // Final Survey dikunci" tidak pernah muncul untuk staf, padahal justru staf
+  // yang memproses revisi PO tersebut. Kegagalan izin menyamar sebagai
+  // "tidak ada data".
+  //
+  // Karena itu baris disusun dari gabungan seluruh sumber yang berhasil dibaca:
+  // lead, kode proyek, SPH/SPK, survey, dan PO. Kolom yang hanya ada di CRM
+  // (kualifikasi HOT/WARM, status lead) tampil "—" bila lead-nya tidak terbaca
+  // — jujur menyatakan tidak diketahui, bukan mengarang nilai.
+  const leadPerId = new Map<string, Record<string, unknown>>();
+  for (const l of m.lead || []) {
+    const k = String(l.id || '');
+    if (k) leadPerId.set(k, l);
+  }
+  const semuaId = new Set<string>(Array.from(leadPerId.keys()));
+  for (const m2 of [sphPerLead, spkPerLead, surveyPerLead, poPerLead, proyekPerLead]) {
+    for (const k of Array.from(m2.keys())) semuaId.add(k);
+  }
+
+  const baris: BarisAlur[] = Array.from(semuaId).map(idLead => {
+    const l = leadPerId.get(idLead) || {};
     const svy = surveyPerLead.get(idLead) || [];
     const salesRow = svy.find(s => s.jenis === 'sales') || null;
     const finalRow = svy.find(s => s.jenis === 'final') || null;
@@ -266,12 +289,19 @@ export function susunBahan(m: MasukanAlur): BahanAlur {
 
 /** Baca seluruh data alur. Tiap sumber gagal sendiri-sendiri. */
 export async function muatBahanAlur(): Promise<BahanAlur> {
+  // Kegagalan tiap sumber dicatat, bukan ditelan. Sebelumnya `.catch(() => [])`
+  // membuat penolakan izin (403) tampak sama dengan "datanya kosong", sehingga
+  // Dasbor menampilkan 0 tanpa ada yang tahu itu salah.
+  const catat = (nama: string) => (e: unknown) => {
+    console.error(`[Dasbor] gagal memuat ${nama}:`, e);
+    return undefined as never;
+  };
   const [dokumen, daftarProyek, daftarSurvey, daftarPo, lead] = await Promise.all([
-    loadDocumentList().catch(() => []),
-    surveyApi.proyek().catch(() => ({ data: [] as ProyekRow[] })),
-    surveyApi.daftar().catch(() => ({ data: [] as BarisSurvey[] })),
-    poApi.daftar().catch(() => ({ data: [] as (PoRow & { jml_revisi?: number })[] })),
-    ambilLead().catch(() => [] as Record<string, unknown>[]),
+    loadDocumentList().catch(catat('dokumen SPH/SPK')),
+    surveyApi.proyek().catch(catat('proyek')),
+    surveyApi.daftar().catch(catat('daftar survey')),
+    poApi.daftar().catch(catat('daftar PO')),
+    ambilLead().catch(catat('lead CRM')),
   ]);
 
   return susunBahan({
@@ -285,7 +315,14 @@ export async function muatBahanAlur(): Promise<BahanAlur> {
 
 async function ambilLead(): Promise<Record<string, unknown>[]> {
   const r = await fetch('/api/crm?resource=leads', { headers: { Accept: 'application/json' } });
-  if (!r.ok) return [];
+  if (!r.ok) {
+    // Jangan telan galatnya. Dulu di sini hanya `return []`, sehingga penolakan
+    // 403 tampak persis seperti "tidak ada lead": Dasbor menampilkan 0 dan
+    // tidak ada satu pun petunjuk bahwa angkanya salah. Sekarang dicatat ke
+    // konsol lengkap dengan status HTTP-nya.
+    console.error(`[Dasbor] gagal memuat lead: HTTP ${r.status}`, await r.text().catch(() => ''));
+    return [];
+  }
   const j = await r.json();
   const data = j?.data;
   if (Array.isArray(data)) return data as Record<string, unknown>[];

@@ -67,11 +67,18 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
  * Ini hanya kerapian tampilan — supaya orang tidak mendarat di halaman yang
  * isinya akan kosong. Pengamanan sebenarnya ada di API: setiap endpoint
  * memanggil wajibHalaman() dan menolak dengan 403.
+ *
+ * `izin` boleh berupa satu kunci atau daftar kunci. Bila berupa daftar,
+ * halaman dibuka asalkan pengguna punya SALAH SATU di antaranya. Dipakai
+ * halaman yang wajar dijangkau lebih dari satu modul — misalnya halaman
+ * Lacak, yang ditautkan dari dasbor (sales) sekaligus dari detail PO (staff).
  */
-function Boleh({ izin, children }: { izin: KunciHalaman; children: React.ReactNode }) {
+function Boleh({ izin, children }: { izin: KunciHalaman | KunciHalaman[]; children: React.ReactNode }) {
   const { izin: daftar, loading } = useAuth();
   if (loading) return null;
-  return daftar.includes(izin) || daftar.includes('*') ? <>{children}</> : <Navigate to="/" replace />;
+  const perlu = Array.isArray(izin) ? izin : [izin];
+  const boleh = daftar.includes('*') || perlu.some(k => daftar.includes(k));
+  return boleh ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 function AppRoutes() {
@@ -109,7 +116,12 @@ function AppRoutes() {
               <Route path="/crm/iklan" element={<IklanDashboard />} />
               <Route path="/crm/dokumen" element={<DokumenPage />} />
               <Route path="/crm/diskon" element={<ApprovalDiskon />} />
-              <Route path="/crm/master" element={<CrmMaster />} />
+              {/* Master CRM hanya untuk pemilik izin `master` — menu di sidebar
+                  pun sudah memakai izin yang sama. Sebelumnya rutenya terbuka:
+                  staf yang mengetik /crm/master langsung bisa membuka halaman
+                  lalu ditolak 403 oleh API, jadi yang tampil layar error,
+                  bukan pesan izin yang jelas. */}
+              <Route path="/crm/master" element={<Boleh izin="master"><CrmMaster /></Boleh>} />
 
               {/* ── Survey & PO — SEMENTARA HANYA ADMIN ──
                   Modul baru, masih ditinjau sebelum dibuka untuk semua peran.
@@ -132,7 +144,13 @@ function AppRoutes() {
               <Route path="/survey/final/:id/preview" element={<Boleh izin="survey_final"><SurveyPreview jenis="final" /></Boleh>} />
 
               {/* ── Lacak perubahan data teknis ── */}
-              <Route path="/lacak/:idLead" element={<Boleh izin="crm"><SurveyLacak /></Boleh>} />
+              {/* Halaman Lacak menampilkan SPH → Final Survey → PO, jadi
+                  dijangkau dari dua sisi: dasbor (sales, izin `crm`) dan
+                  detail PO (staff, izin `po`). Sales tidak punya `po`, staff
+                  tidak punya `crm` — karena itu keduanya diterima di sini.
+                  Sebelumnya hanya `crm`, sehingga staff melihat nomor proyek
+                  di daftar PO tapi dilempar balik setiap kali mengkliknya. */}
+              <Route path="/lacak/:idLead" element={<Boleh izin={['crm', 'po']}><SurveyLacak /></Boleh>} />
 
               {/* ── PO Pabrik ── */}
               <Route path="/po" element={<Boleh izin="po"><PoList /></Boleh>} />
