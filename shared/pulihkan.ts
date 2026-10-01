@@ -53,7 +53,7 @@ export function pastikanBukanProduksi(namaDatabase: string): void {
   // Nama yang jelas-jelas untuk uji selalu diizinkan, walau memuat nama
   // produksi (mis. `sph-management-db-uji`). Kalau tidak, orang akan mencari
   // jalan pintas dan penjaganya malah dilewati.
-  const jelasUji = /(^|[-_])(uji|test|percobaan|staging|copy|salinan)($|[-_])/.test(bersih);
+  const jelasUji = /(^|[-_])(uji|test|percobaan|staging|copy|salinan|pulihan)($|[-_])/.test(bersih);
   if (jelasUji) return;
 
   for (const p of NAMA_PRODUKSI) {

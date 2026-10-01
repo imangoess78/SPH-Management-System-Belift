@@ -18,6 +18,20 @@ dist-ssr
 .idea
 .DS_Store
 *.suo
+
+# Rahasia — JANGAN pernah masuk repo.
+#
+# Repo ini PUBLIK. `.env` sempat terlacak git; isinya saat itu hanya kunci
+# `sb_publishable_` Supabase (memang untuk publik, ikut terkirim ke browser),
+# jadi tidak ada yang bocor. Tapi membiarkannya terlacak adalah jebakan: siapa
+# pun yang menambahkan rahasia sungguhan ke berkas itu akan langsung
+# mempublikasikannya. Token Cloudflare untuk backup disimpan DI LUAR repo,
+# di ~/.config/sph/cloudflare-token.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
 *.ntvs*
 *.njsproj
 *.sln

@@ -211,6 +211,9 @@ describe('pemulihan backup — SQLite sungguhan', () => {
     // Yang jelas bukan produksi harus lolos.
     expect(() => pastikanBukanProduksi('sph-management-db-uji')).not.toThrow();
     expect(() => pastikanBukanProduksi('db-percobaan')).not.toThrow();
+    // Nama yang dipakai scripts/pulihkan-d1.sh — jangan sampai ditolak, kalau
+    // tidak prosedur daruratnya sendiri yang gagal jalan.
+    expect(() => pastikanBukanProduksi('sph-management-db-pulihan')).not.toThrow();
   });
 
   it('pastikanKosong membaca jumlah tabel dengan benar', async () => {
