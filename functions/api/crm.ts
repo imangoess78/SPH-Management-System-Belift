@@ -109,8 +109,28 @@ function parseFoto(v: unknown): unknown[] {
   return [];
 }
 
-function bersihkanLead(row: Record<string, unknown>) {
-  return { ...row, foto_lokasi: parseFoto(row.foto_lokasi), nilai_sph: row.nilai_sph === null ? null : Number(row.nilai_sph) };
+/**
+ * Bentuk baris lead sesudah dibersihkan.
+ *
+ * `status_terakhir` (dan kolom teks lain) sengaja ditulis eksplisit. Sebelumnya
+ * fungsi ini mengembalikan tipe sempit yang HANYA memuat foto_lokasi dan
+ * nilai_sph, sehingga pemakaian `l.status_terakhir` di tempat lain diperiksa
+ * sebagai kolom yang tidak ada — padahal datanya jelas ada karena hasilnya
+ * adalah gabungan seluruh kolom dari database.
+ */
+interface LeadBersih extends Record<string, unknown> {
+  status_terakhir?: string | null;
+  sales?: string | null;
+  nilai_sph: number | null;
+  foto_lokasi: unknown[];
+}
+
+function bersihkanLead(row: Record<string, unknown>): LeadBersih {
+  return {
+    ...row,
+    foto_lokasi: parseFoto(row.foto_lokasi),
+    nilai_sph: row.nilai_sph === null || row.nilai_sph === undefined ? null : Number(row.nilai_sph),
+  };
 }
 
 /** Ambil nilai dari body, hanya untuk kolom yang dikenal. */
@@ -261,6 +281,11 @@ async function simpanLead(method: string, id: string | null, body: Record<string
   // PUT
   if (!id) return ok({ error: 'id wajib diisi' }, 400);
 
+  // Sampai di sini method pasti PUT, dan baris lama sudah dijamin ada oleh
+  // pemeriksaan di atas. Ditegaskan lagi di sini supaya pemeriksa tipe ikut
+  // yakin — bukan karena ada kemungkinan lain.
+  if (!lama) return ok({ error: 'Lead tidak ditemukan' }, 404);
+
   const entries = Object.entries(kolom);
   if (!entries.length) return ok({ error: 'Tidak ada kolom yang diubah' }, 400);
   await env.sph_management_db
@@ -269,7 +294,8 @@ async function simpanLead(method: string, id: string | null, body: Record<string
 
   // Catat perubahan status ke riwayat
   if ('status_terakhir' in kolom && kolom.status_terakhir !== lama.status_terakhir) {
-    await catatRiwayat(id, lama.status_terakhir, kolom.status_terakhir as string, oleh, String(body.catatan_riwayat || ''), env);
+    await catatRiwayat(id, (lama.status_terakhir as string | null) ?? null,
+      kolom.status_terakhir as string, oleh, String(body.catatan_riwayat || ''), env);
     // Pemicu: status "Deal - Menunggu Dokumen" -> buat baris antrean di Meja Dokumen
     if (kolom.status_terakhir === 'Deal - Menunggu Dokumen') {
       const ada = await env.sph_management_db

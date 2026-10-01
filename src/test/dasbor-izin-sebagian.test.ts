@@ -35,6 +35,9 @@ const surveyFinalL1 = {
   dikunci_oleh: 'Sur', dikunci_pada: '2026-10-01T00:00:00Z',
   status: 'selesai', updated_at: '2026-10-01T00:00:00Z',
   nama_prospek: null, kode_lead: null, kota: null,
+  // Status lead saat survey ini dibuat. Diperlukan bentuk BarisSurvey, dan
+  // memang ikut dikirim server (lihat SELECT di functions/api/survey.ts).
+  status_terakhir: null as string | null,
 };
 
 const poL1 = {

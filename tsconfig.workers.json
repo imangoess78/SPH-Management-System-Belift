@@ -1,0 +1,18 @@
+{
+  "//": "Pemeriksaan tipe untuk kode sisi server (functions/, shared/, workers/).",
+  "//kenapa": "Sebelum ini berkas functions/ TIDAK PERNAH dicek tipe: esbuild menghapus impor tipe saat build, jadi kesalahan tipe apa pun lolos ke produksi tanpa ketahuan.",
+  "//catatan": "Hanya `shared/backup.ts` yang ikut dari shared/. `shared/akses.ts` dipakai bersama frontend, jadi jalur kodenya milik DOM dan diperiksa oleh tsconfig.app.json. Kalau keduanya dimasukkan ke satu proyek, tipe Response/Database dua-duanya bentrok dan hasil pemeriksaannya jadi sampah.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["functions/**/*.ts", "shared/backup.ts", "workers/**/*.ts"]
+}

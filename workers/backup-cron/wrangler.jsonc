@@ -1,0 +1,36 @@
+// Worker backup terjadwal untuk SPH Management System (Belift)
+//
+// Deploy dari folder ini:
+//   cd workers/backup-cron
+//   npx wrangler deploy
+//
+// Jadwal: 17:30 UTC = 00:30 WIB, setiap hari.
+// Sengaja tengah malam WIB supaya tidak berebut dengan pemakaian siang hari.
+//
+// PENTING: binding di bawah harus menunjuk database & bucket YANG SAMA dengan
+// wrangler.jsonc di akar repo. Kalau berbeda, backupnya akan menyimpan data
+// dari sumber yang salah tanpa ada yang sadar.
+{
+  "name": "sph-backup-cron",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-19",
+
+  "d1_databases": [
+    {
+      "binding": "sph_management_db",
+      "database_name": "sph-management-db",
+      "database_id": "26004faf-d0f8-45de-bafb-14ccd5f7cf61"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "belift_media",
+      "bucket_name": "belift-media"
+    }
+  ],
+
+  "triggers": {
+    "crons": ["30 17 * * *"]
+  }
+}
