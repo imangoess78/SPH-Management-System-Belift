@@ -243,8 +243,19 @@ export async function saveDocument(doc: Record<string, unknown>, userId: string)
     const response = await fetch(`/api/data?table=sph&id=${encodeURIComponent(String(doc.id))}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row),
     });
-    if (response.ok) return true;
-    if (response.status !== 404) { console.error('Error saving document:', await response.text()); return false; }
+
+    // Server membalas 404 bila UPDATE tidak mengenai baris mana pun, karena di D1
+    // `UPDATE ... WHERE id=?` tanpa hasil tetap "sukses" (changes: 0). Sebelum ini
+    // diperbaiki, server membalas 200 sehingga jalur POST tidak pernah dijalankan
+    // dan dokumen BARU hilang tanpa pesan galat.
+    //
+    // Pengecekan `kode` di bawah juga berlaku bila server versi lama (yang masih
+    // membalas 200) masih terpasang saat deploy bertahap.
+    const badan = await response.clone().json().catch(() => ({} as Record<string, unknown>));
+    const perluBuatBaru = response.status === 404 || badan?.kode === 'TIDAK_ADA';
+    if (response.ok && !perluBuatBaru) return true;
+    if (!perluBuatBaru) { console.error('Error saving document:', await response.text()); return false; }
+
     const createResponse = await fetch('/api/data?table=sph', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row) });
     if (!createResponse.ok) { console.error('Error creating document:', await createResponse.text()); return false; }
     return true;
@@ -301,8 +312,11 @@ export async function updateDocumentStatus(id: string, status: 'draft' | 'final'
     const response = await fetch(`/api/data?table=sph&id=${encodeURIComponent(id)}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
     });
+    // Server membalas 404 bila UPDATE tidak mengenai baris mana pun. Tanpa cek ini
+    // tombol Finalisasi akan melaporkan "berhasil" untuk dokumen yang tidak ada.
     if (!response.ok) { console.error('Error updating document status:', await response.text()); return false; }
-    return true;
+    const hasil = await response.json().catch(() => ({ ok: true }));
+    return hasil.ok === true;
   } catch (error) { console.error('Error updating document status:', error); return false; }
 }
 

@@ -104,9 +104,15 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     if (request.method === 'PUT') {
       const entries = Object.entries(clean);
       if (!entries.length) return json({ error: 'Tidak ada perubahan' }, 400);
-      await env.sph_management_db
+      const result = await env.sph_management_db
         .prepare(`UPDATE ${table} SET ${entries.map(([k]) => `${k}=?`).join(',')}, updated_at=? WHERE id=?`)
         .bind(...entries.map(([, v]) => v), new Date().toISOString(), id).run();
+      // PENTING: UPDATE yang tidak mengenai baris mana pun tetap "sukses" di D1
+      // (changes: 0, tanpa error). Kalau ini dianggap berhasil, klien tidak akan
+      // pernah jatuh ke jalur POST dan dokumen baru hilang tanpa jejak.
+      if (!result.meta?.changes) {
+        return json({ error: 'Not found', kode: 'TIDAK_ADA' }, 404);
+      }
     } else {
       const newId = String(body.id || crypto.randomUUID());
       const entries = Object.entries({
