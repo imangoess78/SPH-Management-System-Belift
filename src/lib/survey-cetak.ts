@@ -12,6 +12,11 @@
 import { DT_FIELDS, type DataTeknis, type BarisDokumentasi, type PekerjaanTambahan,
   type ButirKesimpulan, type TtdSurvey, type AddOn, type Lantai, type TemuanDiff,
   type PoRevisiRow } from './survey-types';
+// Mesin cetak bersama (jendela baru + penyiapan gambar) ada di ./cetak supaya
+// SPH, Survey, Lacak, dan PO memakai jalur yang sama persis.
+import { cetakHtml } from './cetak';
+
+export { gantiAlamatMedia } from './cetak';
 
 const esc = (s: unknown): string => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -92,15 +97,6 @@ export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: 
     + '<div class="pgnum">Dokumen ini dicetak dari sistem Belift</div>'
     + '<div class="paraf">Halaman 1</div>'
     + '</div></body></html>';
-}
-
-/** Buka jendela baru lalu cetak. Sama polanya dengan SPHForm. */
-export function cetakHtml(html: string, judul: string) {
-  const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) { window.alert('Pop-up diblokir. Izinkan pop-up untuk mencetak.'); return; }
-  win.document.write(html);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
 }
 
 // ── Bagian isi dokumen yang dipakai bersama ─────────────────
@@ -235,8 +231,8 @@ export function htmlSurvey(b: BahanCetakSurvey): string {
 }
 
 /** Cetak Survey lewat pop-up (perilaku lama dipertahankan). */
-export function cetakSurvey(b: BahanCetakSurvey) {
-  cetakHtml(htmlSurvey(b), b.judul);
+export async function cetakSurvey(b: BahanCetakSurvey) {
+  await cetakHtml(htmlSurvey(b), b.judul);
 }
 
 // ── 2. Ringkasan teks untuk aplikasi KOM ────────────────────
@@ -315,7 +311,7 @@ export interface BahanCetakLacak {
   pembanding: string;
 }
 
-export function cetakLacak(b: BahanCetakLacak) {
+export async function cetakLacak(b: BahanCetakLacak) {
   const temuan = Array.isArray(b.temuan) ? b.temuan : [];
   const kritis = temuan.filter(t => t.tingkat === 'kritis').length;
   const perhatian = temuan.filter(t => t.tingkat === 'perhatian').length;
@@ -347,7 +343,7 @@ export function cetakLacak(b: BahanCetakLacak) {
     + '<div><div class="sigbox"></div><span class="sig-nm"> </span><div class="sig-jab">Operasional / PIC PO</div></div>'
     + '</div>';
 
-  cetakHtml(
+  await cetakHtml(
     bingkai('Lacak Data Teknis', 'LACAK', 'PERBANDINGAN DATA TEKNIS', 'Hasil Lacak — ' + b.namaProspek, isiHtml),
     'Lacak Data Teknis',
   );
@@ -416,8 +412,8 @@ export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string,
 }
 
 /** Cetak PO lewat pop-up (perilaku lama dipertahankan). */
-export function cetakPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string, pic?: string) {
-  cetakHtml(htmlPo(po, revisi, pabrik, pic), 'PO Pabrik');
+export async function cetakPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string, pic?: string) {
+  await cetakHtml(htmlPo(po, revisi, pabrik, pic), 'PO Pabrik');
 }
 
 /** Ringkasan teks PO untuk ditempel ke surel / aplikasi lain. */

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { loadSPHById, formatCurrency, formatDate, calculateItemTotal } from '@/lib/sph-utils';
 import { SPH, DesainOption, DESAIN } from '@/lib/sph-types';
+import { cetakHtml } from '@/lib/cetak';
 import { useState, useEffect, Fragment } from 'react';
 import { pageSPH, pageSPK } from '@/lib/sph-generator';
 
@@ -107,15 +108,13 @@ function GeneratorPreview({ html, mode }: { html: string; mode: string }) {
     return () => window.removeEventListener('resize', computeScale);
   }, []);
 
-  function handlePrint() {
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) { alert('Pop-up diblokir. Izinkan pop-up untuk mencetak.'); return; }
-    win.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Belift</title>
+  async function handlePrint() {
+    await cetakHtml(
+      `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Belift</title>
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
-      <style>${GEN_CSS}</style></head><body>${html}</body></html>`);
-    win.document.close();
-    win.onload = () => { win.focus(); win.print(); };
+      <style>${GEN_CSS}</style></head><body>${html}</body></html>`,
+      'Belift');
   }
 
   const pageCount = (html.match(/class="page/g) || []).length || 1;

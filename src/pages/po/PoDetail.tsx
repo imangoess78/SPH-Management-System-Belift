@@ -25,6 +25,7 @@ export default function PoDetail() {
   const [d, setD] = useState<BalikanPoDetail | null>(null);
   const [memuat, setMemuat] = useState(true);
   const [sibuk, setSibuk] = useState(false);
+  const [sedangCetak, setSedangCetak] = useState(false);
 
   const [pabrik, setPabrik] = useState('');
   const [pic, setPic] = useState('');
@@ -140,8 +141,15 @@ export default function PoDetail() {
           <Button variant="outline" size="sm" onClick={() => navigate(`/po/${id}/preview`)}>
             <Eye className="w-4 h-4 mr-1.5" /> Preview
           </Button>
-          <Button variant="outline" size="sm" onClick={() => cetakPo(po, d.revisi, pabrik, pic)}>
-            <Printer className="w-4 h-4 mr-1.5" /> Cetak PO
+          <Button variant="outline" size="sm" disabled={sedangCetak} onClick={async () => {
+            setSedangCetak(true);
+            try {
+              await cetakPo(po, d.revisi, pabrik, pic);
+            } finally {
+              setSedangCetak(false);
+            }
+          }}>
+            <Printer className="w-4 h-4 mr-1.5" /> {sedangCetak ? 'Menyiapkan…' : 'Cetak PO'}
           </Button>
           {bolehTerbit && (
             <Button variant="outline" size="sm" onClick={() => navigate(`/lacak/${idLead}`)}>

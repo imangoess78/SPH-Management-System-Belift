@@ -74,6 +74,9 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
   const [catatanDesain, setCatatanDesain] = useState('');
   const [kesimpulan, setKesimpulan] = useState<ButirKesimpulan[]>(kesimpulanKosong);
   const [ttd, setTtd] = useState<TtdSurvey>({ sales: '', customer: '', surveyor: '' });
+  // Menyalin foto ke dokumen cetak butuh waktu; tombolnya perlu menunggu
+  // supaya pengguna tidak menekan berulang kali.
+  const [sedangCetak, setSedangCetak] = useState(false);
 
   // Pengesahan
   const [terkunci, setTerkunci] = useState(false);
@@ -242,12 +245,19 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
             disabled={!id}>
             <Eye className="w-4 h-4 mr-1.5" /> Preview Dokumen
           </Button>
-          <Button variant="outline" size="sm" onClick={() => cetakSurvey({
-            jenis, judul, noSurvey, tgl, kodeProyek, namaProspek, kodeLead,
-            surveyor, pjLapangan, pjTelp, jamKerja, dt, dokumentasi, pekerjaan, kesimpulan, ttd,
-            catatanLapangan, videoLink, dikunciOleh, dikunciPada,
-          })}>
-            <Printer className="w-4 h-4 mr-1.5" /> Cetak
+          <Button variant="outline" size="sm" disabled={sedangCetak} onClick={async () => {
+            setSedangCetak(true);
+            try {
+              await cetakSurvey({
+                jenis, judul, noSurvey, tgl, kodeProyek, namaProspek, kodeLead,
+                surveyor, pjLapangan, pjTelp, jamKerja, dt, dokumentasi, pekerjaan, kesimpulan, ttd,
+                catatanLapangan, videoLink, dikunciOleh, dikunciPada,
+              });
+            } finally {
+              setSedangCetak(false);
+            }
+          }}>
+            <Printer className="w-4 h-4 mr-1.5" /> {sedangCetak ? 'Menyiapkan foto…' : 'Cetak'}
           </Button>
           <Button variant="outline" size="sm" onClick={() => {
             salinRingkasSurvey({

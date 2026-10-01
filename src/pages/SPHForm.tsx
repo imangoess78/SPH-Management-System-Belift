@@ -25,6 +25,7 @@ import {
 import {
   pageSPH, pageSPK, esc as escGen, injectDeco as injectDecoGen,
 } from '@/lib/sph-generator';
+import { cetakHtml } from '@/lib/cetak';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -93,10 +94,11 @@ function ketDesain(k: string, pilihDesain: DesainPilihan, desain?: Record<string
 // sehingga centang Struktur hilang saat dokumen lama dibuka.
 
 // ── Print helper ────────────────────────────────────────────
-function printDocument(html: string, tipeKabin: string) {
-  const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) { window.alert('Pop-up diblokir. Izinkan pop-up untuk mencetak.'); return; }
-  win.document.write(`<!DOCTYPE html>
+// Memakai mesin cetak bersama (src/lib/cetak.ts). Gambar desain & tanda tangan
+// diambil dari jendela ini dulu — di situ sesinya pasti ada — lalu diubah jadi
+// alamat blob, supaya tidak bolong di jendela cetak.
+async function printDocument(html: string, tipeKabin: string) {
+  await cetakHtml(`<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
@@ -169,9 +171,7 @@ h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 </style>
 </head>
 <body>${html}</body>
-</html>`);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
+</html>`, `Belift — ${tipeKabin}`);
 }
 
 // ── Build design options purely from DB master data ──────────
@@ -479,11 +479,11 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     else toast.error('Gagal memfinalisasi dokumen');
   }
 
-  function handlePrint() {
+  async function handlePrint() {
     const html = mode === 'SPH'
       ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
       : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
-    printDocument(html, s.tipeKabin);
+    await printDocument(html, s.tipeKabin);
   }
 
   return (

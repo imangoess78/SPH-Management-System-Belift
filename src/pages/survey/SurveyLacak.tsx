@@ -26,6 +26,7 @@ export default function SurveyLacak() {
   const [memuat, setMemuat] = useState(true);
   const [sumber, setSumber] = useState('kontrak');
   const [pembanding, setPembanding] = useState('sekarang');
+  const [sedangCetak, setSedangCetak] = useState(false);
 
   const muat = useCallback(async () => {
     if (!idLead) return;
@@ -97,14 +98,21 @@ export default function SurveyLacak() {
             {d.proyek?.kode_proyek && <> · <span className="font-mono">{d.proyek.kode_proyek}</span></>}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => cetakLacak({
-          namaProspek: String(lead.nama_prospek || ''), kodeLead: String(lead.kode_lead || ''),
-          kodeProyek: d.proyek?.kode_proyek || null,
-          titik: titik.map(t => ({ label: t.label, sub: t.sub })),
-          temuan, sumber: titik.find(t => t.kunci === sumber)?.label || sumber,
-          pembanding: titik.find(t => t.kunci === pembanding)?.label || pembanding,
-        })}>
-          <Printer className="w-4 h-4 mr-1.5" /> Cetak lacak
+        <Button variant="outline" size="sm" disabled={sedangCetak} onClick={async () => {
+          setSedangCetak(true);
+          try {
+            await cetakLacak({
+              namaProspek: String(lead.nama_prospek || ''), kodeLead: String(lead.kode_lead || ''),
+              kodeProyek: d.proyek?.kode_proyek || null,
+              titik: titik.map(t => ({ label: t.label, sub: t.sub })),
+              temuan, sumber: titik.find(t => t.kunci === sumber)?.label || sumber,
+              pembanding: titik.find(t => t.kunci === pembanding)?.label || pembanding,
+            });
+          } finally {
+            setSedangCetak(false);
+          }
+        }}>
+          <Printer className="w-4 h-4 mr-1.5" /> {sedangCetak ? 'Menyiapkan…' : 'Cetak lacak'}
         </Button>
       </div>
 
