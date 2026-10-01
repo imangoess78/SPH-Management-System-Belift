@@ -9,13 +9,25 @@ const jsonColumns = new Set(['specs', 'items', 'payments', 'terms', 'designs', '
 /**
  * Tabel yang boleh diakses lewat endpoint generik ini, beserta halaman yang
  * mengawasinya. `sph` = dokumen penawaran/kontrak, `sales` = daftar sales.
+ *
+ * `baca` dan `tulis` dipisah dengan sengaja:
+ *
+ *  - `sales` dan `design_items` adalah **data referensi** yang dibutuhkan
+ *    form SPH/SPK (daftar sales untuk tanda tangan, opsi desain cabin/floor/
+ *    dst). Sales dan staff harus bisa MEMBACANYA, kalau tidak form SPH mereka
+ *    kehilangan pilihan desain dan nama sales.
+ *  - Mengubah data referensi itu tetap eksklusif milik Master Data, jadi
+ *    operasi tulisnya masih digerbang `master`.
+ *
+ * Sebelumnya keduanya digerbang `master` untuk semua metode, sehingga peran
+ * tanpa `master` menerima 403 dan dropdown desain di form SPH jadi kosong.
  */
-const TABEL: Record<string, { halaman: 'sph' | 'master'; pemilik?: string }> = {
-  sph: { halaman: 'sph', pemilik: 'nama_sales' },
-  sales: { halaman: 'master' },
-  design_items: { halaman: 'master' },
-  profiles: { halaman: 'master' },
-  user_roles: { halaman: 'master' },
+const TABEL: Record<string, { baca: 'sph' | 'master'; tulis: 'sph' | 'master'; pemilik?: string }> = {
+  sph: { baca: 'sph', tulis: 'sph', pemilik: 'nama_sales' },
+  sales: { baca: 'sph', tulis: 'master' },
+  design_items: { baca: 'sph', tulis: 'master' },
+  profiles: { baca: 'master', tulis: 'master' },
+  user_roles: { baca: 'master', tulis: 'master' },
 };
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
@@ -24,7 +36,10 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   const aturan = TABEL[table];
   if (!aturan) return json({ error: 'Invalid table' }, 400);
 
-  const cek = await wajibHalaman(request, env, aturan.halaman);
+  // Operasi tulis (POST/PUT/PATCH/DELETE) tetap eksklusif pengelola Master
+  // Data; hanya pembacaan yang dibuka lebih longgar untuk data referensi.
+  const menulis = request.method !== 'GET' && request.method !== 'HEAD';
+  const cek = await wajibHalaman(request, env, menulis ? aturan.tulis : aturan.baca);
   if ('tolak' in cek) return cek.tolak;
   const akses: Akses = cek.akses;
 

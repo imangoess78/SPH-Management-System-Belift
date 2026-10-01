@@ -486,11 +486,19 @@ export default function SPHPreview() {
     load();
   }, [id]);
 
-  // Fetch design images from D1 API (standalone clone)
+  // Fetch design images from D1 API (standalone clone).
+  // Galat dicatat, tidak ditelan — lihat catatan yang sama di SPHForm.
   useEffect(() => {
-    fetch('/api/data?table=design_items').then(r => r.json()).then(({ data: rows }) => {
-      if (rows?.length) setLiveDesain(mergeDesainFromDB(rows));
-    }).catch(() => {});
+    fetch('/api/data?table=design_items')
+      .then(async r => {
+        const hasil = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(hasil?.error || `HTTP ${r.status}`);
+        return hasil as { data?: never[] };
+      })
+      .then(({ data: rows }) => {
+        if (rows?.length) setLiveDesain(mergeDesainFromDB(rows));
+      })
+      .catch(e => console.error('[SPHPreview] design_items fetch error:', e));
   }, []);
 
   if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Memuat...</div>;

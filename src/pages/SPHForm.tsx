@@ -295,8 +295,8 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     if (!user) return;
     fetch('/api/data?table=sales')
       .then(async response => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Gagal memuat sales');
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || `Gagal memuat sales (HTTP ${response.status})`);
         return (result.data || []) as { name: string; jabatan: string; signature_url: string | null; active: boolean | number }[];
       })
       .then(data => {
@@ -346,21 +346,31 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     });
   }, [mode, routeId]);
 
-  // Fetch design_items from D1 API
+  // Fetch design_items from D1 API.
+  // Bila gagal (mis. izin ditolak), CATAT galatnya — jangan menelan diam-diam.
+  // Sebelumnya respons non-OK dianggap "tidak ada data", sehingga dropdown
+  // opsi desain tampak kosong tanpa penjelasan apa pun ke pengguna.
   useEffect(() => {
     if (!user) return;
-    fetch('/api/data?table=design_items').then(r => r.json()).then(({ data }) => {
-      if (!data?.length) return;
-      const fromDB = mergeDesainFromDB(data);
-      setLiveDesain(fromDB);
-      setPilihDesain(prev => {
-        const next = { ...prev };
-        (Object.keys(fromDB) as (keyof DesainPilihan)[]).forEach(k => {
-          if (!next[k] && fromDB[k]?.[0]) next[k] = fromDB[k][0].kode;
+    fetch('/api/data?table=design_items')
+      .then(async r => {
+        const hasil = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(hasil?.error || `Gagal memuat opsi desain (HTTP ${r.status})`);
+        return hasil as { data?: unknown[] };
+      })
+      .then(({ data }) => {
+        if (!data?.length) return;
+        const fromDB = mergeDesainFromDB(data as never[]);
+        setLiveDesain(fromDB);
+        setPilihDesain(prev => {
+          const next = { ...prev };
+          (Object.keys(fromDB) as (keyof DesainPilihan)[]).forEach(k => {
+            if (!next[k] && fromDB[k]?.[0]) next[k] = fromDB[k][0].kode;
+          });
+          return next;
         });
-        return next;
-      });
-    }).catch(e => console.error('[SPHForm] design_items fetch error:', e));
+      })
+      .catch(e => console.error('[SPHForm] design_items fetch error:', e));
   }, [user]);
 
   function setItemField(idx: number, k: keyof KatalogItem, v: unknown) {
