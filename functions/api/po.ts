@@ -330,9 +330,19 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
         if (method === 'POST' || method === 'PUT') return simpan(method, id, body, env, session.user_id);
         if (method === 'DELETE') {
           if (!id) return ok({ error: 'id wajib diisi' }, 400);
+          // Menghapus PO menghapus riwayat revisinya sekaligus — tidak bisa
+          // dibatalkan. Jadi perlu wewenang hapus, sama seperti hapus SPH.
+          if (!boleh(akses.izin, 'hapus_data')) {
+            return ok({ error: 'Peran Anda tidak berwenang menghapus data.' }, 403);
+          }
+          // Urutan penting: anak dulu (po_revisi, riwayat), baru induknya.
           await env.sph_management_db.prepare('DELETE FROM po_revisi WHERE id_po=?').bind(id).run();
           await env.sph_management_db.prepare(`DELETE FROM survey_riwayat WHERE jenis='po' AND id_ref=?`).bind(id).run();
-          await env.sph_management_db.prepare('DELETE FROM po_pabrik WHERE id=?').bind(id).run();
+          const hasil = await env.sph_management_db.prepare('DELETE FROM po_pabrik WHERE id=?').bind(id).run();
+          // Sama seperti bug SPH: DELETE yang tidak mengenai baris mana pun tetap
+          // "sukses" di D1 (changes: 0). Tanpa cek ini layar melaporkan "terhapus"
+          // untuk PO yang sebenarnya tidak ada.
+          if (!hasil.meta?.changes) return ok({ error: 'PO tidak ditemukan' }, 404);
           return ok({ ok: true });
         }
         break;

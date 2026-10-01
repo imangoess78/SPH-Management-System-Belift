@@ -4,12 +4,14 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Factory, Search, ArrowRight, Plus, GitCompare, Eye } from 'lucide-react';
+import { Factory, Search, ArrowRight, Plus, GitCompare, Eye, Trash2 } from 'lucide-react';
 import { poApi } from '@/lib/survey-api';
 import type { PoRow } from '@/lib/survey-types';
 import { useCrmUser } from '@/hooks/useCrmUser';
 import { bolehTerbitPO } from '@/lib/crm-akses';
 import { fmtTglPendek } from '@/lib/survey-utils';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useBolehHapus } from '@/hooks/useBolehHapus';
 
 const LENCANA_STATUS: Record<string, string> = {
   Draft: 'bg-slate-50 text-slate-600 border-slate-200',
@@ -21,9 +23,12 @@ const LENCANA_STATUS: Record<string, string> = {
 export default function PoList() {
   const navigate = useNavigate();
   const { peran } = useCrmUser();
+  const bolehHapus = useBolehHapus();
   const [baris, setBaris] = useState<(PoRow & { nama_prospek?: string | null; jml_revisi?: number })[]>([]);
   const [memuat, setMemuat] = useState(true);
   const [q, setQ] = useState('');
+  const [pendingHapus, setPendingHapus] = useState<(PoRow & { nama_prospek?: string | null }) | null>(null);
+  const [menghapus, setMenghapus] = useState(false);
 
   const muat = useCallback(async () => {
     setMemuat(true);
@@ -36,6 +41,24 @@ export default function PoList() {
   }, []);
 
   useEffect(() => { muat(); }, [muat]);
+
+  // Hapus PO sekaligus riwayat revisinya di server. Tidak bisa dibatalkan,
+  // jadi selalu lewat dialog konfirmasi.
+  const jalankanHapus = async () => {
+    if (!pendingHapus) return;
+    const { id, no_po } = pendingHapus;
+    setMenghapus(true);
+    try {
+      await poApi.hapus(id);
+      setBaris(prev => prev.filter(b => b.id !== id));
+      toast.success(`PO ${no_po || ''} berhasil dihapus`.trim());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Gagal menghapus PO');
+    } finally {
+      setMenghapus(false);
+      setPendingHapus(null);
+    }
+  };
 
   const tersaring = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -145,6 +168,13 @@ export default function PoList() {
                         <Button size="sm" variant="ghost" onClick={() => navigate(`/po/${b.id}`)}>
                           Buka <ArrowRight className="w-3.5 h-3.5 ml-1" />
                         </Button>
+                        {bolehHapus && (
+                          <Button size="sm" variant="ghost" disabled={menghapus}
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setPendingHapus(b)} title="Hapus PO">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -154,6 +184,19 @@ export default function PoList() {
           </div>
         )}
       </Card>
+
+      <ConfirmDialog
+        open={!!pendingHapus}
+        onOpenChange={(o) => { if (!o && !menghapus) setPendingHapus(null); }}
+        title="Hapus PO Pabrik?"
+        description={
+          pendingHapus
+            ? `PO ${pendingHapus.no_po || '(tanpa nomor)'}${pendingHapus.nama_prospek ? ` — ${pendingHapus.nama_prospek}` : ''} akan dihapus permanen, termasuk seluruh riwayat revisinya. Tindakan ini tidak bisa dibatalkan.`
+            : ''
+        }
+        confirmLabel={menghapus ? 'Menghapus…' : 'Ya, Hapus'}
+        onConfirm={jalankanHapus}
+      />
     </div>
   );
 }
