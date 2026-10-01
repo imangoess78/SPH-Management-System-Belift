@@ -44,15 +44,24 @@ export function injectDeco(html: string): string {
   return html.replace(/(<div class="page(?:[^"]*)"[^>]*>)/g, '$1' + HEX_IMG);
 }
 
+/**
+ * Rakit "Kepada Yth" dari sapaan + nama customer/perusahaan.
+ *
+ * Sapaan "PT" dan "CV" adalah **bentuk badan usaha**, bukan kata panggilan
+ * orang. Jadi keduanya tidak diberi spasi terpisah seperti "Bapak Andi" —
+ * "PT Sumber Jaya", bukan "PT PT Sumber Jaya". Bila nama perusahaan sudah
+ * memuat "PT"/"CV" di depan, itu tidak digandakan lagi.
+ */
 function tujuan(s: GenState): string {
   const sapaan = s.sapaan && s.sapaan !== '—' ? s.sapaan : 'Bapak';
   const customer = (s.namaCustomer || '').trim();
   const perusahaan = (s.namaPerusahaan || '').trim();
-  if (customer && perusahaan) {
-    if (customer.toLowerCase() === perusahaan.toLowerCase()) return `${sapaan} ${customer}`;
-    return `${sapaan} ${customer} / ${perusahaan}`;
-  }
-  return perusahaan ? `${sapaan} ${perusahaan}` : `${sapaan} ${customer || '…'}`;
+  const badan = /^(pt|cv)\b/i.test(sapaan);
+  // Nama resmi badan usaha lebih diutamakan daripada nama orang.
+  const nama = (badan ? (perusahaan || customer) : (customer || perusahaan)) || '…';
+  // "PT Sumber Jaya" + sapaan "PT" -> jangan ulangi jadi "PT PT Sumber Jaya".
+  if (badan && new RegExp(`^${sapaan}\\b`, 'i').test(nama)) return nama;
+  return `${sapaan} ${nama}`;
 }
 
 function namaDesain(k: string, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {

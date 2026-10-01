@@ -21,6 +21,20 @@ interface Akun {
   milik?: Milik;
 }
 
+/**
+ * Inisial untuk bulatan avatar: dua huruf pertama dari nama, atau dari email
+ * bila nama belum diisi. Membantu mata menemukan akun yang sama saat kembali
+ * ke halaman ini, tanpa harus membaca tiap baris dari awal.
+ */
+function inisial(a: { full_name: string | null; email: string }): string {
+  const nama = (a.full_name || '').trim();
+  if (nama) {
+    const bagian = nama.split(/\s+/).filter(Boolean);
+    return (bagian.length >= 2 ? bagian[0][0] + bagian[1][0] : nama.slice(0, 2)).toUpperCase();
+  }
+  return (a.email || '?').slice(0, 2).toUpperCase();
+}
+
 export default function AdminUsers() {
   const nav = useNavigate();
   const { user, izin, loading: memuatSesi } = useAuth();
@@ -153,17 +167,32 @@ export default function AdminUsers() {
   };
 
   const ubahPeran = async (a: Akun, roleBaru: string) => {
+    if (roleBaru === a.role) return;
     setGalat(''); setPesan('');
-    const r = await fetch(`/api/admin/users?id=${encodeURIComponent(a.id)}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      // Ganti peran -> kembali ke bawaan peran itu, jangan bawa izin khusus lama.
-      body: JSON.stringify({ role: roleBaru, permissions: null }),
-    });
-    const j = await r.json();
-    if (!r.ok) { setGalat(j.error || 'Gagal mengubah role'); return; }
-    setPesan(`Role ${a.email} diubah ke ${labelPeran(roleBaru as Peran)}.`);
-    await muat();
+    try {
+      const r = await fetch(`/api/admin/users?id=${encodeURIComponent(a.id)}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        // Ganti peran -> kembali ke bawaan peran itu, jangan bawa izin khusus lama.
+        body: JSON.stringify({ role: roleBaru, permissions: null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        // Server menolak kalau ini pengelola akun terakhir dan peran baru tidak
+        // punya wewenang `akun`. Tanpa penjelasan, pesannya terasa seperti
+        // "tombolnya tidak berfungsi" — padahal penolakan itu disengaja.
+        setGalat(
+          j.error
+            ? `${j.error} (peran ${labelPeran(a.role as Peran)} → ${labelPeran(roleBaru as Peran)} tidak jadi diubah)`
+            : `Gagal mengubah peran ${a.email} ke ${labelPeran(roleBaru as Peran)}.`,
+        );
+        return;
+      }
+      setPesan(`Peran ${a.email} diubah ke ${labelPeran(roleBaru as Peran)}.`);
+      await muat();
+    } catch {
+      setGalat(`Gagal menghubungi server saat mengubah peran ${a.email}. Coba lagi.`);
+    }
   };
 
   const toggle = (a: Akun, kunci: string) => {
@@ -179,7 +208,7 @@ export default function AdminUsers() {
   };
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6 max-w-6xl">
       <div className="flex items-center gap-3 mb-1">
         <Users className="h-6 w-6 text-primary" />
         <h1 className="text-xl font-semibold">Manajemen Akun</h1>
@@ -214,8 +243,23 @@ export default function AdminUsers() {
       {memuat ? (
         <p className="text-sm text-muted-foreground">Memuat akun…</p>
       ) : (
-        <div className="space-y-2">
-          {akun.map(a => {
+        <>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Daftar Akun</h2>
+            <span className="text-xs text-muted-foreground">{akun.length} akun</span>
+          </div>
+
+          <div className="bg-card border rounded-xl overflow-hidden">
+            {/* Kepala kolom — hanya desktop. Di mobile tiap baris bertumpuk,
+                jadi label kolom justru menambah tinggi tanpa menambah jelas. */}
+            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_9.5rem_8.5rem_13rem] items-center gap-4 border-b bg-muted/40 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Akun</span>
+              <span>Peran</span>
+              <span>Hak akses</span>
+              <span className="text-right">Tindakan</span>
+            </div>
+
+            {akun.map(a => {
             const buka = terbuka === a.id;
             const dipilih = draf[a.id] || [];
             const bawaan = izinEfektif(a.role, null);
@@ -224,88 +268,106 @@ export default function AdminUsers() {
             const sendiri = a.id === user?.id;
 
             return (
-              <div key={a.id} className="bg-card border rounded-xl overflow-hidden">
-                {/* ── Baris ringkas ── */}
-                <div className="flex items-center gap-3 p-3">
-                  <button onClick={() => setTerbuka(buka ? null : a.id)}
-                          className="text-muted-foreground hover:text-foreground">
-                    {buka ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  </button>
+              <div key={a.id} className="border-b last:border-b-0">
+                {/* ── Baris ringkas ──
+                    Mobile: bertumpuk — avatar+nama, lalu kontrol di barisnya sendiri.
+                    Desktop (lg): satu baris grid sejajar dengan kepala kolom. */}
+                <div className="flex flex-col gap-3 px-4 py-3 hover:bg-muted/30 transition-colors lg:grid lg:grid-cols-[minmax(0,1fr)_9.5rem_8.5rem_13rem] lg:items-center lg:gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      onClick={() => setTerbuka(buka ? null : a.id)}
+                      aria-label={buka ? 'Tutup hak akses' : 'Buka hak akses'}
+                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      {buka ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium truncate">{a.full_name || a.email}</p>
-                      {sendiri && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium">Anda</span>}
-                      {a.permissions !== null && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-400 font-medium">
-                          izin khusus
-                        </span>
-                      )}
-                      {a.status !== 'approved' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-medium inline-flex items-center gap-1">
-                          <Clock className="h-2.5 w-2.5" />{a.status}
-                        </span>
-                      )}
+                    <span className="shrink-0 grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                      {inisial(a)}
+                    </span>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium break-words">{a.full_name || a.email}</p>
+                        {sendiri && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium">Anda</span>
+                        )}
+                        {a.status !== 'approved' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-medium inline-flex items-center gap-1">
+                            <Clock className="h-2.5 w-2.5" />{a.status}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground break-all">{a.email}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{a.email}</p>
                   </div>
 
-                  <select
-                    value={a.role}
-                    onChange={e => ubahPeran(a, e.target.value)}
-                    className="text-xs border rounded-md px-2 py-1.5 bg-background"
-                  >
-                    {PERAN.map(p => <option key={p} value={p}>{labelPeran(p)}</option>)}
-                  </select>
-
-                  {/* Nonaktifkan = cabut akses login tanpa menghapus data.
-                      Ini pilihan yang dianjurkan untuk akun yang tidak dipakai lagi. */}
-                  {!sendiri && (
-                    <button
-                      onClick={() => ubahStatus(a, a.status === 'approved' ? 'nonaktif' : 'approved')}
-                      title={a.status === 'approved'
-                        ? 'Cabut akses login. Data tetap utuh dan tetap punya pemilik.'
-                        : 'Beri akses login kembali.'}
-                      className={`text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 ${
-                        a.status === 'approved'
-                          ? 'hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-600'
-                          : 'border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10'
-                      }`}
+                  {/* Kontrol: bertumpuk penuh di mobile, mengikuti kolom di desktop */}
+                  <div className="flex items-center gap-2 flex-wrap pl-11 lg:pl-0 lg:contents">
+                    <select
+                      value={a.role}
+                      onChange={e => ubahPeran(a, e.target.value)}
+                      aria-label={`Peran ${a.full_name || a.email}`}
+                      className="text-xs border rounded-md px-2 py-1.5 bg-background lg:w-full"
                     >
-                      {a.status === 'approved'
-                        ? <><Ban className="h-3 w-3" />Nonaktifkan</>
-                        : <><CheckCircle2 className="h-3 w-3" />Aktifkan</>}
-                    </button>
-                  )}
+                      {PERAN.map(p => <option key={p} value={p}>{labelPeran(p)}</option>)}
+                    </select>
 
-                  {/* Hapus = benar-benar hilang. Diberi peringatan bila akun masih
-                      punya data, karena data itu akan kehilangan pemilik. */}
-                  {!sendiri && (
-                    <button
-                      onClick={() => hapusAkun(a)}
-                      title={a.milik?.total
-                        ? `Akun ini memiliki ${a.milik.total} data — akan diberi peringatan`
-                        : 'Hapus akun ini'}
-                      className="text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 hover:bg-destructive/10 hover:border-destructive/40 hover:text-destructive"
-                    >
-                      <Trash2 className="h-3 w-3" />Hapus
-                      {!!a.milik?.total && (
-                        <span className="text-[10px] px-1 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium">
-                          {a.milik.total}
-                        </span>
+                    <span className="text-xs text-muted-foreground lg:block">
+                      {a.permissions !== null
+                        ? <span className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400 font-medium">
+                            <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />izin khusus
+                          </span>
+                        : <span>{ringkas(dipilih)}</span>}
+                    </span>
+
+                    <span className="flex items-center gap-2 lg:justify-end">
+                      {/* Nonaktifkan = cabut akses login tanpa menghapus data.
+                          Ini pilihan yang dianjurkan untuk akun yang tidak dipakai lagi. */}
+                      {!sendiri && (
+                        <button
+                          onClick={() => ubahStatus(a, a.status === 'approved' ? 'nonaktif' : 'approved')}
+                          title={a.status === 'approved'
+                            ? 'Cabut akses login. Data tetap utuh dan tetap punya pemilik.'
+                            : 'Beri akses login kembali.'}
+                          className={`text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 transition-colors ${
+                            a.status === 'approved'
+                              ? 'hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-600'
+                              : 'border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10'
+                          }`}
+                        >
+                          {a.status === 'approved'
+                            ? <><Ban className="h-3 w-3" />Nonaktifkan</>
+                            : <><CheckCircle2 className="h-3 w-3" />Aktifkan</>}
+                        </button>
                       )}
-                    </button>
-                  )}
 
-                  <span className="text-xs text-muted-foreground w-40 text-right hidden sm:block">
-                    {ringkas(dipilih)}
-                  </span>
+                      {/* Hapus = benar-benar hilang. Diberi peringatan bila akun masih
+                          punya data, karena data itu akan kehilangan pemilik. */}
+                      {!sendiri && (
+                        <button
+                          onClick={() => hapusAkun(a)}
+                          title={a.milik?.total
+                            ? `Akun ini memiliki ${a.milik.total} data — akan diberi peringatan`
+                            : 'Hapus akun ini'}
+                          className="text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 transition-colors hover:bg-destructive/10 hover:border-destructive/40 hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />Hapus
+                          {!!a.milik?.total && (
+                            <span className="text-[10px] px-1 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium">
+                              {a.milik.total}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 {/* ── Checklist hak akses ── */}
                 {buka && (
                   <div className="border-t bg-muted/30 p-4">
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                       <div className="flex items-center gap-2">
                         <Shield className="h-4 w-4 text-primary" />
                         <p className="text-sm font-semibold">Hak akses</p>
@@ -313,17 +375,17 @@ export default function AdminUsers() {
                           bawaan {labelPeran(a.role as Peran)}: {bawaan.filter(k => k !== '*').length} izin
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button onClick={() => setDraf(d => ({ ...d, [a.id]: izinEfektif(a.role, null) }))}
-                                className="text-xs px-2 py-1 rounded border hover:bg-background">
+                                className="text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-muted transition-colors">
                           Isi dengan bawaan peran
                         </button>
                         <button onClick={() => setDraf(d => ({ ...d, [a.id]: [] }))}
-                                className="text-xs px-2 py-1 rounded border hover:bg-background">
+                                className="text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-muted transition-colors">
                           Kosongkan
                         </button>
                         <button onClick={() => resetBawaan(a)}
-                                className="text-xs px-2 py-1 rounded border hover:bg-background inline-flex items-center gap-1">
+                                className="text-xs px-2.5 py-1.5 rounded-md border bg-background hover:bg-muted transition-colors inline-flex items-center gap-1">
                           <RotateCcw className="h-3 w-3" />Bawaan
                         </button>
                       </div>
@@ -347,7 +409,7 @@ export default function AdminUsers() {
                       </div>
                     )}
 
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {GRUP.map(g => (
                         <div key={g.nama} className="bg-card border rounded-lg p-3">
                           <p className="text-xs font-semibold text-foreground mb-2">{g.nama}</p>
@@ -393,8 +455,8 @@ export default function AdminUsers() {
 
                     <div className="mt-4 flex items-center gap-2">
                       <button onClick={() => simpan(a)} disabled={!beda && a.permissions === null}
-                              className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground font-medium
-                                         disabled:opacity-50 inline-flex items-center gap-1.5">
+                              className="text-xs px-3 py-2 rounded-md bg-primary text-primary-foreground font-medium
+                                         disabled:opacity-50 inline-flex items-center gap-1.5 hover:bg-primary/90 transition-colors">
                         <Save className="h-3.5 w-3.5" />Simpan hak akses
                       </button>
                       {beda && <span className="text-[11px] text-amber-600">Ada perubahan belum disimpan</span>}
@@ -404,7 +466,8 @@ export default function AdminUsers() {
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

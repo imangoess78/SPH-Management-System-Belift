@@ -145,7 +145,14 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     // Pengaman: jangan biarkan pengelola akun terakhir kehilangan wewenangnya.
     if (izinBaru !== undefined || fields.role !== undefined) {
       const roleBaru = fields.role !== undefined ? normalisasiPeran(String(fields.role)) : normalisasiPeran(target.role);
-      const izinSetelah = izinBaru !== undefined ? izinBaru : izinEfektif(roleBaru, target.permissions);
+      // `izinBaru === null` berarti "kembali ke bawaan peran baru", jadi yang
+      // berlaku adalah izin bawaan — BUKAN null. Sebelumnya nilai null dipakai
+      // langsung, lalu `null.includes('akun')` melempar TypeError dan seluruh
+      // permintaan gagal dengan error 1101. Akibatnya tombol ganti peran
+      // tampak "tidak berfungsi" — padahal server sedang crash.
+      const izinSetelah = izinBaru === undefined
+        ? izinEfektif(roleBaru, target.permissions)
+        : (izinBaru ?? izinEfektif(roleBaru, null));
       const tetapPengelola = izinSetelah.includes('akun') || izinSetelah.includes('*');
       if (!tetapPengelola && (await jumlahPengelolaAkun(env, id)) === 0) {
         return json({

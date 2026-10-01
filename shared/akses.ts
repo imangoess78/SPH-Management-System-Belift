@@ -121,10 +121,13 @@ export const IZIN_PER_PERAN: Record<Peran, KunciIzin[] | typeof SEMUA> = {
   ],
 
   // Staff: admin kantor — memproses dokumen seluruh sales, tanpa wewenang
-  // menyetujui diskon atau mengelola akun.
+  // menyetujui diskon, mengelola akun, atau membuka Master Data.
+  // `master` sengaja tidak diberikan: Master Data (sales, kanal, diskon, status)
+  // hanya untuk admin/manajer/direktur. Staff tetap bisa memproses dokumen
+  // karena `sph`, `survey_sales`, `survey_final`, dan `po` tetap ada.
   staff: [
     'dashboard', 'sph', 'survey_sales', 'survey_final', 'po',
-    'master', 'kalkulator',
+    'kalkulator',
     'lihat_sendiri', 'lihat_semua', 'ubah_sendiri', 'ubah_semua',
     'kunci_final',
   ],

@@ -579,7 +579,7 @@ function FormPanel(props: FormPanelProps) {
 
       <Grp title="Customer" open>
         <div className="row2">
-          <Fsel label="Sapaan" value={s.sapaan} options={['Bapak','Ibu','Bapak/Ibu','—']} onChange={v => upd('sapaan', v)} />
+          <Fsel label="Sapaan" value={s.sapaan} options={['Bapak','Ibu','Bapak/Ibu','PT','CV','—']} onChange={v => upd('sapaan', v)} />
           <Ftxt label="Nama customer" value={s.namaCustomer} onChange={v => upd('namaCustomer', v)} />
         </div>
         <Ftxt label="Nama perusahaan / yayasan" value={s.namaPerusahaan} onChange={v => upd('namaPerusahaan', v)} hint="Kosongkan untuk perorangan." />
