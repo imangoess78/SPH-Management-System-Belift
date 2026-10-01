@@ -33,6 +33,22 @@ async function getSession(request: Request, env: Env) {
     .bind(sid, new Date().toISOString()).first<{ user_id: string }>();
 }
 
+/**
+ * Peran yang boleh menerbitkan PO ke pabrik (PRD 6D).
+ *
+ * Label di sini ditulis persis seperti `crm_ref_sales.peran` — sumber wewenang
+ * terbit PO memang Master CRM, sesuai PRD 9.7 ("Operasional (PIC PO) yang
+ * menerbitkan"). Akun PIC PO dibuat ber-role `staff`, jadi wewenang TIDAK
+ * boleh disandarkan pada peran akun: kalau disandarkan ke sana, PIC PO justru
+ * kehilangan haknya. Yang mengubah kolom `peran` hanya pemegang izin `master`,
+ * dan mereka semua sudah boleh menerbitkan PO — jadi ini bukan jalur naik hak.
+ *
+ * Nilai peran di luar daftar ini (salah ketik, kosong, asing) jatuh ke 'Sales'
+ * di `profilPemakai()` — peran paling sempit, sehingga salah isi tidak pernah
+ * MENAMBAH wewenang.
+ */
+const PERAN_PENERBIT = ['Operasional', 'Direktur', 'Manager', 'Admin Sistem'];
+
 async function profilPemakai(userId: string, env: Env) {
   const p = await env.sph_management_db
     .prepare(`SELECT p.full_name, p.email, u.email AS email_login, u.role
@@ -44,17 +60,49 @@ async function profilPemakai(userId: string, env: Env) {
     const ref = await env.sph_management_db
       .prepare('SELECT nama, peran FROM crm_ref_sales WHERE lower(email)=?')
       .bind(email).first<{ nama: string; peran: string }>();
-    if (ref) return { nama: ref.nama, peran: ref.peran };
+    if (ref) return { nama: ref.nama, peran: ref.peran, roleAkun: String(p?.role || ''), terdaftar: true };
   }
-  return { nama, peran: p?.role === 'admin' ? 'Admin Sistem' : 'Sales' };
+  return {
+    nama,
+    peran: p?.role === 'admin' ? 'Admin Sistem' : 'Sales',
+    roleAkun: String(p?.role || ''),
+    terdaftar: false,
+  };
 }
 
-/** Peran yang boleh menerbitkan PO ke pabrik (PRD 6D). */
-const PERAN_PENERBIT = ['Operasional','Direktur','Manager','Admin Sistem'];
+/**
+ * Boleh menerbitkan / merevisi PO?
+ *
+ * Dua syarat, keduanya harus terpenuhi:
+ *
+ *  1. Peran Master CRM termasuk penerbit (PRD 9.7: "Operasional (PIC PO) yang
+ *     menerbitkan"). Sumber sah wewenang ini memang Master CRM — akun PIC PO
+ *     dibuat ber-role `staff`, jadi kalau wewenang disandarkan pada peran akun,
+ *     PIC PO justru kehilangan haknya.
+ *
+ *  2. Akun tidak dibatasi "hanya lihat" (cakupanUbah != 'tidak'). Ini yang dulu
+ *     hilang: admin bisa mencabut izin ubah seseorang, tetapi PO tetap bisa
+ *     diterbitkan orang itu karena cabang PO tidak memeriksa apa pun. Modul SPH
+ *     dan Survey sudah lama menolak lewat pemeriksaan yang sama persis.
+ */
+function bolehTerbitkanPO(aku: { peran: string }, akses: Akses): boolean {
+  return PERAN_PENERBIT.includes(aku.peran) && akses.cakupanUbah !== 'tidak';
+}
 
-/** Pesan galat peran — dipakai aksi terbit maupun revisi (keduanya = menerbitkan). */
-const pesanPeran = (peran: string) =>
-  `Peran ${peran} tidak berwenang menerbitkan atau merevisi PO`;
+
+/**
+ * Pesan galat wewenang penerbitan PO.
+ *
+ * Kalau akunnya tidak terdaftar di Master CRM, JANGAN menyebut nama peran
+ * (`pesanPeran`) — peran itu hasil jatuhan ke 'Sales', jadi pesannya jadi
+ * menyesatkan ("Peran Sales tidak berwenang") padahal masalah sebenarnya akun
+ * belum terdaftar sebagai penerbit PO. Yang salah harus ditunjuk dengan benar
+ * supaya bisa diperbaiki.
+ */
+const pesanTidakBerwenang = (aku: { peran: string; terdaftar: boolean }) =>
+  aku.terdaftar
+    ? `Peran ${aku.peran} tidak berwenang menerbitkan atau merevisi PO`
+    : 'Akun Anda belum terdaftar di Master CRM sebagai penerbit PO (peran Operasional). Hubungi Admin Sistem.';
 
 async function catat(idRef: string, aksi: string, oleh: string, alasan: string | null, env: Env, catatan?: string | null) {
   await env.sph_management_db
@@ -248,10 +296,16 @@ async function simpan(method: string, id: string | null, body: Record<string, un
 }
 
 /** Terbitkan PO — kunci barisnya sebagai revisi ke-1 (PRD PO1, PO2). */
-async function terbitkan(id: string, body: Record<string, unknown>, env: Env, userId: string) {
+async function terbitkan(id: string, body: Record<string, unknown>, env: Env, userId: string, akses: Akses) {
   const aku = await profilPemakai(userId, env);
-  if (!PERAN_PENERBIT.includes(aku.peran))
-    return ok({ error: pesanPeran(aku.peran) }, 403);
+  if (!bolehTerbitkanPO(aku, akses)) {
+    // Dua sebab penolakan — jangan disamakan pesannya, supaya yang bersangkutan
+    // tahu apa yang harus diperbaiki (peran Master CRM, atau izin ubah akun).
+    const sebab = PERAN_PENERBIT.includes(aku.peran)
+      ? 'Akun Anda dibatasi hanya-lihat, jadi tidak berwenang menerbitkan atau merevisi PO'
+      : pesanTidakBerwenang(aku);
+    return ok({ error: sebab }, 403);
+  }
 
   const po = await env.sph_management_db.prepare('SELECT * FROM po_pabrik WHERE id=?').bind(id)
     .first<{ id_lead: string; rev_terakhir: number; no_po: string }>();
@@ -327,7 +381,40 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     switch (resource) {
       case 'po':
         if (method === 'GET') return id ? detail(id, env, akses) : daftar(url, env, akses);
-        if (method === 'POST' || method === 'PUT') return simpan(method, id, body, env, session.user_id);
+        if (method === 'POST' || method === 'PUT') {
+          // Gerbang wewenang ubah. Dulu cabang ini TIDAK memeriksa apa pun:
+          // siapa pun yang bisa mencapai /api/po (izin halaman `po`) bebas
+          // mengubah PO mana pun, termasuk akun yang izinnya sengaja hanya
+          // "lihat" (cakupanUbah = 'tidak'). Modul SPH dan Survey sudah lama
+          // menolak kasus ini — PO ketinggalan, jadi aturannya disamakan.
+          if (akses.cakupanUbah === 'tidak') {
+            return ok({ error: 'Peran Anda tidak berwenang mengubah data.' }, 403);
+          }
+          // Kepemilikan mengikuti sales pemilik lead — sama seperti daftar()
+          // dan detail() di atas, supaya orang tidak bisa mengubah PO yang
+          // bahkan tidak boleh ia buka.
+          if (method === 'PUT') {
+            if (!id) return ok({ error: 'id wajib diisi' }, 400);
+            const milik = await env.sph_management_db
+              .prepare('SELECT l.sales FROM po_pabrik p LEFT JOIN crm_leads l ON l.id=p.id_lead WHERE p.id=?')
+              .bind(id).first<{ sales: string | null }>();
+            if (!milik) return ok({ error: 'PO tidak ditemukan' }, 404);
+            if (!bolehSentuh(akses, milik.sales, 'ubah')) {
+              return ok({ error: 'PO ini bukan milik Anda, tidak dapat diubah.' }, 403);
+            }
+          } else {
+            const idLeadBaru = String(body.id_lead || '');
+            if (idLeadBaru) {
+              const leadBaru = await env.sph_management_db
+                .prepare('SELECT sales FROM crm_leads WHERE id=?').bind(idLeadBaru)
+                .first<{ sales: string | null }>();
+              if (!bolehSentuh(akses, leadBaru?.sales, 'ubah')) {
+                return ok({ error: 'Proyek ini bukan milik Anda, PO tidak dapat dibuat.' }, 403);
+              }
+            }
+          }
+          return simpan(method, id, body, env, session.user_id);
+        }
         if (method === 'DELETE') {
           if (!id) return ok({ error: 'id wajib diisi' }, 400);
           // Menghapus PO menghapus riwayat revisinya sekaligus — tidak bisa
@@ -349,12 +436,12 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       case 'terbit': {
         if (method !== 'POST') break;
         if (!id) return ok({ error: 'id wajib diisi' }, 400);
-        return terbitkan(id, body, env, session.user_id);
+        return terbitkan(id, body, env, session.user_id, akses);
       }
       case 'revisi': {
         if (method !== 'POST') break;
         if (!id) return ok({ error: 'id wajib diisi' }, 400);
-        return revisiBaru(id, body, env, session.user_id);
+        return revisiBaru(id, body, env, session.user_id, akses);
       }
     }
     return ok({ error: `Aksi tidak dikenal: ${method} ${resource}` }, 405);

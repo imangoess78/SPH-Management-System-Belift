@@ -1,6 +1,6 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
-import { json, wajibHalaman, type Akses } from '../lib/akses';
+import { bolehSentuh, json, wajibHalaman, type Akses } from '../lib/akses';
 
 interface Env { sph_management_db: D1Database }
 
@@ -110,10 +110,32 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
         .map(([k, v]) => [k, jsonColumns.has(k) && typeof v !== 'string' ? JSON.stringify(v) : v]),
     );
 
-    // Dokumen baru otomatis milik pembuatnya bila belum ditentukan.
-    if (request.method === 'POST' && !boleh(akses.izin, 'ubah_semua')) {
-      clean.user_id = akses.userId;
-      if (!clean.nama_sales) clean.nama_sales = akses.namaSales;
+    // ── Pemilik dokumen TIDAK boleh ditentukan sendiri oleh pengirim ──
+    //
+    // LUBANG YANG PERNAH ADA: `user_id` dan `nama_sales` datang di dalam body
+    // dan langsung ditulis apa adanya. Seorang sales (punya `ubah_sendiri`,
+    // TANPA `ubah_semua`) cukup menyertakan `user_id` sales lain saat menyimpan
+    // untuk MEMINDAHKAN dokumennya ke orang itu — atau mengosongkan `nama_sales`
+    // supaya dokumennya tidak lagi dianggap milik siapa pun. Pemeriksaan
+    // `batasPemilik` di atas tidak menangkapnya karena dokumen itu memang masih
+    // milik si pengirim saat diperiksa; kepemilikannya baru diubah setelahnya.
+    //
+    // Pengirim hanya boleh mengisi pemilik saat MEMBUAT dokumen, dan hanya
+    // untuk dirinya sendiri. Untuk mengubah kepemilikan, perlu `ubah_semua`.
+    if (!boleh(akses.izin, 'ubah_semua')) {
+      if (request.method === 'POST') {
+        clean.user_id = akses.userId;
+        if (!clean.nama_sales) clean.nama_sales = akses.namaSales;
+      } else {
+        // PUT — kolom pemilik diabaikan, JANGAN tolak seluruh simpan: klien
+        // memang selalu mengirim `user_id` (diri sendiri) di setiap penyimpanan,
+        // jadi menolak akan mematikan penyimpanan sales sepenuhnya. Yang
+        // dibuang hanya nilainya bila menunjuk ke orang lain atau kosong.
+        delete clean.user_id;
+        if ('nama_sales' in clean && !bolehSentuh(akses, clean.nama_sales as string, 'ubah')) {
+          delete clean.nama_sales;
+        }
+      }
     }
 
     if (request.method === 'PUT') {
