@@ -1,6 +1,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
 import { bolehSentuh, saringPemilik, wajibHalaman, wajibSalahSatu, type Akses } from '../lib/akses';
+import { pindahkanStatus } from '../lib/riwayat';
 
 interface Env { sph_management_db: D1Database }
 
@@ -268,9 +269,11 @@ async function simpan(method: string, id: string | null, body: Record<string, un
   await env.sph_management_db.prepare(`UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?`)
     .bind(jenis === 'final' ? 'FinalSurvey' : 'Survey', now, idLead).run();
   if (jenis === 'sales') {
-    await env.sph_management_db
-      .prepare(`UPDATE crm_leads SET status_terakhir='Survey Dijadwalkan', updated_at=? WHERE id=? AND status_terakhir IN ('Lead Baru','Kontak Pertama Dilakukan','Survey Dijadwalkan')`)
-      .bind(now, idLead).run();
+    // Status lead ikut maju, dan perpindahannya WAJIB meninggalkan jejak —
+    // dulu tidak, sehingga lead berpindah kolom di Kanban tanpa catatan.
+    await pindahkanStatus(env, idLead, 'Survey Dijadwalkan', aku.nama,
+      'Survey Sales dibuat',
+      { statusAwal: ['Lead Baru', 'Kontak Pertama Dilakukan', 'Survey Dijadwalkan'], waktu: now });
   }
 
   return ok({ ok: true, id: newId, kode_proyek: kolom.kode_proyek });
@@ -297,9 +300,8 @@ async function kunci(id: string, aksi: 'kunci' | 'buka', body: Record<string, un
     await catat('survey', id, 'Dikunci', aku.nama, alasan, env);
     await env.sph_management_db.prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
       .bind('PO', now, row.id_lead).run();
-    await env.sph_management_db
-      .prepare(`UPDATE crm_leads SET status_terakhir='Final Survey Selesai', updated_at=? WHERE id=?`)
-      .bind(now, row.id_lead).run();
+    await pindahkanStatus(env, row.id_lead, 'Final Survey Selesai', aku.nama,
+      'Final Survey dikunci', { waktu: now });
     return ok({ ok: true, terkunci: true, dikunci_oleh: aku.nama, dikunci_pada: now });
   }
 

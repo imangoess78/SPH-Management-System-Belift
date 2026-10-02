@@ -1,6 +1,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
 import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
+import { pindahkanStatus } from '../lib/riwayat';
 
 interface Env { sph_management_db: D1Database }
 
@@ -352,9 +353,14 @@ async function terbitkan(id: string, body: Record<string, unknown>, env: Env, us
     perubahan.length ? `${perubahan.length} perubahan` : null);
 
   // Status lead & proyek
+  // `status_po` ikut terisi di kolomnya sendiri, jadi ditulis terpisah;
+  // perpindahan `status_terakhir`-nya tetap lewat pindahkanStatus supaya
+  // tercatat di riwayat — dulu tidak, sehingga PO terbit tidak berjejak.
   await env.sph_management_db
-    .prepare(`UPDATE crm_leads SET status_terakhir='PO Terbit ke Pabrik', status_po=?, updated_at=? WHERE id=?`)
+    .prepare(`UPDATE crm_leads SET status_po=?, updated_at=? WHERE id=?`)
     .bind(rev === 1 ? 'PO Terbit' : `PO Rev ${rev}`, now, po.id_lead).run();
+  await pindahkanStatus(env, po.id_lead, 'PO Terbit ke Pabrik', aku.nama,
+    rev === 1 ? 'PO diterbitkan ke pabrik' : `PO revisi ke-${rev} diterbitkan`, { waktu: now });
   await env.sph_management_db.prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
     .bind('PO', now, po.id_lead).run();
 

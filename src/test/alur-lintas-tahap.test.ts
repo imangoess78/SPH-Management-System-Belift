@@ -89,15 +89,36 @@ describe('urutan riwayat tidak dipotong ke detik', () => {
 });
 
 describe('lintas tahap', () => {
-  it('kunci Final Survey memajukan lead & proyek', () => {
+  it('kunci Final Survey memajukan lead & proyek, dan berjejak', () => {
     const i = SURVEY.indexOf('async function kunci');
     const isi = SURVEY.slice(i, i + 1600);
-    expect(isi).toContain("status_terakhir='Final Survey Selesai'");
+    // Status lead berpindah lewat pindahkanStatus — bukan UPDATE mentah —
+    // supaya perpindahannya ikut tercatat di crm_lead_riwayat.
+    expect(isi).toContain("pindahkanStatus(env, row.id_lead, 'Final Survey Selesai'");
+    expect(isi).not.toContain("status_terakhir='Final Survey Selesai'");
     expect(isi).toMatch(/tahap_sekarang=\?[\s\S]{0,200}'PO'/);
   });
 
-  it('PO terbit memindahkan lead ke PO Terbit ke Pabrik', () => {
-    expect(PO).toContain("status_terakhir='PO Terbit ke Pabrik'");
+  it('PO terbit memindahkan lead ke PO Terbit ke Pabrik, dan berjejak', () => {
+    const i = PO.indexOf('async function terbitkan');
+    const isi = PO.slice(i, i + 4000);
+    expect(isi).toContain("pindahkanStatus(env, po.id_lead, 'PO Terbit ke Pabrik'");
+    // Kolom status_po tetap terisi sendiri (dipakai tampilan PO).
+    expect(isi).toContain('SET status_po=?');
+  });
+
+  it('perpindahan status otomatis selalu meninggalkan jejak riwayat', () => {
+    // Tiga perpindahan otomatis: Survey Sales dibuat, Final Survey dikunci,
+    // PO terbit. Dulu ketiganya UPDATE mentah tanpa riwayat — lead berpindah
+    // kolom di Kanban tanpa catatan siapa dan kenapa.
+    const mentah = [
+      (SURVEY.match(/status_terakhir\s*=\s*'/g) || []),
+      (PO.match(/status_terakhir\s*=\s*'/g) || []),
+    ].flat();
+    expect(
+      mentah,
+      'ada UPDATE status_terakhir mentah — pakai pindahkanStatus supaya berjejak',
+    ).toEqual([]);
   });
 
   it('revisi PO membandingkan dt Final Survey, bukan body permintaan', () => {
