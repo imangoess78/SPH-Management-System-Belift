@@ -70,7 +70,23 @@ beforeEach(() => {
       oleh        TEXT,
       catatan     TEXT
     );
+    CREATE TABLE crm_ref_status (
+      status  TEXT PRIMARY KEY,
+      urutan  INTEGER NOT NULL
+    );
   `);
+  // Urutan resmi tahapan, disalin dari Master CRM produksi.
+  const urut: [string, number][] = [
+    ['Lead Baru', 10], ['Kontak Pertama Dilakukan', 20], ['Survey Dijadwalkan', 30],
+    ['Survey Selesai', 40], ['Hitung Harga 3 Lingkup', 50], ['SPH Terkirim', 60],
+    ['Negosiasi', 70], ['Menunggu Approval Diskon', 80], ['Deal - Menunggu Dokumen', 90],
+    ['SPK Disusun', 100], ['SPK Bernomor & Terkirim', 110], ['SPK Ditandatangani + DP', 120],
+    ['Final Survey Dijadwalkan', 121], ['Final Survey Selesai', 122],
+    ['PO Terbit ke Pabrik', 125], ['KOM Terjadwal', 130],
+    ['Selesai - Pindah ke File 00', 140], ['Gugur', 900],
+  ];
+  const ins = sqlite.prepare('INSERT INTO crm_ref_status (status, urutan) VALUES (?,?)');
+  for (const [s, u] of urut) ins.run(s, u);
   env = { sph_management_db: keD1(sqlite) };
 });
 
@@ -167,6 +183,70 @@ describe('alur penuh — tiga perpindahan otomatis, tiga jejak', () => {
     await pindahkanStatus(env, 'L10', 'Survey Dijadwalkan', 'A', 'Survey Sales dibuat');
     await pindahkanStatus(env, 'L10', 'Survey Dijadwalkan', 'A', 'Survey Sales dibuat');
     expect(riwayat('L10')).toHaveLength(1);
+  });
+});
+
+describe('cegah perpindahan mundur', () => {
+  it('kunci ulang Final Survey TIDAK menarik lead mundur dari PO', async () => {
+    taruhLead('L20', 'PO Terbit ke Pabrik');
+
+    // Kunci ulang Final Survey memanggil ini lagi. Dulu tanpa penjaga,
+    // lead mundur 125 -> 122 dan riwayatnya mencatat kemunduran palsu.
+    const hasil = await pindahkanStatus(
+      env, 'L20', 'Final Survey Selesai', 'Admin', 'Final Survey dikunci');
+
+    expect(hasil).toBe('mundur');
+    expect(statusLead('L20')).toBe('PO Terbit ke Pabrik');
+    expect(riwayat('L20')).toHaveLength(0);
+  });
+
+  it('maju tetap boleh — urutan naik tidak dihalangi', async () => {
+    taruhLead('L21', 'SPH Terkirim');
+    const hasil = await pindahkanStatus(
+      env, 'L21', 'PO Terbit ke Pabrik', 'Admin', 'PO diterbitkan ke pabrik');
+    expect(hasil).toBe('berpindah');
+    expect(statusLead('L21')).toBe('PO Terbit ke Pabrik');
+  });
+
+  it('bolehMundur:true melewati penjaga (untuk pembatalan yang disengaja)', async () => {
+    taruhLead('L22', 'PO Terbit ke Pabrik');
+    const hasil = await pindahkanStatus(
+      env, 'L22', 'Final Survey Selesai', 'Admin', 'PO dibatalkan', { bolehMundur: true });
+    expect(hasil).toBe('berpindah');
+    expect(statusLead('L22')).toBe('Final Survey Selesai');
+    expect(riwayat('L22')).toHaveLength(1);
+  });
+
+  it('status tak dikenal tidak memblokir (urutan tak bisa dibandingkan)', async () => {
+    taruhLead('L23', 'Status Antah Berantah');
+    const hasil = await pindahkanStatus(
+      env, 'L23', 'Survey Dijadwalkan', 'Admin', 'maju dari status tak dikenal');
+    expect(hasil).toBe('berpindah');
+  });
+
+  it('lompat jauh ke depan tetap dibolehkan (alur tidak kaku)', async () => {
+    taruhLead('L24', 'Lead Baru');
+    const hasil = await pindahkanStatus(
+      env, 'L24', 'Selesai - Pindah ke File 00', 'Admin', 'dilompati');
+    expect(hasil).toBe('berpindah');
+  });
+  it('hanyaMaju:true mengembalikan "sudah-lewat", bukan gagal', async () => {
+    taruhLead('L25', 'PO Terbit ke Pabrik');
+    const hasil = await pindahkanStatus(
+      env, 'L25', 'Final Survey Selesai', 'Admin', 'Final Survey dikunci',
+      { hanyaMaju: true });
+    expect(hasil).toBe('sudah-lewat');
+    expect(statusLead('L25')).toBe('PO Terbit ke Pabrik');
+    expect(riwayat('L25')).toHaveLength(0);
+  });
+
+  it('hanyaMaju:true tetap MAJU kalau lead belum sampai', async () => {
+    taruhLead('L26', 'SPH Terkirim');
+    const hasil = await pindahkanStatus(
+      env, 'L26', 'Final Survey Selesai', 'Admin', 'Final Survey dikunci',
+      { hanyaMaju: true });
+    expect(hasil).toBe('berpindah');
+    expect(statusLead('L26')).toBe('Final Survey Selesai');
   });
 });
 

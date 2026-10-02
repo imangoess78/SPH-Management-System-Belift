@@ -273,7 +273,7 @@ async function simpan(method: string, id: string | null, body: Record<string, un
     // dulu tidak, sehingga lead berpindah kolom di Kanban tanpa catatan.
     await pindahkanStatus(env, idLead, 'Survey Dijadwalkan', aku.nama,
       'Survey Sales dibuat',
-      { statusAwal: ['Lead Baru', 'Kontak Pertama Dilakukan', 'Survey Dijadwalkan'], waktu: now });
+      { statusAwal: ['Lead Baru', 'Kontak Pertama Dilakukan', 'Survey Dijadwalkan'], waktu: now, hanyaMaju: true });
   }
 
   return ok({ ok: true, id: newId, kode_proyek: kolom.kode_proyek });
@@ -301,7 +301,7 @@ async function kunci(id: string, aksi: 'kunci' | 'buka', body: Record<string, un
     await env.sph_management_db.prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
       .bind('PO', now, row.id_lead).run();
     await pindahkanStatus(env, row.id_lead, 'Final Survey Selesai', aku.nama,
-      'Final Survey dikunci', { waktu: now });
+      'Final Survey dikunci', { waktu: now, hanyaMaju: true });
     return ok({ ok: true, terkunci: true, dikunci_oleh: aku.nama, dikunci_pada: now });
   }
 

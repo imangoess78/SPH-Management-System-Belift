@@ -360,7 +360,8 @@ async function terbitkan(id: string, body: Record<string, unknown>, env: Env, us
     .prepare(`UPDATE crm_leads SET status_po=?, updated_at=? WHERE id=?`)
     .bind(rev === 1 ? 'PO Terbit' : `PO Rev ${rev}`, now, po.id_lead).run();
   await pindahkanStatus(env, po.id_lead, 'PO Terbit ke Pabrik', aku.nama,
-    rev === 1 ? 'PO diterbitkan ke pabrik' : `PO revisi ke-${rev} diterbitkan`, { waktu: now });
+    rev === 1 ? 'PO diterbitkan ke pabrik' : `PO revisi ke-${rev} diterbitkan`,
+    { waktu: now, hanyaMaju: true });
   await env.sph_management_db.prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
     .bind('PO', now, po.id_lead).run();
 
