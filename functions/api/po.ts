@@ -50,9 +50,11 @@ async function getSession(request: Request, env: Env) {
 const PERAN_PENERBIT = ['Operasional', 'Direktur', 'Manager', 'Admin Sistem'];
 
 async function profilPemakai(userId: string, env: Env) {
+  // Mulai dari app_users, bukan profiles: tabel `profiles` tidak pernah diisi
+  // aplikasi, jadi memulai query dari sana membuat nama selalu 'Pengguna'.
   const p = await env.sph_management_db
-    .prepare(`SELECT p.full_name, p.email, u.email AS email_login, u.role
-              FROM profiles p LEFT JOIN app_users u ON u.id = p.user_id WHERE p.user_id=?`)
+    .prepare(`SELECT p.full_name, COALESCE(u.email, p.email) AS email, u.email AS email_login, u.role
+              FROM app_users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id=?`)
     .bind(userId).first<{ full_name: string | null; email: string | null; email_login: string | null; role: string | null }>();
   const email = (p?.email || p?.email_login || '').toLowerCase();
   const nama = p?.full_name || p?.email_login || 'Pengguna';
@@ -219,7 +221,7 @@ async function detail(id: string, env: Env, akses: Akses) {
   const revisi = await env.sph_management_db
     .prepare('SELECT * FROM po_revisi WHERE id_po=? ORDER BY rev DESC').bind(id).all();
   const riwayat = await env.sph_management_db
-    .prepare(`SELECT * FROM survey_riwayat WHERE jenis='po' AND id_ref=? ORDER BY datetime(waktu) DESC LIMIT 100`)
+    .prepare(`SELECT * FROM survey_riwayat WHERE jenis='po' AND id_ref=? ORDER BY waktu DESC LIMIT 100`)
     .bind(id).all();
   const final = await env.sph_management_db
     .prepare(`SELECT dt, terkunci, dikunci_oleh, dikunci_pada, no_survey FROM survey_teknis WHERE id_lead=? AND jenis='final' LIMIT 1`)

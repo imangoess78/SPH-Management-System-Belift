@@ -44,10 +44,15 @@ async function getSession(request: Request, env: Env) {
 
 /** Nama tampilan pemakai — untuk kolom "Diubah Oleh". */
 async function namaPemakai(userId: string, env: Env): Promise<string> {
+  // Utamakan nama dari app_users.full_name. Tabel `profiles` dibiarkan sebagai
+  // cadangan saja: aplikasi tidak pernah mengisinya, dan memulai query dari
+  // sana membuat kolom "Diubah Oleh" selalu tertulis 'Pengguna'.
   const p = await env.sph_management_db
-    .prepare('SELECT full_name, email FROM profiles WHERE user_id=?').bind(userId)
-    .first<{ full_name: string | null; email: string | null }>();
-  return p?.full_name || p?.email || 'Pengguna';
+    .prepare(`SELECT COALESCE(p.full_name, u.full_name) AS nama, u.email
+              FROM app_users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id=?`)
+    .bind(userId)
+    .first<{ nama: string | null; email: string | null }>();
+  return p?.nama || p?.email || 'Pengguna';
 }
 
 /** Hitung skor: tiap kriteria "Ya" bernilai 20 poin. */
@@ -198,7 +203,10 @@ async function detailLead(id: string, env: Env, akses: Akses) {
     return ok({ error: 'Lead ini bukan milik Anda.' }, 403);
   }
   const riwayat = await env.sph_management_db
-    .prepare('SELECT * FROM crm_lead_riwayat WHERE id_lead=? ORDER BY datetime(waktu) DESC LIMIT 50').bind(id).all();
+    // Urutkan dengan kolom teks ISO apa adanya. datetime(waktu) memotong
+    // milidetik, sehingga beberapa perubahan di detik yang sama tampil
+    // dalam urutan acak — jejak audit jadi menyesatkan.
+    .prepare('SELECT * FROM crm_lead_riwayat WHERE id_lead=? ORDER BY waktu DESC LIMIT 50').bind(id).all();
   const dokumen = await env.sph_management_db
     .prepare('SELECT * FROM crm_dokumen WHERE id_lead=? ORDER BY datetime(created_at) DESC').bind(id).all();
   return ok({ data: bersihkanLead(row as Record<string, unknown>), riwayat: riwayat.results || [], dokumen: dokumen.results || [] });
@@ -251,6 +259,18 @@ async function simpanLead(method: string, id: string | null, body: Record<string
   if ('nilai_sph' in kolom && Number(kolom.nilai_sph) > 0 && !String(gabung.no_sph || '').trim())
     return ok({ error: 'No SPH wajib diisi kalau Nilai SPH diisi' }, 400);
 
+  // 5c. Status wajib salah satu status resmi di Master CRM.
+  //     LOMPAT status diperbolehkan (alur tidak kaku) — lead boleh maju
+  //     beberapa langkah sekaligus, itu keputusan tim. Yang ditolak hanya
+  //     status KARANGAN: dulu server menerima apa saja, dan lead dengan
+  //     status tak dikenal hilang dari seluruh kolom Kanban lalu mendarat di
+  //     keranjang "Status tak dikenal" — tim sales tidak bisa menemukannya.
+  if (statusBaru) {
+    const resmi = await env.sph_management_db
+      .prepare('SELECT 1 FROM crm_ref_status WHERE status=? LIMIT 1').bind(statusBaru).first();
+    if (!resmi) return ok({ error: `Status "${statusBaru}" tidak dikenal di Master CRM` }, 400);
+  }
+
   // 6. Foto lokasi disimpan sebagai JSON
   if ('foto_lokasi' in kolom) kolom.foto_lokasi = JSON.stringify(parseFoto(kolom.foto_lokasi));
 
@@ -270,14 +290,19 @@ async function simpanLead(method: string, id: string | null, body: Record<string
       const next = last?.kode_lead ? Number(last.kode_lead.split('-')[1]) + 1 : 1;
       kode = `LEAD-${String(next).padStart(4, '0')}`;
     }
+    // Status awal WAJIB ikut tersimpan di barisnya, bukan hanya di riwayat.
+    // Dulu kolomnya dibiarkan NULL dan riwayat menulis 'Lead Baru', sehingga
+    // catatan riwayat tidak cocok dengan datanya sendiri: perubahan status
+    // pertama mencatat dari_status=NULL (seolah belum pernah punya status),
+    // padahal lead baru selalu mulai dari 'Lead Baru'.
+    if (!kolom.status_terakhir) kolom.status_terakhir = 'Lead Baru';
     const entries = Object.entries({ ...kolom, kode_lead: kode, id: newId, created_at: now, updated_at: now });
     await env.sph_management_db
       .prepare(`INSERT INTO crm_leads (${entries.map(([k]) => k).join(',')}) VALUES (${entries.map(() => '?').join(',')})`)
       .bind(...entries.map(([, v]) => v)).run();
-    await catatRiwayat(newId, null, (kolom.status_terakhir as string) || 'Lead Baru', oleh, 'Lead dibuat', env);
+    await catatRiwayat(newId, null, kolom.status_terakhir as string, oleh, 'Lead dibuat', env);
     return ok({ ok: true, id: newId, kode_lead: kode, skor, kualifikasi });
   }
-
   // PUT
   if (!id) return ok({ error: 'id wajib diisi' }, 400);
 

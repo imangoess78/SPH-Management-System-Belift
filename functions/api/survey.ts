@@ -41,9 +41,13 @@ async function getSession(request: Request, env: Env) {
 
 /** Peran + nama pemakai dari crm_ref_sales (dicocokkan email lalu nama). */
 async function profilPemakai(userId: string, env: Env) {
+  // Sumber utama adalah app_users. Tabel `profiles` TIDAK PERNAH diisi oleh
+  // aplikasi (tidak ada satu pun INSERT ke sana), jadi memulai query dari
+  // `profiles` membuat seluruh pengambilan gagal dan nama selalu jatuh ke
+  // 'Pengguna'. app_users selalu ada untuk setiap akun yang bisa login.
   const p = await env.sph_management_db
-    .prepare(`SELECT p.full_name, p.email, u.email AS email_login, u.role
-              FROM profiles p LEFT JOIN app_users u ON u.id = p.user_id WHERE p.user_id=?`)
+    .prepare(`SELECT p.full_name, COALESCE(u.email, p.email) AS email, u.email AS email_login, u.role
+              FROM app_users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id=?`)
     .bind(userId).first<{ full_name: string | null; email: string | null; email_login: string | null; role: string | null }>();
   const email = (p?.email || p?.email_login || '').toLowerCase();
   const nama = p?.full_name || p?.email_login || 'Pengguna';
@@ -201,7 +205,7 @@ async function detail(id: string, env: Env, akses: Akses) {
   }
 
   const riwayat = await env.sph_management_db
-    .prepare(`SELECT * FROM survey_riwayat WHERE jenis='survey' AND id_ref=? ORDER BY datetime(waktu) DESC LIMIT 100`)
+    .prepare(`SELECT * FROM survey_riwayat WHERE jenis='survey' AND id_ref=? ORDER BY waktu DESC LIMIT 100`)
     .bind(id).all();
 
   return ok({ data: urai(row as Record<string, unknown>), riwayat: riwayat.results || [] });
@@ -352,7 +356,7 @@ async function lacak(idLead: string, env: Env, akses: Akses) {
     .prepare(`SELECT r.* FROM survey_riwayat r
               WHERE (r.jenis='survey' AND r.id_ref IN (SELECT id FROM survey_teknis WHERE id_lead=?))
                  OR (r.jenis='po'     AND r.id_ref IN (SELECT id FROM po_pabrik    WHERE id_lead=?))
-              ORDER BY datetime(r.waktu) DESC LIMIT 200`).bind(idLead, idLead).all();
+              ORDER BY r.waktu DESC LIMIT 200`).bind(idLead, idLead).all();
 
   const surveys = (survey.results || []).map(s => urai(s as Record<string, unknown>));
   const sales = surveys.find(s => (s as { jenis: string }).jenis === 'sales') || null;
