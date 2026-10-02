@@ -111,6 +111,10 @@ export const poApi = {
   revisi: (id: string, alasan?: string) =>
     minta<{ ok: boolean; rev: number; jml_perubahan: number; perubahan: PerubahanField[] }>(P,
       { resource: 'revisi', id }, { method: 'POST', body: JSON.stringify({ alasan }) }),
+  /** Batalkan PO yang sudah terbit. Alasan wajib — tercatat di riwayat. */
+  batal: (id: string, alasan: string) =>
+    minta<{ ok: boolean; sudah?: boolean; alasan?: string }>(P,
+      { resource: 'batal', id }, { method: 'POST', body: JSON.stringify({ alasan }) }),
 };
 
 // ── Mesin selisih di sisi layar (dipakai untuk pratinjau sebelum simpan) ──

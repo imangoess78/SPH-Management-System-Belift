@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Save, Send, GitCompare, Printer, Lock, Unlock, AlertTriangle, History, Factory, Eye,
+  ArrowLeft, Save, Send, GitCompare, Printer, Lock, Unlock, AlertTriangle, History, Factory, Eye, Ban,
 } from 'lucide-react';
 import { poApi, type BalikanPoDetail } from '@/lib/survey-api';
 import { cetakPo, salinRingkasPo } from '@/lib/survey-cetak';
@@ -104,6 +104,23 @@ export default function PoDetail() {
     finally { setSibuk(false); }
   };
 
+  const batalkanPo = async () => {
+    if (!id) return;
+    const alasan = prompt(
+      `Batalkan PO ${d?.data.no_po}?\n\n` +
+      'Status lead akan ditarik kembali ke "Final Survey Selesai" dan pabrik diberi tahu.\n' +
+      'Riwayat revisi tetap tersimpan. Jelaskan alasan pembatalan (tercatat):');
+    if (!alasan?.trim()) { toast.error('Alasan wajib diisi'); return; }
+    setSibuk(true);
+    try {
+      const r = await poApi.batal(id, alasan.trim());
+      toast.success('PO dibatalkan — status lead dikembalikan ke Final Survey Selesai');
+      void r;
+      muat();
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Gagal membatalkan PO'); }
+    finally { setSibuk(false); }
+  };
+
   if (memuat) return <div className="p-8 text-center text-muted-foreground">Memuat…</div>;
   if (!d) return <div className="p-8 text-center text-muted-foreground">PO tidak ditemukan.</div>;
 
@@ -111,6 +128,7 @@ export default function PoDetail() {
   const revTerbit = po.rev_terakhir || 0;
   const finalTerkunci = !!d.revisi.length;
   const revisiTerakhir = d.revisi[0];
+  const dibatalkan = String(po.status || '') === 'Batal';
 
   return (
     <div className="space-y-4">
@@ -123,7 +141,11 @@ export default function PoDetail() {
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Factory className="w-5 h-5 text-muted-foreground" />
             <span className="font-mono">{po.no_po || 'PO belum bernomor'}</span>
-            {revTerbit > 0 && (
+            {dibatalkan ? (
+              <span className="px-2 py-0.5 rounded-full border text-[11px] font-semibold bg-rose-50 text-rose-700 border-rose-200">
+                Dibatalkan
+              </span>
+            ) : revTerbit > 0 && (
               <span className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold ${
                 revTerbit > 1 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
                 {revTerbit > 1 ? `Revisi ${revTerbit}` : 'Terbit'}
@@ -161,13 +183,31 @@ export default function PoDetail() {
               <Send className="w-4 h-4 mr-1.5" /> Terbitkan PO
             </Button>
           )}
-          {bolehTerbit && revTerbit > 0 && (
+          {bolehTerbit && revTerbit > 0 && !dibatalkan && (
             <Button size="sm" onClick={() => terbitkan(true)} disabled={sibuk}>
               <GitCompare className="w-4 h-4 mr-1.5" /> Terbitkan revisi {(revTerbit + 1)}
             </Button>
           )}
+          {bolehTerbit && revTerbit > 0 && !dibatalkan && (
+            <Button variant="outline" size="sm"
+              className="border-rose-200 text-rose-700 hover:bg-rose-50"
+              onClick={batalkanPo} disabled={sibuk}>
+              <Ban className="w-4 h-4 mr-1.5" /> Batalkan PO
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* ── Peringatan PO dibatalkan ── */}
+      {dibatalkan && (
+        <div className="flex items-start gap-2 p-3 rounded-md border border-rose-200 bg-rose-50 text-sm">
+          <Ban className="w-4 h-4 mt-0.5 text-rose-600 shrink-0" />
+          <span>
+            PO ini sudah <strong>dibatalkan</strong>. Riwayat revisinya tetap tersimpan sebagai jejak,
+            tetapi PO ini tidak lagi menjadi acuan pabrik. Alasan pembatalan tercatat di riwayat.
+          </span>
+        </div>
+      )}
 
       {/* ── Peringatan syarat PO1 ── */}
       {revTerbit === 0 && (

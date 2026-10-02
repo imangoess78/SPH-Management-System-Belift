@@ -372,6 +372,65 @@ async function terbitkan(id: string, body: Record<string, unknown>, env: Env, us
 // Fungsi terpisah hanya untuk kejelasan nama aksi di sisi layar.
 const revisiBaru = terbitkan;
 
+/**
+ * BATALKAN PO — kebalikan dari `terbitkan()`, dan satu-satunya tempat
+ * `bolehMundur` dipakai.
+ *
+ * PO yang sudah terbit kadang harus ditarik: pabrik menolak, spesifikasi
+ * berubah, atau proyeknya batal. Sebelum ini satu-satunya jalan adalah
+ * hapus PO — tetapi hapus membuang riwayat revisinya sekaligus, sehingga
+ * jejak "PO ini pernah terbit lalu ditarik" ikut hilang. Membatalkan
+ * mempertahankan riwayat dan menandai PO-nya `Batal`.
+ *
+ * Kenapa `bolehMundur: true`: status lead memang HARUS turun dari
+ * 'PO Terbit ke Pabrik' (125) kembali ke 'Final Survey Selesai' (122).
+ * Penjaga mundur sengaja tidak berlaku di sini — inilah pembatalan yang
+ * disengaja, bukan efek samping. Tanpa opsi itu, membatalkan PO justru
+ * akan ditolak penjaga dan lead tertinggal di status PO.
+ */
+async function batalkan(id: string, body: Record<string, unknown>, env: Env, userId: string, akses: Akses) {
+  const aku = await profilPemakai(userId, env);
+  if (!bolehTerbitkanPO(aku, akses)) {
+    const sebab = PERAN_PENERBIT.includes(aku.peran)
+      ? 'Akun Anda dibatasi hanya-lihat, jadi tidak berwenang membatalkan PO'
+      : pesanTidakBerwenang(aku);
+    return ok({ error: sebab }, 403);
+  }
+
+  const po = await env.sph_management_db
+    .prepare('SELECT id_lead, rev_terakhir, status, no_po FROM po_pabrik WHERE id=?')
+    .bind(id).first<{ id_lead: string; rev_terakhir: number; status: string | null; no_po: string | null }>();
+  if (!po) return ok({ error: 'PO tidak ditemukan' }, 404);
+
+  if (!po.rev_terakhir) return ok({ error: 'PO belum terbit — tidak ada yang perlu dibatalkan' }, 409);
+  if (po.status === 'Batal') return ok({ ok: true, sudah: true });
+
+  // Alasan wajib: pembatalan mengubah acuan pabrik, jadi harus bisa
+  // dipertanggungjawabkan di kemudian hari.
+  const alasan = ((body.alasan as string) || '').trim();
+  if (!alasan) return ok({ error: 'Alasan pembatalan wajib diisi' }, 400);
+
+  const now = new Date().toISOString();
+  await env.sph_management_db
+    .prepare(`UPDATE po_pabrik SET status='Batal', updated_at=? WHERE id=?`)
+    .bind(now, id).run();
+  await catat(id, 'Dibatalkan', aku.nama, alasan, env, po.no_po || null);
+
+  // Status lead ditarik kembali ke tahap sebelum PO. Inilah pemakaian
+  // `bolehMundur` yang disengaja — tanpa itu, penjaga mundur akan menolak
+  // dan lead tertinggal di 'PO Terbit ke Pabrik' padahal PO-nya sudah batal.
+  await pindahkanStatus(env, po.id_lead, 'Final Survey Selesai', aku.nama,
+    `PO dibatalkan: ${alasan}`, { waktu: now, bolehMundur: true });
+  await env.sph_management_db
+    .prepare(`UPDATE crm_leads SET status_po='PO Batal', updated_at=? WHERE id=?`)
+    .bind(now, po.id_lead).run();
+  await env.sph_management_db
+    .prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
+    .bind('FinalSurvey', now, po.id_lead).run();
+
+  return ok({ ok: true, alasan });
+}
+
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   const cek = await wajibHalaman(request, env, 'po');
   if ('tolak' in cek) return cek.tolak;
@@ -451,6 +510,11 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
         if (method !== 'POST') break;
         if (!id) return ok({ error: 'id wajib diisi' }, 400);
         return revisiBaru(id, body, env, session.user_id, akses);
+      }
+      case 'batal': {
+        if (method !== 'POST') break;
+        if (!id) return ok({ error: 'id wajib diisi' }, 400);
+        return batalkan(id, body, env, session.user_id, akses);
       }
     }
     return ok({ error: `Aksi tidak dikenal: ${method} ${resource}` }, 405);
