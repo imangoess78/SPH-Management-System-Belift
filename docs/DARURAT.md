@@ -27,7 +27,7 @@ Kalau memang rusak, lanjut.
 | **A. Sebagian baris hilang/berubah**, tabel masih ada | Yang perlu dikembalikan hanya datanya | Bagian 3, pakai backup apa saja |
 | **B. Tabel rusak/terhapus, database masih ada** | Skema perlu diperbaiki | Bagian 3, pakai backup bertanda ✔ |
 | **C. Database hilang total** | Semua perlu dibangun ulang | Bagian 3, **wajib** backup bertanda ✔ |
-| **D. Berkas foto/desain hilang** | Bukan database | Bagian 6 — **tidak bisa dipulihkan** |
+| **D. Berkas foto/desain hilang** | Bukan database | Bagian 6 — ada salinan luring, **bisa dikembalikan** |
 
 Tingkat C adalah yang paling sering dibayangkan orang, dan justru di situlah
 backup lama (tanpa skema) tidak berguna.
@@ -140,26 +140,86 @@ npx wrangler d1 delete sph-management-db --skip-confirmation
 
 ---
 
-## 6. Yang TIDAK ikut dipulihkan
+## 6. Berkas foto, tanda tangan, dan desain
 
-**Ini bagian yang paling penting untuk diketahui sebelum terjadi masalah.**
+**Ini bagian yang paling penting dipahami sebelum terjadi masalah.**
 
-Backup berisi **database saja**. Berkas berikut ada di R2 (penyimpanan
-terpisah) dan **TIDAK** ada di dalam berkas backup:
+Backup database (Bagian 1–5) berisi **database saja**. Berkas berikut ada di
+R2 (penyimpanan terpisah) dan **TIDAK** ada di dalam berkas backup:
 
-| Berkas | Lokasi | Ikut backup? |
-|---|---|---|
-| Foto survey lapangan | R2 `survey-photos/` | ❌ Tidak |
-| Tanda tangan | R2 `signatures/` | ❌ Tidak |
-| Gambar desain | R2 `design-images/` | ❌ Tidak |
-| Data database (SPH, lead, survey, PO) | D1 | ✔ Ya |
+| Berkas | Lokasi | Ikut backup database? | Ada salinan luring? |
+|---|---|---|---|
+| Foto survey lapangan | R2 `survey-photos/` | ❌ Tidak | ✔ Ya |
+| Tanda tangan | R2 `signatures/` | ❌ Tidak | ✔ Ya |
+| Gambar desain | R2 `design-images/` | ❌ Tidak | ✔ Ya |
+| Data database (SPH, lead, survey, PO) | D1 | ✔ Ya | — |
 
-Artinya: kalau database hilang dan dipulihkan, **datanya kembali tapi foto dan
-tandatangan tidak**. Barisnya ada, isinya kosong.
+Artinya: saat database dipulihkan, **barisnya kembali tapi isi fotonya tidak** —
+barisnya menunjuk ke berkas yang harus masih ada di R2.
 
-**Pencegahan:** R2 jauh lebih jarang hilang daripada database (tidak ada
-skema yang bisa rusak), tapi ini tetap celah yang perlu ditutup. Kalau ini
-penting, beri tahu saya — perlu ditambahkan pencadangan berkas R2 juga.
+### Kenapa disalin ke komputer, bukan ke R2 lagi
+
+Foto-foto itu **sudah** tersimpan di R2. Menyalinnya ke R2 lagi hanya
+menggandakan di tempat yang sama, dan **tidak** menyelamatkan dari kejadian
+yang paling mungkin: akun Cloudflare bermasalah, bucket terhapus, atau salah
+hapus. Salinan luring terpisah dari Cloudflare, jadi tetap aman.
+
+### Salinan luring
+
+Jalan **otomatis tiap Senin 07:00** (waktu mesin ini). Lokasinya:
+
+```
+~/salinan-belift-media/recovery/2026-08-19/
+```
+
+| Perintah | Kegunaan |
+|---|---|
+| `python3 scripts/salin-media.py` | salin yang baru/kurang (aman diulang) |
+| `python3 scripts/salin-media.py --periksa` | periksa tanpa mengunduh |
+| `python3 scripts/salin-media.py --daftar` | lihat isi salinan |
+| `python3 scripts/salin-media.py --pulihkan` | **lihat rencana** pengembalian |
+| `python3 scripts/salin-media.py --pulihkan --jalankan` | **kembalikan** ke Cloudflare |
+
+Perintah `--pulihkan` tanpa `--jalankan` hanya menampilkan **rencana** — tidak
+mengunggah apa pun. Sengaja begitu supaya ada satu langkah untuk berpikir.
+
+**Kalau foto hilang (keadaan D):**
+
+```bash
+cd ~/SPH-Management-System-Belift
+python3 scripts/salin-media.py --pulihkan              # lihat dulu
+python3 scripts/salin-media.py --pulihkan --jalankan   # baru kembalikan
+```
+
+Berkas yang masih ada di R2 **tidak disentuh** — hanya yang hilang atau
+ukurannya berbeda yang diunggah kembali.
+
+> **Bucket ini dipakai bersama.** `belift-media` juga dipakai aplikasi
+> `belift-monitoring` (awalan `reports/` dan `thumbs/`). Skrip ini **hanya**
+> menyentuh awalan `recovery/` milik SPH — sekitar 48 MB dari total 173 MB.
+> Jangan mengubah `AWALAN` di dalam skrip tanpa memeriksa pemakai lain.
+
+### Yang perlu diketahui tentang salinan ini
+
+- **Foto SPH berjumlah ~48 MB** dan disalin ke komputer, **bukan** ke R2.
+- Kalau ada foto **baru** sesudah Senin terakhir, foto itu belum ada di
+  salinan. Jalankan `python3 scripts/salin-media.py` untuk menyusul.
+- Salinan **tidak** menghapus apa pun. Aman dijalankan berkali-kali.
+- Kalau komputer ini sendiri rusak, salinan ini ikut hilang. Untuk SPH ini
+  bisa diterima (jumlahnya kecil); kalau nanti fotonya bertambah banyak,
+  sebaiknya pindahkan ke penyimpanan lain.
+
+### Periksa salinan sekali sebulan
+
+```bash
+python3 scripts/salin-media.py --periksa
+```
+
+Yang perlu dilihat: **`belum disalin: 0`** dan tidak ada peringatan
+**`ADA DI SALINAN TAPI TIDAK ADA DI CLOUDFLARE`**. Peringatan itu berarti ada
+foto hilang di Cloudflare — dan salinan ini satu-satunya yang menyelamatkannya.
+Kalau muncul, **jangan hapus apa pun**, dan jangan jalankan apa pun yang
+menimpa salinan sebelum penyebabnya diketahui.
 
 ---
 
@@ -215,6 +275,9 @@ PERIKSA : lihat isinya, cocokkan dengan yang diingat
 TUKAR   : ubah wrangler.jsonc → deploy
 SIMPAN  : database lama 7 hari, jangan buru-buru hapus
 
+FOTO    : python3 scripts/salin-media.py --periksa
+          python3 scripts/salin-media.py --pulihkan --jalankan
+
 JANGAN  : hapus apa pun sebelum pemulihan diperiksa
-INGAT   : foto & tandatangan TIDAK ikut backup
+INGAT   : database & berkas R2 dipulihkan dengan CARA BERBEDA (Bagian 3 & 6)
 ```
