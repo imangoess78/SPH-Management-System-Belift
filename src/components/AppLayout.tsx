@@ -1,7 +1,8 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck, Calculator, Target, KanbanSquare, Clock3, BadgePercent, Table2, TrendingUp, ClipboardList, ClipboardCheck, Factory, GitCompare, Ruler } from 'lucide-react';
+import { LayoutDashboard, FileText, PlusCircle, Database, Settings, ChevronLeft, Menu, LogOut, User, X, BarChart3, ShieldCheck, Calculator, Target, KanbanSquare, Clock3, BadgePercent, Table2, TrendingUp, ClipboardList, ClipboardCheck, Factory, GitCompare, Ruler, Bell } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useBelumDibaca } from '@/hooks/useBelumDibaca';
 import type { KunciHalaman } from '../../shared/akses';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -10,11 +11,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 // Menu pendukung (Laporan, Master, Kalkulator, Pengaturan) diletakkan paling bawah.
 // `izin` = halaman yang berwenang membuka menu ini. Menu disembunyikan bila
 // akun tidak punya izinnya. Ini hanya kerapian — API tetap menolak sendiri.
-const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof LayoutDashboard; label: string; izin?: KunciHalaman }[] }[] = [
+const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof LayoutDashboard; label: string; izin?: KunciHalaman; lencana?: boolean }[] }[] = [
   {
     judul: null,
     item: [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/notifikasi', icon: Bell, label: 'Notifikasi', izin: 'notifikasi', lencana: true },
     ],
   },
   {
@@ -60,7 +62,7 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
 const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.item);
 
 // Path khusus CRM: harus persis /crm/leads, bukan ikut aktif saat di /crm/leads/123
-const PATH_PERSIS = new Set(['/sph/new', '/spk/new', '/crm/leads', '/crm/kanban', '/crm/diskon', '/crm/dokumen', '/crm/iklan', '/crm/master', '/survey/sales', '/survey/final', '/po']);
+const PATH_PERSIS = new Set(['/sph/new', '/spk/new', '/crm/leads', '/crm/kanban', '/crm/diskon', '/crm/dokumen', '/crm/iklan', '/crm/master', '/survey/sales', '/survey/final', '/po', '/notifikasi']);
 // Path induk yang tetap aktif saat halaman anak dibuka
 const PATH_INDUK = new Set(['/sph', '/spk']);
 // Path yang boleh aktif berdampingan dengan sub-path CRM
@@ -79,6 +81,10 @@ function SidebarContent({
 }) {
   const location = useLocation();
   const { fullName, role, signOut, izin: daftarIzin } = useAuth();
+  // Lencana belum-dibaca. `null` berarti belum/tidak diketahui — dalam hal itu
+  // tidak ada lencana sama sekali, karena menampilkan 0 saat permintaan gagal
+  // akan menyatakan "sudah dibaca semua" padahal belum tentu.
+  const { jumlah: belumDibaca } = useBelumDibaca();
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -130,11 +136,26 @@ function SidebarContent({
                         <Link
                           to={it.to}
                           onClick={onClose}
-                          aria-label={it.label}
-                          className={`nav-item ${active ? 'nav-item-active' : ''}`}
+                          aria-label={it.lencana && belumDibaca ? `${it.label}, ${belumDibaca} belum dibaca` : it.label}
+                          className={`nav-item relative ${active ? 'nav-item-active' : ''}`}
                         >
                           <it.icon className="w-4 h-4 shrink-0" />
-                          {(!collapsed || isMobileOverlay) && <span>{it.label}</span>}
+                          {(!collapsed || isMobileOverlay) && <span className="flex-1">{it.label}</span>}
+                          {/* Lencana jumlah belum dibaca. Saat sidebar menciut
+                              hanya titik kecil yang muat, jadi angkanya diganti
+                              titik. Titiknya ditempel ke pojok kanan-atas IKON
+                              (bukan pojok item), karena pada sidebar 64px ikon
+                              berada di kiri dan titik di tepi kanan akan tampak
+                              terlepas dari loncengnya. */}
+                          {it.lencana && !!belumDibaca && (
+                            (collapsed && !isMobileOverlay) ? (
+                              <span className="absolute top-1.5 left-[26px] w-2 h-2 rounded-full bg-destructive ring-2 ring-[hsl(var(--sidebar-background))]" />
+                            ) : (
+                              <span className="ml-auto min-w-[1.25rem] h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center">
+                                {belumDibaca > 99 ? '99+' : belumDibaca}
+                              </span>
+                            )
+                          )}
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent

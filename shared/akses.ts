@@ -26,6 +26,7 @@ export const HALAMAN = [
   { kunci: 'pengaturan', label: 'Pengaturan', grup: 'Halaman', keterangan: 'Pengaturan aplikasi.' },
   { kunci: 'akun', label: 'Manajemen Akun', grup: 'Halaman', keterangan: 'Mengelola akun dan hak akses pengguna lain.' },
   { kunci: 'backup', label: 'Emergency Backup', grup: 'Halaman', keterangan: 'Cadangan data darurat.' },
+  { kunci: 'notifikasi', label: 'Notifikasi', grup: 'Halaman', keterangan: 'Lonceng pemberitahuan alur proyek. Isinya tetap disaring per akun.' },
 ] as const;
 
 /** Batasan data — menentukan data siapa yang boleh dilihat/diubah. */
@@ -101,7 +102,7 @@ export const IZIN_PER_PERAN: Record<Peran, KunciIzin[] | typeof SEMUA> = {
   // mengubah data operasional dan tidak mengelola akun.
   direktur: [
     'dashboard', 'crm', 'sph', 'survey_sales', 'survey_final', 'po',
-    'laporan', 'master', 'kalkulator',
+    'laporan', 'master', 'kalkulator', 'notifikasi',
     'lihat_sendiri', 'lihat_semua', 'ubah_sendiri',
     'approve_diskon', 'kunci_final',
   ],
@@ -109,14 +110,14 @@ export const IZIN_PER_PERAN: Record<Peran, KunciIzin[] | typeof SEMUA> = {
   // Manager: mengelola tim dan seluruh data, kecuali pengaturan sistem.
   manager: [
     'dashboard', 'crm', 'sph', 'survey_sales', 'survey_final', 'po',
-    'laporan', 'master', 'kalkulator',
+    'laporan', 'master', 'kalkulator', 'notifikasi',
     'lihat_sendiri', 'lihat_semua', 'ubah_sendiri', 'ubah_semua',
     'approve_diskon', 'kunci_final', 'reassign_lead',
   ],
 
   // Sales: hanya data sendiri, dan tidak boleh membuka Laporan / Akun.
   sales: [
-    'dashboard', 'crm', 'sph', 'survey_sales',
+    'dashboard', 'crm', 'sph', 'survey_sales', 'notifikasi',
     'lihat_sendiri', 'ubah_sendiri',
   ],
 
@@ -127,7 +128,7 @@ export const IZIN_PER_PERAN: Record<Peran, KunciIzin[] | typeof SEMUA> = {
   // karena `sph`, `survey_sales`, `survey_final`, dan `po` tetap ada.
   staff: [
     'dashboard', 'sph', 'survey_sales', 'survey_final', 'po',
-    'kalkulator',
+    'kalkulator', 'notifikasi',
     'lihat_sendiri', 'lihat_semua', 'ubah_sendiri', 'ubah_semua',
     'kunci_final',
   ],

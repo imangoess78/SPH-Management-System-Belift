@@ -37,6 +37,7 @@ import PoList from "./pages/po/PoList";
 import PoDetail from "./pages/po/PoDetail";
 import PoPreview from "./pages/po/PoPreview";
 import PoPilihProyek from "./pages/po/PoPilihProyek";
+import Notifikasi from "./pages/Notifikasi";
 
 // Renders SPKNew picker when no ?from= param, otherwise renders SPHForm pre-populated
 function SPKNewOrForm() {
@@ -163,6 +164,7 @@ function AppRoutes() {
               <Route path="/admin/emergency-backup" element={<Boleh izin="backup"><EmergencyBackup /></Boleh>} />
               <Route path="/emergency-backup" element={<Boleh izin="backup"><EmergencyBackup /></Boleh>} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/notifikasi" element={<Boleh izin="notifikasi"><Notifikasi /></Boleh>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>

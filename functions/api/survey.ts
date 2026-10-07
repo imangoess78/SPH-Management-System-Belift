@@ -2,6 +2,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
 import { bolehSentuh, saringPemilik, wajibHalaman, wajibSalahSatu, type Akses } from '../lib/akses';
 import { pindahkanStatus } from '../lib/riwayat';
+import { kirim } from '../lib/notifikasi';
 
 interface Env { sph_management_db: D1Database }
 
@@ -235,6 +236,25 @@ async function simpan(method: string, id: string | null, body: Record<string, un
       .prepare(`UPDATE survey_teknis SET ${entries.map(([k]) => `${k}=?`).join(', ')} WHERE id=?`)
       .bind(...entries.map(([, v]) => v), id).run();
     await catat('survey', id, 'Diubah', aku.nama, null, env);
+
+    // Pemberitahuan: survey disimpan.
+    //
+    // Kuncinya memuat menit kejadian, jadi menyimpan berkali-kali dalam
+    // satu menit hanya menghasilkan SATU pemberitahuan. Orang yang
+    // menekan Simpan tiga kali berturut-turut tidak perlu tiga lonceng
+    // untuk satu pekerjaan yang sama.
+    const lembarFinal = lama.jenis === 'final';
+    const namaProyek = String((lama as unknown as Record<string, unknown>).kode_proyek || 'proyek');
+    await kirim(env, {
+      jenis: lembarFinal ? 'survey_final_selesai' : 'survey_selesai',
+      kunciEvent: `survey-simpan:${id}:${Math.floor(Date.now() / 60000)}`,
+      judul: `${lembarFinal ? 'Final Survey' : 'Survey Sales'} diperbarui: ${namaProyek}`,
+      pesan: `${aku.nama} memperbarui data survey${kolom.status ? ` (status: ${String(kolom.status)})` : ''}.`,
+      tautan: lembarFinal ? '/survey/final' : '/survey/sales',
+      olehNama: aku.nama,
+      tingkat: 'info',
+    });
+
     return ok({ ok: true, id });
   }
 
@@ -264,6 +284,18 @@ async function simpan(method: string, id: string | null, body: Record<string, un
     .bind(...entries.map(([, v]) => v)).run();
 
   await catat('survey', newId, 'Dibuat', aku.nama, null, env, jenis === 'final' ? 'Final Survey' : 'Survey Sales');
+
+  // Pemberitahuan: lembar survey baru dibuat.
+  const lembarFinalBaru = jenis === 'final';
+  await kirim(env, {
+    jenis: lembarFinalBaru ? 'survey_final_selesai' : 'survey_selesai',
+    kunciEvent: `survey-baru:${newId}`,
+    judul: `${lembarFinalBaru ? 'Final Survey' : 'Survey Sales'} dimulai: ${String(kolom.kode_proyek || 'proyek')}`,
+    pesan: `${aku.nama} membuat ${lembarFinalBaru ? 'Final Survey' : 'Survey Sales'} (${String(kolom.no_survey || '-')}).`,
+    tautan: lembarFinalBaru ? '/survey/final' : '/survey/sales',
+    olehNama: aku.nama,
+    tingkat: 'info',
+  });
 
   // Tahap proyek & status lead ikut bergerak
   await env.sph_management_db.prepare(`UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?`)
@@ -302,6 +334,20 @@ async function kunci(id: string, aksi: 'kunci' | 'buka', body: Record<string, un
       .bind('PO', now, row.id_lead).run();
     await pindahkanStatus(env, row.id_lead, 'Final Survey Selesai', aku.nama,
       'Final Survey dikunci', { waktu: now, hanyaMaju: true });
+
+    // Pemberitahuan: momen paling penting di alur. Setelah ini PO boleh
+    // terbit, jadi pengawas perlu tahu proyek sudah siap pesan ke pabrik.
+    // Tingkat `sukses` supaya berbeda dari pemberitahuan rutin.
+    await kirim(env, {
+      jenis: 'survey_dikunci',
+      kunciEvent: `survey-kunci:${id}`,
+      judul: `Final Survey dikunci: ${String((row as unknown as Record<string, unknown>).kode_proyek || 'proyek')}`,
+      pesan: `${aku.nama} mengunci Final Survey. PO pabrik sudah boleh diterbitkan.${alasan ? ` Catatan: ${alasan}` : ''}`,
+      tautan: '/po',
+      olehNama: aku.nama,
+      tingkat: 'sukses',
+    });
+
     return ok({ ok: true, terkunci: true, dikunci_oleh: aku.nama, dikunci_pada: now });
   }
 
@@ -313,6 +359,19 @@ async function kunci(id: string, aksi: 'kunci' | 'buka', body: Record<string, un
   await catat('survey', id, 'Dibuka', aku.nama, alasan, env);
   await env.sph_management_db.prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
     .bind('FinalSurvey', now, row.id_lead).run();
+
+  // Pemberitahuan: kunci dibuka. Ini pembatalan yang menyentuh PO yang
+  // mungkin sudah terbit, karena itu beralasan untuk diberi tanda peringatan.
+  await kirim(env, {
+    jenis: 'survey_dikunci',
+    kunciEvent: `survey-buka:${id}:${now}`,
+    judul: `Final Survey DIBUKA: ${String((row as unknown as Record<string, unknown>).kode_proyek || 'proyek')}`,
+    pesan: `${aku.nama} membuka kunci Final Survey. Alasan: ${alasan}`,
+    tautan: '/survey/final',
+    olehNama: aku.nama,
+    tingkat: 'peringatan',
+  });
+
   return ok({ ok: true, terkunci: false });
 }
 

@@ -2,6 +2,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
 import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
 import { pindahkanStatus } from '../lib/riwayat';
+import { kirim } from '../lib/notifikasi';
 
 interface Env { sph_management_db: D1Database }
 
@@ -364,6 +365,26 @@ async function terbitkan(id: string, body: Record<string, unknown>, env: Env, us
     { waktu: now, hanyaMaju: true });
   await env.sph_management_db.prepare('UPDATE proyek SET tahap_sekarang=?, updated_at=? WHERE id_lead=?')
     .bind('PO', now, po.id_lead).run();
+
+  // Pemberitahuan: PO terbit / direvisi.
+  //
+  // Kuncinya memuat nomor revisi, jadi terbit pertama dan tiap revisi
+  // berikutnya menghasilkan pemberitahuan sendiri-sendiri — itu memang
+  // informasi berbeda. Tapi menerbitkan ulang revisi yang SAMA tidak
+  // menggandakan lonceng.
+  const namaProyekPO = String((po as unknown as Record<string, unknown>).kode_proyek || 'proyek');
+  await kirim(env, {
+    jenis: rev === 1 ? 'po_terbit' : 'po_revisi',
+    kunciEvent: `po-terbit:${id}:rev${rev}`,
+    judul: rev === 1
+      ? `PO terbit ke pabrik: ${namaProyekPO}`
+      : `PO revisi ke-${rev}: ${namaProyekPO}`,
+    pesan: `${aku.nama} menerbitkan ${rev === 1 ? 'PO' : `revisi ke-${rev}`} ${String(po.no_po || '')}`
+      + `${perubahan.length ? ` — ${perubahan.length} perubahan` : ''}${alasan ? `. Alasan: ${alasan}` : '.'}`,
+    tautan: `/po/${id}`,
+    olehNama: aku.nama,
+    tingkat: rev === 1 ? 'sukses' : 'peringatan',
+  });
 
   return ok({ ok: true, rev, jml_perubahan: perubahan.length, perubahan });
 }

@@ -1,6 +1,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
 import { bolehSentuh, json, wajibHalaman, type Akses } from '../lib/akses';
+import { kirim } from '../lib/notifikasi';
 
 interface Env { sph_management_db: D1Database }
 
@@ -29,6 +30,45 @@ const TABEL: Record<string, { baca: 'sph' | 'master'; tulis: 'sph' | 'master'; p
   profiles: { baca: 'master', tulis: 'master' },
   user_roles: { baca: 'master', tulis: 'master' },
 };
+
+/**
+ * Kirim pemberitahuan untuk dokumen SPH/SPK.
+ *
+ * Membaca barisnya dari DB, bukan dari body, karena `clean` sengaja dibuang
+ * `user_id`-nya untuk sales dan `nomor_sph` tidak ada di body saat PUT
+ * sebagian. Membaca dari DB juga membuat pesan tetap benar walau klien
+ * mengirim payload yang tidak lengkap.
+ */
+async function beritahuDokumen(
+  env: Env, id: string, kolom: Record<string, unknown>, akses: Akses, tahap: 'baru' | 'final',
+) {
+  try {
+    const baris = await env.sph_management_db
+      .prepare('SELECT nomor_sph, kepada, perihal, status, user_id FROM sph WHERE id=?')
+      .bind(id).first<{ nomor_sph: string; kepada: string; perihal: string; status: string; user_id: string }>();
+
+    // `perihal` berbentuk 'Generator SPH — ...' / 'Generator SPK — ...'.
+    // Mode TIDAK bisa ditebak dari `nomor_sph`: format SPK lama
+    // ('001/LIFT/BAI/IX/2026') tidak memuat penanda '/SPK/'. Karena itu
+    // `perihal` yang dipakai, dengan cadangan ke nomor surat.
+    const perihal = String(baris?.perihal || '');
+    const nomor = String(baris?.nomor_sph || kolom.nomor_sph || '');
+    const mode = /SPK/.test(perihal) || nomor.includes('/SPK/') ? 'SPK' : 'SPH';
+    const kepada = String(baris?.kepada || kolom.kepada || 'pelanggan');
+
+    await kirim(env, {
+      jenis: tahap === 'final' ? (mode === 'SPK' ? 'spk_final' : 'sph_final') : 'sph_baru',
+      kunciEvent: `sph-${mode.toLowerCase()}-${tahap}:${id}`,
+      judul: tahap === 'final' ? `${mode} FINAL: ${kepada}` : `${mode} baru dibuat: ${kepada}`,
+      pesan: `${akses.nama || akses.email} ${tahap === 'final' ? 'menandai' : 'membuat'} ${mode} ${nomor}.`,
+      tautan: mode === 'SPK' ? '/spk' : '/sph',
+      olehNama: akses.nama,
+      tingkat: tahap === 'final' ? 'sukses' : 'info',
+    });
+  } catch {
+    // Sama seperti `kirim()`: pemberitahuan tidak boleh menggagalkan simpan.
+  }
+}
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
@@ -150,6 +190,16 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       if (!result.meta?.changes) {
         return json({ error: 'Not found', kode: 'TIDAK_ADA' }, 404);
       }
+      // Pemberitahuan: dokumen ditandai final.
+      //
+      // Kuncinya hanya `sph-final:<id>` — tanpa status di dalamnya. Jadi
+      // satu dokumen memicu pemberitahuan final SEKALI seumur hidupnya.
+      // Kalau statusnya dibuka lalu difinalkan lagi, loncengnya tidak
+      // berbunyi dua kali: pengawas sudah pernah tahu, dan pengulangan
+      // justru melatih orang mengabaikan lonceng.
+      if (table === 'sph' && String(clean.status || '') === 'final') {
+        await beritahuDokumen(env, id!, clean, akses, 'final');
+      }
     } else {
       const newId = String(body.id || crypto.randomUUID());
       const entries = Object.entries({
@@ -160,6 +210,8 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       await env.sph_management_db
         .prepare(`INSERT INTO ${table} (${entries.map(([k]) => k).join(',')}) VALUES (${entries.map(() => '?').join(',')})`)
         .bind(...entries.map(([, v]) => v)).run();
+      // Pemberitahuan: dokumen baru dibuat.
+      if (table === 'sph') await beritahuDokumen(env, newId, clean, akses, 'baru');
     }
     return json({ ok: true });
   }

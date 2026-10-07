@@ -1,6 +1,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { boleh } from '../../shared/akses';
 import { bolehSentuh, saringPemilik, wajibHalaman, type Akses } from '../lib/akses';
+import { kirim } from '../lib/notifikasi';
 
 interface Env { sph_management_db: D1Database }
 
@@ -301,6 +302,18 @@ async function simpanLead(method: string, id: string | null, body: Record<string
       .prepare(`INSERT INTO crm_leads (${entries.map(([k]) => k).join(',')}) VALUES (${entries.map(() => '?').join(',')})`)
       .bind(...entries.map(([, v]) => v)).run();
     await catatRiwayat(newId, null, kolom.status_terakhir as string, oleh, 'Lead dibuat', env);
+
+    // Pemberitahuan: lead baru masuk dari sales.
+    await kirim(env, {
+      jenis: 'lead_baru',
+      kunciEvent: `lead-baru:${newId}`,
+      judul: `Lead baru: ${String(kolom.nama_prospek || 'tanpa nama')}`,
+      pesan: `Sales ${oleh} memasukkan lead baru${kolom.kota ? ` dari ${kolom.kota}` : ''}.`,
+      tautan: '/crm/kanban',
+      olehNama: oleh,
+      tingkat: 'info',
+    });
+
     return ok({ ok: true, id: newId, kode_lead: kode, skor, kualifikasi });
   }
   // PUT
@@ -321,6 +334,23 @@ async function simpanLead(method: string, id: string | null, body: Record<string
   if ('status_terakhir' in kolom && kolom.status_terakhir !== lama.status_terakhir) {
     await catatRiwayat(id, (lama.status_terakhir as string | null) ?? null,
       kolom.status_terakhir as string, oleh, String(body.catatan_riwayat || ''), env);
+
+    // Pemberitahuan: perpindahan tahap lead.
+    //
+    // Kuncinya memuat status tujuan, jadi kembali ke tahap yang sama
+    // (mis. salah klik lalu dikembalikan) tetap tercatat sebagai kejadian
+    // baru — itu memang informasi yang perlu diketahui pengawas.
+    const namaLead = String((lama as unknown as Record<string, unknown>).nama_prospek || 'tanpa nama');
+    await kirim(env, {
+      jenis: 'lead_pindah',
+      kunciEvent: `lead-pindah:${id}:${lama.status_terakhir ?? '-'}->${kolom.status_terakhir}`,
+      judul: `${namaLead} → ${String(kolom.status_terakhir)}`,
+      pesan: `Tahap lead berpindah dari "${lama.status_terakhir ?? '-'}" oleh ${oleh}.`,
+      tautan: '/crm/kanban',
+      olehNama: oleh,
+      tingkat: kolom.status_terakhir === 'Gugur' ? 'peringatan' : 'info',
+    });
+
     // Pemicu: status "Deal - Menunggu Dokumen" -> buat baris antrean di Meja Dokumen
     if (kolom.status_terakhir === 'Deal - Menunggu Dokumen') {
       const ada = await env.sph_management_db
@@ -332,6 +362,18 @@ async function simpanLead(method: string, id: string | null, body: Record<string
            VALUES (?,?,?,?,?,?,?,?,?)`
         ).bind(crypto.randomUUID(), id, 'SPK Induk', masuk, sla,
                new Date(new Date(masuk).getTime() + sla * 3_600_000).toISOString(), 'Menunggu diproses', now, now).run();
+
+        // Pemberitahuan: dokumen menunggu di Meja Dokumen.
+        // Jenis ini juga menyasar `staff` — merekalah yang memprosesnya.
+        await kirim(env, {
+          jenis: 'dokumen_baru',
+          kunciEvent: `dokumen-baru:${id}`,
+          judul: `Dokumen menunggu: ${namaLead}`,
+          pesan: `SPK Induk masuk Meja Dokumen (SLA 24 jam).`,
+          tautan: '/crm/dokumen',
+          olehNama: oleh,
+          tingkat: 'peringatan',
+        });
       }
     }
   }
