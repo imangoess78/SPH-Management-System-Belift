@@ -48,8 +48,6 @@ export const PENERIMA: Record<string, string[]> = {
   // ── CRM / Lead ──
   lead_baru: PENGAWAS,
   lead_pindah: PENGAWAS,
-  lead_diskon: PENGAWAS,
-  lead_dipindahkan: PENGAWAS,
 
   // ── Survey ──
   survey_selesai: PENGAWAS,
