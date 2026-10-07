@@ -1,7 +1,100 @@
+// ============================================================
+//  GANTI PASSWORD SENDIRI  —  POST /api/auth/password
+//
+//  Dipakai dari halaman Pengaturan oleh pengguna yang SUDAH masuk.
+//  Karena sudah masuk, tidak ada email yang dibutuhkan: buktinya
+//  adalah password lama.
+//
+//  Yang diperbaiki dibanding versi sebelumnya:
+//   * Panjang minimum dinaikkan 6 → 8, dan diperiksa di SERVER.
+//     Sebelumnya pemeriksaan panjang hanya ada di tampilan, jadi
+//     permintaan langsung ke API bisa menembusnya.
+//   * Ada pembatas percobaan. Tanpa ini, orang yang mencuri sesi bisa
+//     menebak password lama tanpa batas sampai akunnya diambil alih
+//     secara permanen.
+//   * Sesudah password berganti, sesi LAIN diputus (sesi yang sedang
+//     dipakai tetap hidup supaya pengguna tidak terlempar sendiri).
+//     Tanpa ini, pencuri sesi tetap bisa masuk meski password sudah
+//     diganti.
+//   * Setiap perubahan dicatat ke `app_keamanan_riwayat`.
+// ============================================================
+
 import type { PagesFunction } from '@cloudflare/workers-types';
+import type { D1Database } from '@cloudflare/workers-types';
+import { json } from '../../lib/akses';
+import {
+  catatKeamanan, catatPercobaan, cocokSandi, hashSandi, ipPemanggil,
+  lupakanPercobaan, periksaSandiBaru,
+} from '../../lib/keamanan';
+
 interface Env { sph_management_db: D1Database }
-const enc=new TextEncoder();
-function b64(bytes:ArrayBuffer){let s='';for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s)}
-async function hash(password:string,salt:string){const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},key,256))}
-async function session(request:Request,env:Env){const sid=(request.headers.get('cookie')||'').match(/(?:^|; )sph_session=([^;]+)/)?.[1];if(!sid)return null;return env.sph_management_db.prepare('SELECT u.id,u.email,u.role,u.full_name,u.password_hash FROM app_sessions s JOIN app_users u ON u.id=s.user_id WHERE s.id=? AND s.expires_at>?').bind(sid,new Date().toISOString()).first<any>()}
-export const onRequestPost:PagesFunction<Env>=async({request,env})=>{const u=await session(request,env);if(!u)return Response.json({error:'Unauthorized'},{status:401});let b:any;try{b=await request.json()}catch{return Response.json({error:'Request tidak valid'},{status:400})}if(!b.currentPassword||!b.newPassword)return Response.json({error:'Password wajib diisi'},{status:400});const [salt,expected]=String(u.password_hash).split('$');if(await hash(b.currentPassword,salt)!==expected)return Response.json({error:'Password saat ini salah'},{status:400});const nextSalt=btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));const nextHash=await hash(b.newPassword,nextSalt);await env.sph_management_db.prepare('UPDATE app_users SET password_hash=? WHERE id=?').bind(`${nextSalt}$${nextHash}`,u.id).run();return Response.json({ok:true})};
+
+const BATAS = 5;
+const JENDELA_MENIT = 15;
+
+/** Ambil sesi yang sedang dipakai, beserta data akunnya. */
+async function sesiSekarang(request: Request, env: Env) {
+  const sid = (request.headers.get('cookie') || '').match(/(?:^|; )sph_session=([^;]+)/)?.[1];
+  if (!sid) return null;
+  const u = await env.sph_management_db.prepare(
+    `SELECT u.id, u.email, u.password_hash FROM app_sessions s
+     JOIN app_users u ON u.id = s.user_id
+     WHERE s.id=? AND s.expires_at>?`
+  ).bind(sid, new Date().toISOString())
+    .first<{ id: string; email: string; password_hash: string }>();
+  return u ? { ...u, sid } : null;
+}
+
+export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const u = await sesiSekarang(request, env);
+  if (!u) return json({ error: 'Unauthorized' }, 401);
+
+  let body: { currentPassword?: string; newPassword?: string };
+  try { body = await request.json(); } catch { return json({ error: 'Request tidak valid' }, 400); }
+
+  const lama = String(body.currentPassword || '');
+  const baru = String(body.newPassword || '');
+  if (!lama || !baru) return json({ error: 'Password saat ini dan password baru wajib diisi' }, 400);
+
+  const salah = periksaSandiBaru(baru, u.email);
+  if (salah) return json({ error: salah }, 400);
+
+  // Pembatas dikunci ke akun (bukan IP): yang dicegah di sini adalah
+  // penebakan password lama, dan penebak bisa berganti-ganti IP.
+  const kunci = `sandi:${u.id}`;
+  const batas = await catatPercobaan(env, kunci, BATAS, JENDELA_MENIT);
+  if (!batas.boleh) {
+    return json({
+      error: `Terlalu banyak percobaan ganti password. Coba lagi dalam ${Math.ceil(batas.tungguDetik / 60)} menit.`,
+    }, 429);
+  }
+
+  if (!await cocokSandi(lama, u.password_hash)) {
+    return json({ error: 'Password saat ini salah' }, 400);
+  }
+
+  if (lama === baru) {
+    return json({ error: 'Password baru sama dengan password saat ini' }, 400);
+  }
+
+  const sekarang = new Date().toISOString();
+  await env.sph_management_db
+    .prepare('UPDATE app_users SET password_hash=?, updated_at=? WHERE id=?')
+    .bind(await hashSandi(baru), sekarang, u.id).run();
+
+  // Sesi lain diputus, sesi yang sedang dipakai dibiarkan hidup.
+  const putus = await env.sph_management_db
+    .prepare('DELETE FROM app_sessions WHERE user_id=? AND id!=?')
+    .bind(u.id, u.sid).run();
+  const sesiLainDiputus = Number((putus as { meta?: { changes?: number } }).meta?.changes) || 0;
+
+  await lupakanPercobaan(env, kunci);
+
+  await catatKeamanan(env, {
+    userId: u.id, email: u.email, jenis: 'password_diubah',
+    olehUserId: u.id, olehNama: u.email,
+    catatan: `Password diubah sendiri dari halaman Pengaturan. ${sesiLainDiputus} sesi lain diputus.`,
+  });
+
+  return json({ ok: true, sesiLainDiputus });
+};

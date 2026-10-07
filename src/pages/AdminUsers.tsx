@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Shield, Save, ChevronDown, ChevronRight, Info, AlertTriangle,
   RotateCcw, CheckCircle2, XCircle, Clock, Ban, Trash2,
+  KeyRound, Copy, Check, X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -46,6 +47,28 @@ export default function AdminUsers() {
 
   // Salinan pilihan yang belum disimpan, per akun.
   const [draf, setDraf] = useState<Record<string, string[]>>({});
+
+  // Kode reset password yang baru dibuat. Kode mentahnya HANYA ada di sini —
+  // server menyimpan hash-nya saja, jadi begitu panel ini ditutup kode itu
+  // tidak bisa ditampilkan lagi dan Admin harus membuat yang baru.
+  const [kodeReset, setKodeReset] = useState<{
+    kode: string; untuk: string; nama: string; kedaluwarsa: string; berlakuMenit: number;
+  } | null>(null);
+  const [sibukKode, setSibukKode] = useState<string | null>(null);
+  const [tersalin, setTersalin] = useState(false);
+  const [sisaDetik, setSisaDetik] = useState(0);
+
+  // Hitung mundur masa berlaku kode, supaya Admin tahu kodenya masih hidup
+  // atau sudah mati tanpa menebak-nebak.
+  useEffect(() => {
+    if (!kodeReset) return;
+    const hitung = () => setSisaDetik(
+      Math.max(0, Math.floor((new Date(kodeReset.kedaluwarsa).getTime() - Date.now()) / 1000)),
+    );
+    hitung();
+    const t = setInterval(hitung, 1000);
+    return () => clearInterval(t);
+  }, [kodeReset]);
 
   const muat = async () => {
     const r = await fetch('/api/admin/users');
@@ -166,6 +189,46 @@ export default function AdminUsers() {
     await muat();
   };
 
+  /**
+   * Buat kode reset password untuk pengguna yang lupa password-nya.
+   *
+   * Kode mentah hanya muncul di jawaban ini. Server hanya menyimpan hash-nya,
+   * jadi kode ini tidak bisa dilihat lagi setelah panel ditutup — kalau
+   * hilang, buat yang baru.
+   */
+  const buatKodeReset = async (a: Akun) => {
+    setGalat(''); setPesan('');
+    setSibukKode(a.id);
+    try {
+      const r = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: a.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setGalat(j.error || 'Gagal membuat kode reset'); return; }
+      setTersalin(false);
+      setKodeReset(j);
+      // Kode baru membatalkan kode lama akun ini — beri tahu supaya Admin
+      // tidak bingung kalau kode sebelumnya sudah terlanjur dikirim.
+      setPesan(`Kode reset untuk ${a.email} dibuat. Kode sebelumnya (bila ada) otomatis tidak berlaku lagi.`);
+    } catch {
+      setGalat('Gagal menghubungi server saat membuat kode reset.');
+    } finally {
+      setSibukKode(null);
+    }
+  };
+
+  const salinKode = async (kode: string) => {
+    try {
+      await navigator.clipboard.writeText(kode);
+      setTersalin(true);
+      setTimeout(() => setTersalin(false), 2500);
+    } catch {
+      setGalat('Gagal menyalin otomatis. Salin kodenya secara manual.');
+    }
+  };
+
   const ubahPeran = async (a: Akun, roleBaru: string) => {
     if (roleBaru === a.role) return;
     setGalat(''); setPesan('');
@@ -208,6 +271,7 @@ export default function AdminUsers() {
   };
 
   return (
+    <>
     <div className="p-6 max-w-6xl">
       <div className="flex items-center gap-3 mb-1">
         <Users className="h-6 w-6 text-primary" />
@@ -322,6 +386,21 @@ export default function AdminUsers() {
                     </span>
 
                     <span className="flex items-center gap-2 lg:justify-end">
+                      {/* Kode reset = jalan keluar untuk pengguna yang lupa password.
+                          Aplikasi ini tidak mengirim email, jadi Admin yang membuat
+                          kode lalu menyampaikannya ke pemilik akun. */}
+                      {!sendiri && a.status === 'approved' && (
+                        <button
+                          onClick={() => buatKodeReset(a)}
+                          disabled={sibukKode === a.id}
+                          title="Buat kode 8 angka sekali pakai untuk pengguna yang lupa password. Kode hanya tampil sekali."
+                          className="text-xs px-2 py-1.5 rounded border inline-flex items-center gap-1 transition-colors hover:bg-primary/10 hover:border-primary/40 hover:text-primary disabled:opacity-50"
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          {sibukKode === a.id ? 'Membuat…' : 'Kode reset'}
+                        </button>
+                      )}
+
                       {/* Nonaktifkan = cabut akses login tanpa menghapus data.
                           Ini pilihan yang dianjurkan untuk akun yang tidak dipakai lagi. */}
                       {!sendiri && (
@@ -470,5 +549,65 @@ export default function AdminUsers() {
         </>
       )}
     </div>
+
+    {/* ── Panel kode reset ──
+        Tampil sebagai lapisan di atas halaman supaya Admin bisa membacakan
+        kodenya langsung ke pengguna lewat telepon tanpa kehilangan konteks
+        daftar akun. Kode mentah tidak bisa dibuka lagi setelah ini. */}
+    {kodeReset && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+           onClick={() => setKodeReset(null)}>
+        <div className="bg-card border rounded-xl shadow-lg max-w-md w-full p-6"
+             onClick={e => e.stopPropagation()}>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <KeyRound className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold">Kode reset password</h2>
+                <p className="text-xs text-muted-foreground">{kodeReset.nama}</p>
+              </div>
+            </div>
+            <button onClick={() => setKodeReset(null)} aria-label="Tutup"
+                    className="text-muted-foreground hover:text-foreground rounded p-1 hover:bg-muted transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="bg-muted rounded-lg p-4 text-center mb-4">
+            <p className="text-3xl font-mono font-bold tracking-[0.3em] text-foreground select-all">
+              {kodeReset.kode}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <span className={`text-xs inline-flex items-center gap-1.5 ${
+              sisaDetik > 0 ? 'text-muted-foreground' : 'text-destructive font-medium'
+            }`}>
+              <Clock className="h-3.5 w-3.5" />
+              {sisaDetik > 0
+                ? `Berlaku ${Math.floor(sisaDetik / 60)}:${String(sisaDetik % 60).padStart(2, '0')} lagi`
+                : 'Kode sudah kedaluwarsa — buat yang baru'}
+            </span>
+            <button onClick={() => salinKode(kodeReset.kode)}
+                    className="text-xs px-2.5 py-1.5 rounded border inline-flex items-center gap-1.5 transition-colors hover:bg-muted">
+              {tersalin ? <><Check className="h-3.5 w-3.5 text-emerald-600" />Tersalin</>
+                        : <><Copy className="h-3.5 w-3.5" />Salin kode</>}
+            </button>
+          </div>
+
+          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p><strong className="text-foreground">Kode ini hanya tampil sekarang.</strong> Server hanya menyimpan sidik jarinya, jadi setelah panel ini ditutup kode tidak bisa ditampilkan lagi.</p>
+              <p><strong className="text-foreground">Sekali pakai.</strong> Habis dipakai untuk {kodeReset.nama} — atau setelah kedaluwarsa — kodenya mati dan sisanya tidak bisa dipakai lagi.</p>
+              <p><strong className="text-foreground">Sampaikan langsung.</strong> Berikan lewat telepon atau tatap muka, dan minta pengguna mengganti password-nya begitu berhasil masuk.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

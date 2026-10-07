@@ -45,8 +45,8 @@ export default function SettingsPage() {
       toast({ title: 'Konfirmasi password tidak cocok', variant: 'destructive' });
       return;
     }
-    if (newPassword.length < 6) {
-      toast({ title: 'Password minimal 6 karakter', variant: 'destructive' });
+    if (newPassword.length < 8) {
+      toast({ title: 'Password minimal 8 karakter', variant: 'destructive' });
       return;
     }
 
@@ -130,6 +130,9 @@ export default function SettingsPage() {
               placeholder="••••••••"
               className="mt-1"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Minimal 8 karakter, jangan memakai alamat email atau urutan angka.
+            </p>
           </div>
 
           <div>
