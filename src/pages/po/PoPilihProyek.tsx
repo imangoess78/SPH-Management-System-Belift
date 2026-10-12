@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
 import { ArrowLeft, Search, Factory, Lock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { surveyApi, poApi, type BarisSurvey } from '@/lib/survey-api';
 import { fmtTglPendek } from '@/lib/survey-utils';
@@ -20,17 +19,37 @@ export default function PoPilihProyek() {
   const [memuat, setMemuat] = useState(true);
   const [q, setQ] = useState('');
 
+  /**
+   * Kedua daftar dimuat TAHAN-GAGAL, sama seperti halaman Final Survey.
+   *
+   * Rute ini dijaga izin `po`, tetapi salah satu sumbernya
+   * (`surveyApi.daftar({jenis:'final'})`) menuntut izin `survey_final`.
+   * Peran bawaan hari ini memegang keduanya, jadi gejalanya belum muncul.
+   * Namun izin bisa diatur per akun di Manajemen Akun — akun dengan `po`
+   * tanpa `survey_final` akan mendapat 403 dan, dengan `Promise.all` biasa,
+   * KEDUA daftar ikut kosong tanpa penjelasan.
+   */
+  const [gagal, setGagal] = useState<string[]>([]);
+
   const muat = useCallback(async () => {
     setMemuat(true);
+    const rusak: string[] = [];
+    const ambil = async <T,>(label: string, p: Promise<T>, kosong: T): Promise<T> => {
+      try {
+        return await p;
+      } catch (e) {
+        rusak.push(`${label} (${e instanceof Error ? e.message : 'gagal'})`);
+        return kosong;
+      }
+    };
     try {
       const [f, p] = await Promise.all([
-        surveyApi.daftar({ jenis: 'final' }),
-        poApi.daftar(),
+        ambil('Final Survey', surveyApi.daftar({ jenis: 'final' }), { data: [] as BarisSurvey[] }),
+        ambil('daftar PO', poApi.daftar(), { data: [] as { id_lead: string }[] }),
       ]);
       setFinals(f.data || []);
       setSudah((p.data || []).map(x => x.id_lead));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal memuat data');
+      setGagal(rusak);
     } finally { setMemuat(false); }
   }, []);
 
@@ -65,6 +84,17 @@ export default function PoPilihProyek() {
           Pilih proyek yang Final Survey-nya sudah dikunci. Nomor PO dibuat otomatis oleh sistem.
         </p>
       </div>
+
+      {gagal.length > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 text-sm">
+          <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
+          <span>
+            Sebagian data tidak bisa dimuat: <strong>{gagal.join(', ')}</strong>. Bagian lain
+            tetap ditampilkan. Bila daftar proyek ikut kosong, akun ini mungkin belum diberi
+            izin halaman terkait — minta admin menyesuaikan di <em>Manajemen Akun</em>.
+          </span>
+        </div>
+      )}
 
       <div className="relative max-w-md">
         <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
