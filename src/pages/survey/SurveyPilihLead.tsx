@@ -43,21 +43,53 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
   const [q, setQ] = useState('');
   const [menaut, setMenaut] = useState<string | null>(null);
 
+  /**
+   * Muat keempat daftar dengan TAHAN-GAGAL.
+   *
+   * Dulu keempatnya dibundel dalam satu `Promise.all`. Akibatnya satu endpoint
+   * yang menolak (403) membatalkan SELURUH muatan, sehingga tabel SPK final
+   * yang datanya sebenarnya sudah diterima ikut tampil kosong. Gejala di layar
+   * hanya "daftar SPK kosong padahal SPK-nya ada" — tanpa petunjuk apa pun.
+   *
+   * Kasus nyata (Okt 2026): `api.listLeads` menuntut izin `crm`, sedangkan
+   * peran `staff` tidak punya izin itu. Staff lalu melihat halaman kosong
+   * meski `/api/survey?resource=spk_final` mengembalikan data untuknya.
+   *
+   * Sekarang tiap sumber runtuh sendiri-sendiri. Yang gagal ditandai supaya
+   * ditampilkan sebagai pemberitahuan — bukan disembunyikan sebagai "kosong".
+   * Daftar SPK sengaja TIDAK bergantung pada izin `crm`: satu-satunya bagian
+   * yang butuh `leads` adalah kolom bantu "Tautan Lead".
+   */
+  const [gagal, setGagal] = useState<string[]>([]);
+
   const muat = useCallback(async () => {
     setMemuat(true);
+    const rusak: string[] = [];
+    const ambil = async <T,>(label: string, p: Promise<T>, kosong: T): Promise<T> => {
+      try {
+        return await p;
+      } catch (e) {
+        rusak.push(`${label} (${e instanceof Error ? e.message : 'gagal'})`);
+        return kosong;
+      }
+    };
     try {
       const [l, s, ss, sp] = await Promise.all([
-        api.listLeads({ limit: 500 }),
-        surveyApi.daftar({ jenis }),
-        final ? surveyApi.daftar({ jenis: 'sales' }) : Promise.resolve({ data: [] as BarisSurvey[] }),
-        final ? spkApi.final() : Promise.resolve({ data: [] as SpkFinal[] }),
+        ambil('leads', api.listLeads({ limit: 500 }),
+              { data: [] as Lead[], total: 0, page: 1, limit: 500 }),
+        ambil(`survey ${jenis}`, surveyApi.daftar({ jenis }), { data: [] as BarisSurvey[] }),
+        final
+          ? ambil('survey sales', surveyApi.daftar({ jenis: 'sales' }), { data: [] as BarisSurvey[] })
+          : Promise.resolve({ data: [] as BarisSurvey[] }),
+        final
+          ? ambil('SPK final', spkApi.final(), { data: [] as SpkFinal[] })
+          : Promise.resolve({ data: [] as SpkFinal[] }),
       ]);
       setLeads((l.data || []) as Lead[]);
       setSudah(s.data || []);
       setSurveySales(ss.data || []);
       setSpkList(sp.data || []);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal memuat data');
+      setGagal(rusak);
     } finally { setMemuat(false); }
   }, [jenis, final]);
 
@@ -168,6 +200,8 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
   }
 
   const adaDokumen = spkLayak.length > 0;
+  /** Apakah daftar lead benar-benar termuat — dipakai kolom bantu "Tautan Lead". */
+  const adaLead = leads.length > 0;
   const kosong = layak.length === 0 && !adaDokumen;
 
   return (
@@ -190,6 +224,16 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
           <span>
             Dua cara memulai: lewat <strong>proyek yang sudah melewati Survey Sales</strong>, atau
             lewat <strong>dokumen SPK final</strong> — dokumen itu ditautkan ke lead-nya lebih dulu.
+          </span>
+        </div>
+      )}
+      {gagal.length > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-md border border-amber-200 bg-amber-50 text-sm">
+          <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
+          <span>
+            Sebagian data tidak bisa dimuat: <strong>{gagal.join(', ')}</strong>. Bagian lain
+            tetap ditampilkan. Bila daftar yang Mas butuhkan ikut kosong, akun ini mungkin belum
+            diberi izin halaman terkait — minta admin menyesuaikan di <em>Manajemen Akun</em>.
           </span>
         </div>
       )}
@@ -318,7 +362,14 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
                                 Akan ditautkan ke <span className="font-mono">{cocokNama.kode_lead}</span>
                               </span>
                             ) : (
-                              <span className="text-muted-foreground">Belum ada — lead baru akan dibuat</span>
+                              // Kolom ini hanya bisa memastikan penautan lewat daftar lead.
+                              // Bila lead tidak bisa dimuat (mis. peran tanpa izin `crm`),
+                              // jangan mengarang "lead baru akan dibuat" — penautan yang
+                              // sebenarnya terjadi di server yang menentukan.
+                              <span className="text-muted-foreground">
+                                Belum ada — lead baru akan dibuat
+                                {adaLead ? '' : ' (daftar lead tak dapat dimuat, hasil ditentukan saat menautkan)'}
+                              </span>
                             )}
                           </td>
                           <td className="p-2.5 text-right">

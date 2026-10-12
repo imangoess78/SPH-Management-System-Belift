@@ -61,8 +61,18 @@ const taut = vi.fn(async (_id: string) => ({
   baru: true, cara: 'nama cocok', nomor_spk: '7826/SPK/LIFT/BAI/X/2026',
 }));
 
+/**
+ * `listLeads` dibuat bisa diatur per tes.
+ *
+ * Sebab ketiga laporan Mas — "staff tidak melihat daftar SPK" — adalah
+ * endpoint leads yang menolak (403) karena peran `staff` tidak punya izin
+ * `crm`, padahal daftar SPK-nya sendiri tidak butuh izin itu. Untuk mengunci
+ * perilaku itu, tes harus bisa membuat panggilan ini GAGAL.
+ */
+const { listLeads } = vi.hoisted(() => ({ listLeads: vi.fn() }));
+
 vi.mock('@/lib/crm-api', () => ({
-  api: { listLeads: vi.fn(async () => ({ data: LEADS })) },
+  api: { listLeads: (...a: unknown[]) => listLeads(...a) },
 }));
 
 // Server menyaring `jenis` di sisi SQL, jadi permintaan `jenis=final` TIDAK
@@ -91,6 +101,8 @@ beforeEach(() => {
   spkData = [];
   surveyFinal = [];
   taut.mockClear();
+  listLeads.mockReset();
+  listLeads.mockResolvedValue({ data: LEADS, total: LEADS.length, page: 1, limit: 500 });
 });
 
 describe('SurveyPilihLead — Final Survey', () => {
@@ -161,5 +173,60 @@ describe('SurveyPilihLead — Final Survey', () => {
 
     await waitFor(() => expect(screen.getByText('Dari Lead')).toBeInTheDocument());
     expect(screen.queryByText('Dari Dokumen SPK Final')).not.toBeInTheDocument();
+  });
+
+  // ── Sebab KETIGA: satu endpoint menolak, seluruh halaman jadi kosong ──────
+  //
+  // Laporan Mas: "akun staff tidak bisa melihat daftar SPK, padahal saya bisa".
+  // Akarnya bukan izin Final Survey — peran `staff` memang punya `survey_final`,
+  // dan `/api/survey?resource=spk_final` mengembalikan data untuknya. Yang
+  // menolak adalah `api.listLeads` (`/api/crm?resource=leads`), karena endpoint
+  // itu menuntut izin `crm` yang tidak dimiliki staff.
+  //
+  // Dulu keempat permintaan dibundel dalam satu `Promise.all` tanpa penangan
+  // per-sumber, jadi satu penolakan 403 membatalkan SELURUH muatan — tabel SPK
+  // yang datanya sudah tiba ikut hilang. Gejalanya persis "daftar SPK kosong".
+  describe('tahan-gagal saat sebagian endpoint menolak', () => {
+    const TOLAK = new Error('Akses ditolak: peran staff tidak berwenang membuka crm.');
+
+    it('tetap menampilkan daftar SPK walau daftar lead ditolak', async () => {
+      spkData = [SPK_TANPA_LEAD];
+      listLeads.mockRejectedValue(TOLAK);
+      gambar();
+
+      await waitFor(() => expect(screen.getByText('Dari Dokumen SPK Final')).toBeInTheDocument());
+      expect(screen.getByText('Yessitania')).toBeInTheDocument();
+      expect(screen.getByText('7826/SPK/LIFT/BAI/X/2026')).toBeInTheDocument();
+      expect(screen.getByText('Lamongan')).toBeInTheDocument();
+    });
+
+    it('menyebutkan bagian mana yang gagal — bukan diam-diam kosong', async () => {
+      spkData = [SPK_TANPA_LEAD];
+      listLeads.mockRejectedValue(TOLAK);
+      gambar();
+
+      await waitFor(() => expect(screen.getByText(/Sebagian data tidak bisa dimuat/)).toBeInTheDocument());
+      expect(screen.getByText(/tidak berwenang membuka crm/)).toBeInTheDocument();
+    });
+
+    it('tidak mengarang "lead baru akan dibuat" saat daftar lead tak termuat', async () => {
+      // Kolom bantu ini menyimpulkan dari daftar lead. Bila daftarnya tidak ada,
+      // klaim itu tidak bisa dipertanggungjawabkan — penautan sebenarnya
+      // ditentukan server saat tombol ditekan.
+      spkData = [SPK_TANPA_LEAD];
+      listLeads.mockRejectedValue(TOLAK);
+      gambar();
+
+      await waitFor(() => expect(screen.getByText(/hasil ditentukan saat menautkan/)).toBeInTheDocument());
+    });
+
+    it('tidak memunculkan peringatan saat semua data termuat', async () => {
+      // Pengaman arah sebaliknya: peringatan tidak boleh muncul palsu.
+      spkData = [SPK_TANPA_LEAD];
+      gambar();
+
+      await waitFor(() => expect(screen.getByText('Dari Dokumen SPK Final')).toBeInTheDocument());
+      expect(screen.queryByText(/Sebagian data tidak bisa dimuat/)).not.toBeInTheDocument();
+    });
   });
 });
