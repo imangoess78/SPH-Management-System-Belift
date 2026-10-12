@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { surveyApi } from '@/lib/survey-api';
 import { useCrmUser } from '@/hooks/useCrmUser';
-import { bolehIsiSurvey, bolehIsiFinal, bolehKunciFinal } from '@/lib/crm-akses';
+import { useAuth } from '@/hooks/useAuth';
+import { boleh, bolehKunciFinal } from '../../../shared/akses';
 import {
   DT_FIELDS, FIELD_WAJIB_KUNCI, KELOMPOK_FIELD,
   type DataTeknis, type Lantai, type AddOn, type BarisDokumentasi,
@@ -49,6 +50,7 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
   const { nama, peran } = useCrmUser();
+  const { izin, peranMaster } = useAuth();
 
   const final = jenis === 'final';
   const [tab, setTab] = useState<Tab>('Data Teknis');
@@ -85,8 +87,12 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
   const [riwayat, setRiwayat] = useState<RiwayatRow[]>([]);
   const [infoLead, setInfoLead] = useState<Record<string, unknown> | null>(null);
 
-  const bolehIsi = final ? bolehIsiFinal(peran) : bolehIsiSurvey(peran);
-  const bolehKunci = final && bolehKunciFinal(peran);
+  // Mengisi survey digerbangi IZIN HALAMAN (cerminan `wajibHalaman` di
+  // functions/api/survey.ts), sedangkan MENGUNCI digerbangi peran Master CRM
+  // (cerminan `PERAN_PENGUNCI`). Dulu keduanya memakai peran Master CRM, jadi
+  // staff tidak bisa mengisi walau API-nya mengizinkan.
+  const bolehIsi = final ? boleh(izin, 'survey_final') : boleh(izin, 'survey_sales');
+  const bolehKunci = final && bolehKunciFinal(izin, peranMaster);
   const [bacaSaja, setBacaSaja] = useState(false);
 
   // ── Muat ──────────────────────────────────────────────────

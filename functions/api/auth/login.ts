@@ -1,5 +1,5 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { izinEfektif, normalisasiPeran } from '../../../shared/akses';
+import { izinEfektif, normalisasiPeran, peranMasterDari } from '../../../shared/akses';
 interface Env { sph_management_db: D1Database }
 const enc = new TextEncoder();
 function b64(bytes: ArrayBuffer) {
@@ -24,14 +24,18 @@ export const onRequestPost: PagesFunction<Env> = async ({request,env}) => {
   const sid=crypto.randomUUID(), now=new Date().toISOString(), exp=new Date(Date.now()+7*86400000).toISOString();
   await env.sph_management_db.prepare('INSERT INTO app_sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)').bind(sid,user.id,exp,now).run();
   // Hitung izin efektif sekarang, supaya tampilan langsung tahu menu apa
-  // yang boleh dibuka tanpa permintaan tambahan.
+  // yang boleh dibuka tanpa permintaan tambahan. `peranMaster` ikut dikirim
+  // dengan alasan yang sama — dipakai memunculkan tombol kunci Final Survey
+  // dan terbit PO, dan harus sama dengan yang dihitung server.
   const ref = await env.sph_management_db
-    .prepare('SELECT nama FROM crm_ref_sales WHERE lower(email)=lower(?) LIMIT 1')
-    .bind(user.email).first<{ nama: string }>();
+    .prepare('SELECT nama, peran FROM crm_ref_sales WHERE lower(email)=lower(?) LIMIT 1')
+    .bind(user.email).first<{ nama: string; peran: string | null }>();
 
   return new Response(JSON.stringify({user:{
     id:user.id, email:user.email, role:normalisasiPeran(user.role), fullName:user.full_name,
     permissions: izinEfektif(user.role, user.permissions),
     namaSales: ref?.nama || user.full_name || user.email,
+    peranMaster: peranMasterDari(user.role, ref?.peran),
+    masterTerdaftar: !!ref,
   }}),{headers:{'content-type':'application/json','set-cookie':`sph_session=${sid}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`}});
 };

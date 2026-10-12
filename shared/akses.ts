@@ -141,6 +141,60 @@ export function normalisasiPeran(role?: string | null): Peran {
 }
 
 /**
+ * Peran "Master CRM" — sumber wewenang yang dipakai SERVER untuk mengunci
+ * Final Survey (`PERAN_PENGUNCI` di functions/api/survey.ts) dan menerbitkan
+ * PO (`PERAN_PENERBIT` di functions/api/po.ts).
+ *
+ * Nilainya HARUS sama persis dengan `profilPemakai()` di kedua berkas itu.
+ * Tampilan memakainya untuk memunculkan tombol; kalau dihitung dengan cara
+ * berbeda, tombol bisa hilang padahal server mengizinkan (itu yang terjadi
+ * pada akun staff), atau muncul padahal server menolak.
+ *
+ * Akun yang belum terdaftar di `crm_ref_sales` jatuh ke `Sales` — peran paling
+ * sempit, supaya salah isi tidak pernah MENAMBAH wewenang. Khusus akun
+ * ber-role `admin`, jatuh ke `Admin Sistem`: admin memegang seluruh izin, jadi
+ * tidak masuk akal bila ia kehilangan wewenang hanya karena emailnya belum
+ * didaftarkan di Master CRM.
+ */
+export function peranMasterDari(role?: string | null, refPeran?: string | null): string {
+  if (refPeran) return refPeran;
+  return normalisasiPeran(role) === 'admin' ? 'Admin Sistem' : 'Sales';
+}
+
+/** Label peran Master CRM yang boleh mengunci Final Survey — cerminan PERAN_PENGUNCI. */
+export const PERAN_PENGUNCI = ['Surveyor', 'Direktur', 'Manager', 'Admin Sistem'] as const;
+
+/**
+ * Boleh mengunci / membuka kunci Final Survey?
+ *
+ * Cerminan `kunci()` di functions/api/survey.ts: wewenang bertumpu pada IZIN
+ * `kunci_final` (bisa diatur per akun), dengan peran Master CRM sebagai jalur
+ * kedua supaya akun yang sudah ditugaskan sebagai Surveyor/Manager/Direktur
+ * tidak kehilangan wewenang.
+ */
+export const bolehKunciFinal = (izin: string[], peranMaster: string) =>
+  izin.includes('*') || izin.includes('kunci_final') ||
+  (PERAN_PENGUNCI as readonly string[]).includes(peranMaster);
+
+/** Boleh mengunci hanya lewat peran Master CRM (tanpa melihat izin). */
+export const bolehKunciFinalMaster = (peranMaster: string) =>
+  (PERAN_PENGUNCI as readonly string[]).includes(peranMaster);
+
+/** Label peran Master CRM yang boleh menerbitkan PO — cerminan PERAN_PENERBIT. */
+export const PERAN_PENERBIT = ['Operasional', 'Direktur', 'Manager', 'Admin Sistem'] as const;
+
+/** Boleh menerbitkan PO? Cerminan pemeriksaan di functions/api/po.ts. */
+export const bolehTerbitPOMaster = (peranMaster: string) =>
+  (PERAN_PENERBIT as readonly string[]).includes(peranMaster);
+
+/**
+ * Boleh menambah/mengubah data? Cerminan `cakupanUbah()` di
+ * functions/lib/akses.ts, yang dipakai setiap cabang POST/PUT untuk menolak
+ * akun yang izinnya sengaja dibatasi "hanya lihat".
+ */
+export const bolehUbahData = (izin: string[]) => cakupanUbah(izin) !== 'tidak';
+
+/**
  * Daftar izin efektif seorang pengguna.
  * Izin khusus (`permissions`) menang atas bawaan peran. Array kosong
  * berarti benar-benar tanpa izin — itu pilihan yang sah, bukan "pakai bawaan".

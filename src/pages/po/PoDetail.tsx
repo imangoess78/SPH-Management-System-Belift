@@ -11,7 +11,8 @@ import {
 import { poApi, type BalikanPoDetail } from '@/lib/survey-api';
 import { cetakPo, salinRingkasPo } from '@/lib/survey-cetak';
 import { useCrmUser } from '@/hooks/useCrmUser';
-import { bolehTerbitPO } from '@/lib/crm-akses';
+import { useAuth } from '@/hooks/useAuth';
+import { bolehTerbitPOMaster, bolehUbahData } from '../../../shared/akses';
 import { MAKS_REVISI_TANPA_APPROVAL, type PerubahanField } from '@/lib/survey-types';
 import { fmtTglPendek, fmtWaktu, warnaTingkat, lencanaTingkat, labelTingkat } from '@/lib/survey-utils';
 
@@ -22,6 +23,7 @@ export default function PoDetail() {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
   const { peran, nama } = useCrmUser();
+  const { izin, peranMaster } = useAuth();
   const [d, setD] = useState<BalikanPoDetail | null>(null);
   const [memuat, setMemuat] = useState(true);
   const [sibuk, setSibuk] = useState(false);
@@ -33,7 +35,15 @@ export default function PoDetail() {
   const [catatan, setCatatan] = useState('');
   const [idLead, setIdLead] = useState('');
 
-  const bolehTerbit = bolehTerbitPO(peran);
+  // Dua wewenang berbeda, dan server memang memisahkannya:
+  //  • MENERBITKAN PO menuntut peran Master CRM penerbit (`PERAN_PENERBIT` di
+  //    functions/api/po.ts) — cerminan `bolehTerbitPOMaster`.
+  //  • MENGUBAH data PO hanya menuntut izin ubah, asal bukan akun "hanya lihat"
+  //    (cerminan `cakupanUbah !== 'tidak'`).
+  // Dulu keduanya memakai peran Master CRM, sehingga akun yang boleh mengubah
+  // PO tidak melihat tombol Simpan.
+  const bolehTerbit = bolehTerbitPOMaster(peranMaster);
+  const bolehUbah = bolehUbahData(izin);
 
   const muat = useCallback(async () => {
     if (!id) return;
@@ -241,7 +251,7 @@ export default function PoDetail() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Pabrik</label>
-            <Select value={pabrik || ''} onValueChange={setPabrik} disabled={!bolehTerbit}>
+            <Select value={pabrik || ''} onValueChange={setPabrik} disabled={!bolehUbah}>
               <SelectTrigger><SelectValue placeholder="Pilih pabrik" /></SelectTrigger>
               <SelectContent>
                 {PABRIK_UMUM.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -250,11 +260,11 @@ export default function PoDetail() {
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">PIC Pabrik</label>
-            <Input value={pic} onChange={e => setPic(e.target.value)} disabled={!bolehTerbit} />
+            <Input value={pic} onChange={e => setPic(e.target.value)} disabled={!bolehUbah} />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Tanggal PO</label>
-            <Input type="date" value={tglPo} onChange={e => setTglPo(e.target.value)} disabled={!bolehTerbit} />
+            <Input type="date" value={tglPo} onChange={e => setTglPo(e.target.value)} disabled={!bolehUbah} />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">No. PO</label>
@@ -262,11 +272,11 @@ export default function PoDetail() {
           </div>
           <div className="space-y-1 sm:col-span-2 lg:col-span-4">
             <label className="text-xs font-medium text-muted-foreground">Catatan PO</label>
-            <textarea value={catatan} onChange={e => setCatatan(e.target.value)} disabled={!bolehTerbit}
+            <textarea value={catatan} onChange={e => setCatatan(e.target.value)} disabled={!bolehUbah}
               rows={2} className="w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-60" />
           </div>
         </div>
-        {bolehTerbit && (
+        {bolehUbah && (
           <div className="flex justify-end mt-3">
             <Button variant="outline" size="sm" onClick={simpanKepala} disabled={sibuk}>
               <Save className="w-4 h-4 mr-1.5" /> Simpan data PO

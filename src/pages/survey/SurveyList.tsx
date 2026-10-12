@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { surveyApi, type BarisSurvey } from '@/lib/survey-api';
 import { useCrmUser } from '@/hooks/useCrmUser';
-import { bolehIsiSurvey, bolehIsiFinal } from '@/lib/crm-akses';
+import { useAuth } from '@/hooks/useAuth';
+import { boleh, bolehKunciFinal } from '../../../shared/akses';
 import { StatusBadge } from '@/components/crm/CrmBadges';
 import { fmtTglPendek } from '@/lib/survey-utils';
 
@@ -21,6 +22,7 @@ import { fmtTglPendek } from '@/lib/survey-utils';
 export default function SurveyList({ jenis }: { jenis: 'sales' | 'final' }) {
   const navigate = useNavigate();
   const { nama, peran, bolehUbahBaris } = useCrmUser();
+  const { izin, role, peranMaster, masterTerdaftar } = useAuth();
   const final = jenis === 'final';
   const induk = final ? '/survey/final' : '/survey/sales';
 
@@ -30,8 +32,16 @@ export default function SurveyList({ jenis }: { jenis: 'sales' | 'final' }) {
   const [fStatus, setFStatus] = useState('SEMUA');
   const [hapus, setHapus] = useState<BarisSurvey | null>(null);
 
-  const bolehIsi = final ? bolehIsiFinal(peran) : bolehIsiSurvey(peran);
+  // Pembuatan survey digerbangi IZIN HALAMAN — persis seperti server, yang
+  // memakai `wajibHalaman(request, env, 'survey_final' | 'survey_sales')` di
+  // functions/api/survey.ts. Dulu di sini dipakai peran Master CRM, sehingga
+  // akun staff — yang justru DIBERI izin `survey_final` oleh matriks izin —
+  // tidak pernah melihat tombolnya, padahal API-nya mengizinkan.
+  const bolehIsi = final ? boleh(izin, 'survey_final') : boleh(izin, 'survey_sales');
   const bisaTambah = bolehIsi;
+  // Mengunci bukan syarat mengisi: Surveyor boleh mengunci, staff boleh
+  // mengisi. Dipakai hanya untuk memberi keterangan yang jujur di layar.
+  const bolehKunci = final && bolehKunciFinal(izin, peranMaster);
 
   const muat = useCallback(async () => {
     setMemuat(true);
@@ -206,10 +216,22 @@ export default function SurveyList({ jenis }: { jenis: 'sales' | 'final' }) {
         )}
       </Card>
 
+      {/*
+        Keterangan ini HARUS mencerminkan wewenang yang sebenarnya. Dulu
+        tertulis "Final Survey dikunci oleh Surveyor" untuk SEMUA orang, jadi
+        akun staff membaca seolah-olah ia berwenang mengunci — padahal tidak.
+      */}
       <p className="text-xs text-muted-foreground">
-        {final
-          ? `Final Survey dikunci oleh Surveyor. Peran Anda: ${peran}.`
-          : `Survey Sales diisi oleh Sales pemilik lead (${nama}). Peran Anda: ${peran}.`}
+        {!bolehIsi
+          ? `Akun Anda hanya dapat melihat ${final ? 'Final Survey' : 'Survey Sales'}.`
+          : final
+            ? (bolehKunci
+                ? 'Anda berwenang mengisi dan mengunci Final Survey.'
+                : 'Anda dapat mengisi Final Survey; penguncian dilakukan Surveyor.')
+            : `Survey Sales diisi oleh Sales pemilik lead (${nama}).`}
+        {' '}Peran akun: <strong>{role || '-'}</strong>
+        {masterTerdaftar && peran && peran !== role ? ` · Peran Master CRM: ${peran}` : ''}
+        {!masterTerdaftar ? ' · Belum ditugaskan di Master CRM' : ''}.
       </p>
 
       {/* ── Konfirmasi hapus ── */}

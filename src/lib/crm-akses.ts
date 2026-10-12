@@ -48,6 +48,23 @@ export const bolehKelolaMaster = (peran: string) => ['Manager', 'Direktur', 'Adm
 //  Final Survey  : Surveyor yang mengisi & mengunci; Sales hanya melihat.
 //  PO Pabrik     : Operasional (PIC PO) yang menerbitkan; Sales hanya melihat.
 
+/**
+ * ⚠️ JANGAN dipakai lagi — sumber bug "tombol tidak muncul padahal berhak".
+ *
+ * Helper di bawah menilai wewenang dari PERAN MASTER CRM saja, padahal server
+ * memisahkannya:
+ *   • Mengisi Survey Sales/Final & membuat PO → IZIN HALAMAN (`wajibHalaman`).
+ *   • Mengunci Final Survey   → PERAN_PENGUNCI.
+ *   • Menerbitkan PO          → PERAN_PENERBIT.
+ *
+ * Karena helper ini dipakai untuk menggating tombol, akun `staff` — yang justru
+ * DIBERI izin `survey_final` dan `po` — tidak pernah melihat tombolnya.
+ *
+ * Penggantinya (semuanya di `shared/akses.ts`, sehingga tidak bisa bercabang
+ * dari server): `boleh(izin, 'survey_final' | 'survey_sales' | 'po')`,
+ * `bolehKunciFinalMaster()`, `bolehTerbitPOMaster()`, dan `bolehUbahData()`.
+ */
+
 /** Boleh mengisi Survey Sales (dan mengubahnya selama belum dikunci). */
 export const bolehIsiSurvey = (peran: string) =>
   ['Sales', 'Manager', 'Direktur', 'Admin Sistem'].includes(peran);

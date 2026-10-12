@@ -8,7 +8,8 @@ import { Factory, Search, ArrowRight, Plus, GitCompare, Eye, Trash2 } from 'luci
 import { poApi } from '@/lib/survey-api';
 import type { PoRow } from '@/lib/survey-types';
 import { useCrmUser } from '@/hooks/useCrmUser';
-import { bolehTerbitPO } from '@/lib/crm-akses';
+import { useAuth } from '@/hooks/useAuth';
+import { bolehUbahData } from '../../../shared/akses';
 import { fmtTglPendek } from '@/lib/survey-utils';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useBolehHapus } from '@/hooks/useBolehHapus';
@@ -23,6 +24,7 @@ const LENCANA_STATUS: Record<string, string> = {
 export default function PoList() {
   const navigate = useNavigate();
   const { peran } = useCrmUser();
+  const { izin } = useAuth();
   const bolehHapus = useBolehHapus();
   const [baris, setBaris] = useState<(PoRow & { nama_prospek?: string | null; jml_revisi?: number })[]>([]);
   const [memuat, setMemuat] = useState(true);
@@ -85,7 +87,14 @@ export default function PoList() {
             Pemesanan lift ke pabrik. Terbit setelah Final Survey dikunci. Revisi tercatat otomatis.
           </p>
         </div>
-        {bolehTerbitPO(peran) && (
+        {/*
+          Membuat PO baru digerbangi IZIN, bukan peran Master CRM. Server
+          (functions/api/po.ts cabang POST) hanya menuntut izin halaman `po`
+          dan akun tidak "hanya lihat" — wewenang PIC PO baru diperlukan saat
+          MENERBITKAN, dan itu ada di halaman detail. Dulu tombol ini memakai
+          peran Master CRM, sehingga akun yang boleh membuat PO tidak melihatnya.
+        */}
+        {bolehUbahData(izin) && (
           <Button onClick={() => navigate('/po/pilih')}>
             <Plus className="w-4 h-4 mr-1.5" /> PO Baru
           </Button>

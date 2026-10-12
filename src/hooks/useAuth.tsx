@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 type User = {
   id: string; email?: string; role?: string; fullName?: string;
-  permissions?: string[]; namaSales?: string;
+  permissions?: string[]; namaSales?: string; peranMaster?: string;
+  masterTerdaftar?: boolean;
 };
 type Session = { user: User };
 
@@ -13,6 +14,15 @@ interface AuthContextType {
   /** Izin efektif akun ini (gabungan peran + penyesuaian khusus). */
   izin: string[];
   namaSales: string;
+  /**
+   * Peran "Master CRM" yang dihitung SERVER — sumber wewenang mengunci Final
+   * Survey dan menerbitkan PO. Dihitung di server supaya tampilan tidak perlu
+   * (dan tidak boleh) menghitungnya sendiri: akun tanpa izin `crm` tidak bisa
+   * memuat Master CRM, lalu tombolnya hilang padahal server mengizinkan.
+   */
+  peranMaster: string;
+  /** true kalau akun ini ditugaskan di Master CRM (crm_ref_sales). */
+  masterTerdaftar: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -28,6 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [fullName, setFullName] = useState('');
   const [izin, setIzin] = useState<string[]>([]);
   const [namaSales, setNamaSales] = useState('');
+  const [peranMaster, setPeranMaster] = useState('');
+  const [masterTerdaftar, setMasterTerdaftar] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const applyUser = (u: User | null) => {
@@ -38,6 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // menu — penolakan yang sebenarnya terjadi di API.
     setIzin(u?.permissions ?? []);
     setNamaSales(u?.namaSales ?? '');
+    // Peran Master CRM juga dari server: ia menentukan tombol kunci Final
+    // Survey & terbit PO, dan harus sama dengan yang diperiksa API.
+    setPeranMaster(u?.peranMaster ?? '');
+    setMasterTerdaftar(u?.masterTerdaftar ?? false);
     setSession(u ? { user: u } : null);
   };
 
@@ -69,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, fullName, izin, namaSales, loading, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, role, fullName, izin, namaSales, peranMaster, masterTerdaftar, loading, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

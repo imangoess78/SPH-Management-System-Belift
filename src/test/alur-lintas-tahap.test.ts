@@ -89,9 +89,25 @@ describe('urutan riwayat tidak dipotong ke detik', () => {
 });
 
 describe('lintas tahap', () => {
+  /**
+   * Ambil isi satu fungsi utuh dari kode sumber: dari kata kuncinya sampai
+   * penutup fungsi pada kolom 0 (`\n}`).
+   *
+   * Dulu di sini dipakai `slice(i, i + 1600)` — potongan sepanjang angka
+   * tetap. Itu rapuh: begitu ada komentar yang menambah panjang fungsi,
+   * bagian yang sebenarnya diuji ikut terpotong dan tesnya gagal padahal
+   * kodenya benar. Mengambil sampai penutup fungsi membuat tes tidak lagi
+   * bergantung pada panjang komentar.
+   */
+  const isiFungsi = (sumber: string, pembuka: string) => {
+    const i = sumber.indexOf(pembuka);
+    expect(i, `fungsi "${pembuka}" tidak ditemukan`).toBeGreaterThan(-1);
+    const akhir = sumber.indexOf('\n}', i);
+    return sumber.slice(i, akhir === -1 ? undefined : akhir);
+  };
+
   it('kunci Final Survey memajukan lead & proyek, dan berjejak', () => {
-    const i = SURVEY.indexOf('async function kunci');
-    const isi = SURVEY.slice(i, i + 1600);
+    const isi = isiFungsi(SURVEY, 'async function kunci');
     // Status lead berpindah lewat pindahkanStatus — bukan UPDATE mentah —
     // supaya perpindahannya ikut tercatat di crm_lead_riwayat.
     expect(isi).toContain("pindahkanStatus(env, row.id_lead, 'Final Survey Selesai'");
@@ -100,8 +116,7 @@ describe('lintas tahap', () => {
   });
 
   it('PO terbit memindahkan lead ke PO Terbit ke Pabrik, dan berjejak', () => {
-    const i = PO.indexOf('async function terbitkan');
-    const isi = PO.slice(i, i + 4000);
+    const isi = isiFungsi(PO, 'async function terbitkan');
     expect(isi).toContain("pindahkanStatus(env, po.id_lead, 'PO Terbit ke Pabrik'");
     // Kolom status_po tetap terisi sendiri (dipakai tampilan PO).
     expect(isi).toContain('SET status_po=?');

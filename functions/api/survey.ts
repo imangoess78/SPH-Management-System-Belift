@@ -314,9 +314,15 @@ async function simpan(method: string, id: string | null, body: Record<string, un
 }
 
 /** Kunci / buka kunci Final Survey (PRD S6–S8). */
-async function kunci(id: string, aksi: 'kunci' | 'buka', body: Record<string, unknown>, env: Env, userId: string) {
+async function kunci(id: string, aksi: 'kunci' | 'buka', body: Record<string, unknown>, env: Env, userId: string, izin: string[]) {
   const aku = await profilPemakai(userId, env);
-  if (!PERAN_PENGUNCI.includes(aku.peran))
+  // Wewenang mengunci bertumpu pada IZIN `kunci_final` — sumber yang sama
+  // dengan izin halaman, sehingga bisa diatur per akun tanpa perlu mengubah
+  // peran di Master CRM. Peran Master CRM tetap diterima sebagai jalur kedua
+  // supaya akun yang sudah ditugaskan sebagai Surveyor/Manager/Direktur tidak
+  // ikut kehilangan wewenang kalau izinnya disesuaikan.
+  const bolehKunci = izin.includes('*') || izin.includes('kunci_final');
+  if (!bolehKunci && !PERAN_PENGUNCI.includes(aku.peran))
     return ok({ error: `Peran ${aku.peran} tidak berwenang ${aksi === 'kunci' ? 'mengunci' : 'membuka kunci'} Final Survey` }, 403);
 
   const row = await env.sph_management_db.prepare('SELECT * FROM survey_teknis WHERE id=?').bind(id)
@@ -507,7 +513,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
           return ok({ error: 'Peran Anda tidak berwenang mengunci Final Survey.' }, 403);
         }
         const aksi = url.searchParams.get('aksi') === 'buka' ? 'buka' : 'kunci';
-        return kunci(id, aksi, body, env, session.user_id);
+        return kunci(id, aksi, body, env, session.user_id, akses.izin);
       }
       case 'lacak': {
         if (method !== 'GET') break;
