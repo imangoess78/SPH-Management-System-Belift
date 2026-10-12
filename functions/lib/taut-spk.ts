@@ -34,6 +34,11 @@ export interface HasilTaut {
  * Dibandingkan setelah tanda baca & spasi dirapikan, dan huruf besar/kecil
  * diabaikan. Baris yang sudah punya `id_proyek` didahulukan karena itulah
  * lead yang benar-benar sudah jalan sebagai proyek.
+ *
+ * Lead yang SUDAH dipakai dokumen lain tidak direbut. Ini bukan kehati-hatian
+ * berlebihan: di data nyata ada satu customer dengan DUA SPK (nomor berbeda,
+ * kota sama) — dua proyek. Tanpa aturan ini, SPK kedua akan menempel ke lead
+ * SPK pertama, dan dua proyek hanya akan punya satu Final Survey.
  */
 async function cocokkanLead(
   spk: SpkFinal, env: { sph_management_db: D1Database },
@@ -51,14 +56,21 @@ async function cocokkanLead(
   const norm = (v: string) => v.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
 
   const kandidat = await env.sph_management_db.prepare(
-    `SELECT id, kode_lead, kota, nama_prospek, id_proyek
-     FROM crm_leads
-     WHERE ${kunci('nama_prospek')} = ?
-     ORDER BY (id_proyek IS NULL OR id_proyek='') ASC, datetime(waktu_masuk) DESC, id ASC
+    `SELECT l.id, l.kode_lead, l.kota, l.nama_prospek, l.id_proyek,
+            (SELECT COUNT(*) FROM sph s WHERE s.id_lead = l.id AND s.id <> ?) AS dok_lain
+     FROM crm_leads l
+     WHERE ${kunci('l.nama_prospek')} = ?
+     ORDER BY dok_lain ASC, (l.id_proyek IS NULL OR l.id_proyek='') ASC,
+              datetime(l.waktu_masuk) DESC, l.id ASC
      LIMIT 10`,
-  ).bind(norm(nama)).all<{ id: string; kode_lead: string | null; kota: string | null; nama_prospek: string; id_proyek: string | null }>();
+  ).bind(spk.id, norm(nama)).all<{
+    id: string; kode_lead: string | null; kota: string | null;
+    nama_prospek: string; id_proyek: string | null; dok_lain: number;
+  }>();
 
-  const baris = kandidat.results || [];
+  // Sudah dipakai dokumen lain → bukan kandidat. Kalau semuanya terpakai,
+  // lead baru yang dibuat (dua dokumen = dua proyek).
+  const baris = (kandidat.results || []).filter(b => !b.dok_lain);
   if (!baris.length) return null;
 
   // Satu kandidat → langsung pakai. Lebih dari satu → dahulukan yang kotanya

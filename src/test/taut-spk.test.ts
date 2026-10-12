@@ -323,3 +323,68 @@ describe('tautkanSpkKeLead — membuat lead bila memang belum ada', () => {
     expect(n.n).toBe(1);
   });
 });
+
+describe('tautkanSpkKeLead — satu customer, dua SPK (dua lift)', () => {
+  // Kasus nyata di produksi: satu customer memesan 2 lift dengan spesifikasi
+  // berbeda, sehingga terbit 2 SPK dengan nama & kota yang sama persis.
+  // Keduanya proyek terpisah, masing-masing punya Final Survey sendiri.
+  //
+  // Kalau lead-nya direbut, dua proyek hanya akan punya SATU Final Survey —
+  // dan salah satu lift tidak pernah disurvey. Kesalahannya tidak akan
+  // kelihatan sebagai galat: halaman cuma diam-diam menautkan ke proyek yang
+  // salah.
+  const d1 = {
+    id: 'D1', nomor: '8926/SPK/LIFT/BAI/X/2026', customer: 'Suharjito SE',
+    kota: 'Bekasi', state: { kapasitas: '450 Kg' },
+  };
+  const d2 = {
+    id: 'D2', nomor: '8927/SPK/LIFT/BAI/X/2026', customer: 'Suharjito SE',
+    kota: 'Bekasi', state: { kapasitas: '300 Kg' },
+  };
+
+  it('menghasilkan DUA lead, bukan satu', async () => {
+    taruhDokumen(d1);
+    taruhDokumen(d2);
+
+    const a = await tautkanSpkKeLead(spkDari(d1), env);
+    const b = await tautkanSpkKeLead(spkDari(d2), env);
+
+    expect(a.id_lead).not.toBe(b.id_lead);
+    const n = sqlite.prepare('SELECT COUNT(*) AS n FROM crm_leads').get() as { n: number };
+    expect(n.n).toBe(2);
+  });
+
+  it('tiap dokumen menunjuk lead-nya sendiri', async () => {
+    taruhDokumen(d1);
+    taruhDokumen(d2);
+
+    const a = await tautkanSpkKeLead(spkDari(d1), env);
+    const b = await tautkanSpkKeLead(spkDari(d2), env);
+
+    expect(idLeadDokumen('D1')).toBe(a.id_lead);
+    expect(idLeadDokumen('D2')).toBe(b.id_lead);
+  });
+
+  it('SPK kedua tidak merebut lead yang sudah dipakai SPK pertama', async () => {
+    // Lead sudah ada lebih dulu (mis. dibuat sales), dan sudah dipakai SPK 8926.
+    taruhLead({ id: 'L1', kode: 'LEAD-0001', nama: 'Suharjito SE', kota: 'Bekasi' });
+    taruhDokumen({ ...d1, lead: 'L1' });
+    taruhDokumen(d2);
+
+    const b = await tautkanSpkKeLead(spkDari(d2), env);
+
+    expect(b.id_lead).not.toBe('L1');
+    expect(b.baru).toBe(true);
+    expect(adaLead(b.id_lead)?.nama_prospek).toBe('Suharjito SE');
+  });
+
+  it('SPK pertama tetap memakai lead yang sudah ada, tidak dibuatkan baru', async () => {
+    taruhLead({ id: 'L1', kode: 'LEAD-0001', nama: 'Suharjito SE', kota: 'Bekasi' });
+    taruhDokumen(d1);
+
+    const a = await tautkanSpkKeLead(spkDari(d1), env);
+
+    expect(a.id_lead).toBe('L1');
+    expect(a.baru).toBe(false);
+  });
+});
