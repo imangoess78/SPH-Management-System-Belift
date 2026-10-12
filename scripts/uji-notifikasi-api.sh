@@ -74,12 +74,40 @@ echo
 echo "── 3. PENYARINGAN: notifikasi milik orang lain tidak boleh terlihat ──"
 # Sisipkan dua baris uji langsung ke D1: satu untuk admin ini, satu untuk
 # uid yang tidak ada. Lalu pastikan yang muncul hanya milik admin.
+#
+# ⚠️ DUA JEBAKAN YANG PERNAH MEMBUAT UJI INI LULUS PALSU:
+#
+# (a) BENTUK KOLOM. Dulu baris uji ditulis `,uid,` — PAKAI koma di kedua
+#     ujung. Bentuk itu tidak pernah dihasilkan aplikasi: `kirim()` menulis
+#     `penerima.join(',')` = `a,b,c`, TANPA koma ujung. Karena data ujinya
+#     dibuat sesuai asumsi yang salah, uji ini lulus sementara produksi
+#     rusak — admin tidak melihat satu pun notifikasi karena id-nya selalu
+#     di posisi pertama. Baris uji sekarang memakai bentuk ASLI, dan id yang
+#     diuji sengaja ditaruh di posisi TERAKHIR (batas yang paling rawan).
+#
+# (b) URUTAN. `created_at` baris uji dulu 2026-10-07, lebih tua dari data
+#     sungguhan, sedangkan daftar dibatasi 50 baris terbaru. Begitu akun
+#     yang diuji punya banyak notifikasi asli, baris uji terdorong keluar
+#     jendela dan uji gagal tanpa ada yang rusak. Tanggalnya kini jauh di
+#     depan supaya selalu berada di puncak daftar.
+UID_PALSU="uid-tidak-ada"
 q "INSERT OR REPLACE INTO app_notifikasi
    (id,jenis,kunci_event,judul,pesan,penerima,tautan,oleh_nama,tingkat,created_at)
-   VALUES ('uji-terlihat','uji','uji-terlihat','MILIK-SAYA','x',',${UID_ADMIN},','','','info','2026-10-07T00:00:00Z')" >/dev/null 2>&1
+   VALUES ('uji-terlihat','uji','uji-terlihat','MILIK-SAYA','x','${UID_PALSU},${UID_ADMIN}','','','info','2099-01-01T00:00:00Z')" >/dev/null 2>&1
 q "INSERT OR REPLACE INTO app_notifikasi
    (id,jenis,kunci_event,judul,pesan,penerima,tautan,oleh_nama,tingkat,created_at)
-   VALUES ('uji-oranglain','uji','uji-oranglain','MILIK-ORANG-LAIN','x',',uid-tidak-ada,','','','info','2026-10-07T00:00:00Z')" >/dev/null 2>&1
+   VALUES ('uji-oranglain','uji','uji-oranglain','MILIK-ORANG-LAIN','x','${UID_PALSU}','','','info','2099-01-01T00:00:01Z')" >/dev/null 2>&1
+
+# Buktikan prasyaratnya dulu: id yang diuji memang di posisi terakhir dan
+# TANPA koma di ujungnya — inilah bentuk yang dulu gagal dicocokkan.
+bentuk=$(q "SELECT penerima FROM app_notifikasi WHERE id='uji-terlihat'" \
+  | python3 -c "import json,sys
+try: print(json.load(sys.stdin)[0]['results'][0]['penerima'])
+except Exception: print('')")
+echo "  bentuk baris uji: '$bentuk'  (bentuk asli produksi, tanpa koma ujung)"
+if [ "${bentuk##*,}" != "$UID_ADMIN" ]; then
+  echo "  ! prasyarat gagal: id uji tidak berada di posisi terakhir"
+fi
 
 curl -s -H "Cookie: $KUE" "$BASE/api/notifikasi" > /tmp/n.json 2>/dev/null
 python3 -c "

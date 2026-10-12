@@ -18,6 +18,20 @@
 //  `LIKE '%id%'` biasa bisa salah cocok kalau satu id menjadi bagian
 //  dari id lain (mis. 'abc' cocok dengan 'abc-1'). Koma di kedua ujung
 //  menutup kasus itu.
+//
+//  ⚠️ KOMA ITU HARUS DITAMBAHKAN SAAT MENCARI, BUKAN DIASUMSIKAN ADA.
+//
+//  Kolom `penerima` disimpan sebagai `a,b,c` — TANPA koma di ujung.
+//  Mencari dengan `penerima LIKE '%,id,%'` karena itu GAGAL untuk
+//  elemen PERTAMA (tak ada koma di depannya) dan elemen TERAKHIR (tak
+//  ada koma di belakangnya). Akibatnya nyata di produksi: id admin
+//  selalu berada di urutan pertama, sehingga admin — pemilik sistem —
+//  tidak pernah melihat satu pun notifikasi, sementara staff yang
+//  kebetulan ada di tengah melihat semuanya.
+//
+//  Karena itu setiap pencarian membungkus kolomnya lebih dulu:
+//  `(',' || penerima || ',') LIKE ?`. Koma buatan itu membuat elemen
+//  pertama dan terakhir ikut punya batas, tanpa perlu mengubah data.
 // ============================================================
 
 import type { PagesFunction } from '@cloudflare/workers-types';
@@ -25,7 +39,20 @@ import { json, wajibHalaman } from '../lib/akses';
 
 interface Env { sph_management_db: D1Database }
 
-/** Pola `,<id>,` untuk mencocokkan keanggotaan daftar penerima. */
+/**
+ * Ekspresi SQL untuk mencocokkan keanggotaan `userId` di kolom `penerima`.
+ *
+ * Kolom itu berisi daftar id dipisah koma tanpa koma di ujung (`a,b,c`).
+ * Koma pembatas ditambahkan ke KOLOMNYA lebih dulu, baru dicari `%,id,%`.
+ * Tanpa bungkusan ini, elemen pertama dan terakhir tak akan pernah cocok —
+ * dan id admin selalu berada di urutan pertama.
+ *
+ * Sengaja memakai ungkapan ini, bukan `instr()`, supaya batas pencariannya
+ * tetap koma (id yang menjadi bagian id lain tidak ikut cocok).
+ */
+const COCOK_PENERIMA = `(',' || n.penerima || ',') LIKE ?`;
+
+/** Nilai bind untuk {@link COCOK_PENERIMA}. */
 function penerimaSaya(userId: string): string {
   return `%,${userId},%`;
 }
@@ -44,7 +71,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     const jumlah = await env.sph_management_db
       .prepare(
         `SELECT COUNT(*) AS n FROM app_notifikasi n
-         WHERE n.penerima LIKE ?
+         WHERE ${COCOK_PENERIMA}
            AND NOT EXISTS (SELECT 1 FROM app_notifikasi_baca b
                            WHERE b.id_notif=n.id AND b.user_id=?)`,
       )
@@ -60,7 +87,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
                 CASE WHEN b.user_id IS NULL THEN 0 ELSE 1 END AS dibaca
          FROM app_notifikasi n
          LEFT JOIN app_notifikasi_baca b ON b.id_notif=n.id AND b.user_id=?
-         WHERE n.penerima LIKE ?
+         WHERE ${COCOK_PENERIMA}
          ORDER BY n.created_at DESC
          LIMIT ?`,
       )
@@ -85,7 +112,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       // Tanpa syarat `penerima LIKE`, siapa pun bisa menandai notifikasi
       // orang lain sebagai terbaca — menghapus lencana orang itu.
       const milik = await env.sph_management_db
-        .prepare('SELECT 1 AS ok FROM app_notifikasi WHERE id=? AND penerima LIKE ?')
+        .prepare(`SELECT 1 AS ok FROM app_notifikasi n WHERE n.id=? AND ${COCOK_PENERIMA}`)
         .bind(id, penerimaSaya(userId)).first();
       if (!milik) return json({ error: 'Notifikasi tidak ditemukan.' }, 404);
 
@@ -103,7 +130,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       .prepare(
         `INSERT OR IGNORE INTO app_notifikasi_baca (id_notif, user_id, dibaca_at)
          SELECT n.id, ?, ? FROM app_notifikasi n
-         WHERE n.penerima LIKE ?
+         WHERE ${COCOK_PENERIMA}
            AND NOT EXISTS (SELECT 1 FROM app_notifikasi_baca b
                            WHERE b.id_notif=n.id AND b.user_id=?)`,
       )
