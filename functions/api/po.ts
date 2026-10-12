@@ -60,6 +60,27 @@ async function profilPemakai(userId: string, env: Env) {
     .bind(userId).first<{ full_name: string | null; email: string | null; email_login: string | null; role: string | null }>();
   const email = (p?.email || p?.email_login || '').toLowerCase();
   const nama = p?.full_name || p?.email_login || 'Pengguna';
+  // Admin harus menang atas baris Master CRM.
+  //
+  // Dulu baris `crm_ref_sales` diperiksa lebih dulu dan LANGSUNG dikembalikan,
+  // sehingga peran di sana menimpa status admin: akun yang dinaikkan jadi
+  // admin tetapi pernah dicatat sebagai "Sales" di Master CRM tetap berperan
+  // Sales — tidak bisa menerbitkan PO / mengunci Final Survey, padahal admin
+  // seharusnya berwenang atas semuanya. Peran Master CRM hanya MENAMBAH
+  // wewenang, tidak boleh MENGURANGI.
+  if (p?.role === 'admin') {
+    const ref = email
+      ? await env.sph_management_db
+          .prepare('SELECT nama FROM crm_ref_sales WHERE lower(email)=?')
+          .bind(email).first<{ nama: string }>()
+      : null;
+    return {
+      nama: ref?.nama || nama,
+      peran: 'Admin Sistem',
+      roleAkun: String(p?.role || ''),
+      terdaftar: !!ref,
+    };
+  }
   if (email) {
     const ref = await env.sph_management_db
       .prepare('SELECT nama, peran FROM crm_ref_sales WHERE lower(email)=?')
@@ -68,7 +89,7 @@ async function profilPemakai(userId: string, env: Env) {
   }
   return {
     nama,
-    peran: p?.role === 'admin' ? 'Admin Sistem' : 'Sales',
+    peran: 'Sales',
     roleAkun: String(p?.role || ''),
     terdaftar: false,
   };
@@ -83,6 +104,9 @@ async function profilPemakai(userId: string, env: Env) {
  *     menerbitkan"). Sumber sah wewenang ini memang Master CRM — akun PIC PO
  *     dibuat ber-role `staff`, jadi kalau wewenang disandarkan pada peran akun,
  *     PIC PO justru kehilangan haknya.
+ *     Admin Sistem dikecualikan: `profilPemakai()` sudah mengembalikan
+ *     'Admin Sistem' untuk semua akun ber-role admin, sehingga baris Master CRM
+ *     yang pernah mencatatnya sebagai "Sales" tidak lagi mencabut wewenangnya.
  *
  *  2. Akun tidak dibatasi "hanya lihat" (cakupanUbah != 'tidak'). Ini yang dulu
  *     hilang: admin bisa mencabut izin ubah seseorang, tetapi PO tetap bisa
@@ -90,7 +114,13 @@ async function profilPemakai(userId: string, env: Env) {
  *     dan Survey sudah lama menolak lewat pemeriksaan yang sama persis.
  */
 function bolehTerbitkanPO(aku: { peran: string }, akses: Akses): boolean {
-  return PERAN_PENERBIT.includes(aku.peran) && akses.cakupanUbah !== 'tidak';
+  // Peran Master CRM penerbit, atau akun dengan izin liar '*' (pemberian
+  // super-admin yang eksplisit). Izin halaman `po` TIDAK cukup: staff dan
+  // siapa pun yang boleh membuka halaman PO tetap tidak boleh MENERBITKAN —
+  // PRD 9.7 menyerahkannya kepada PIC PO. Admin lolos lewat peran
+  // 'Admin Sistem' yang diberikan `profilPemakai()`.
+  const wenangPeran = PERAN_PENERBIT.includes(aku.peran) || akses.izin.includes('*');
+  return wenangPeran && akses.cakupanUbah !== 'tidak';
 }
 
 

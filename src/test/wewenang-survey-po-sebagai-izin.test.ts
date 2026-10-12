@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   peranMasterDari, bolehKunciFinal, bolehKunciFinalMaster, bolehTerbitPOMaster,
-  bolehUbahData, boleh, izinEfektif, normalisasiPeran,
+  bolehUbahData, boleh, izinEfektif, normalisasiPeran, bolehTerbitPO,
 } from '../../shared/akses';
 
 /**
@@ -32,7 +32,19 @@ describe('peranMasterDari — cerminan profilPemakai() di server', () => {
   it('memakai peran Master CRM bila akun terdaftar', () => {
     expect(peranMasterDari('staff', 'Surveyor')).toBe('Surveyor');
     expect(peranMasterDari('staff', 'Operasional')).toBe('Operasional');
-    expect(peranMasterDari('admin', 'Manager')).toBe('Manager');
+    expect(peranMasterDari('manager', 'Manager')).toBe('Manager');
+  });
+
+  it('ADMIN MENANG atas baris Master CRM — baris itu tidak boleh mencabut wewenang', () => {
+    // Kasus nyata: imam@belift.co.id awalnya staff, lalu dinaikkan jadi admin,
+    // tetapi di crm_ref_sales masih tercatat "Sales". Dulu baris itu menimpa
+    // status admin, sehingga admin tidak bisa menerbitkan PO / mengunci Final
+    // Survey — padahal admin seharusnya berwenang atas semuanya.
+    expect(peranMasterDari('admin', 'Sales')).toBe('Admin Sistem');
+    expect(bolehKunciFinalMaster(peranMasterDari('admin', 'Sales'))).toBe(true);
+    expect(bolehTerbitPOMaster(peranMasterDari('admin', 'Sales'))).toBe(true);
+    // Bahkan peran Master CRM yang ASING pun tidak menurunkan admin.
+    expect(peranMasterDari('admin', 'Entah Apa')).toBe('Admin Sistem');
   });
 
   it('akun tanpa izin crm tetap dapat peran yang benar — inilah akar masalahnya', () => {
@@ -113,7 +125,7 @@ describe('tombol pembuatan memakai IZIN, bukan peran Master CRM', () => {
 
   it('PoDetail menuntut peran penerbit hanya untuk MENERBITKAN', () => {
     const s = baca('src/pages/po/PoDetail.tsx');
-    expect(s).toContain('bolehTerbitPOMaster(peranMaster)');
+    expect(s).toContain('bolehTerbitPO(peranMaster, izin)');
     expect(s).toContain('bolehUbahData(izin)');
     // Kolom data PO & tombol Simpan ikut izin ubah, bukan wewenang terbit.
     expect(s).not.toMatch(/disabled=\{!bolehTerbit\}/);
@@ -179,14 +191,27 @@ describe('tampilan tidak lagi menghitung wewenang dari Master CRM', () => {
     expect(s).toContain('peranMasterDari(user.role, ref?.peran)');
   });
 
-  it('nilai jatuhan peranMaster di shared SAMA dengan profilPemakai() di server', () => {
-    // Kalau server mengubah aturan jatuhannya, uji ini gagal — supaya
-    // tampilan dan server tidak pernah bercabang lagi.
-    const survey = baca('functions/api/survey.ts');
-    const po = baca('functions/api/po.ts');
-    const pola = /p\?\.role === 'admin' \? 'Admin Sistem' : 'Sales'/;
-    expect(survey, 'aturan jatuhan di survey.ts berubah').toMatch(pola);
-    expect(po, 'aturan jatuhan di po.ts berubah').toMatch(pola);
+  it('server juga mengutamakan admin atas baris Master CRM', () => {
+    // Kalau server mengubah urutannya, uji ini gagal — supaya tampilan dan
+    // server tidak pernah bercabang lagi. Keduanya harus memeriksa role admin
+    // LEBIH DULU, sebelum membaca peran dari crm_ref_sales.
+    for (const berkas of ['functions/api/survey.ts', 'functions/api/po.ts']) {
+      const s = baca(berkas);
+      const iAdmin = s.indexOf("p?.role === 'admin'");
+      const iRef = s.indexOf('SELECT nama, peran FROM crm_ref_sales');
+      expect(iAdmin, `${berkas}: tidak ada pemeriksaan role admin`).toBeGreaterThan(-1);
+      expect(iRef, `${berkas}: tidak ada query peran Master CRM`).toBeGreaterThan(-1);
+      expect(iAdmin, `${berkas}: baris Master CRM diperiksa SEBELUM admin — admin bisa dicabut wewenangnya`)
+        .toBeLessThan(iRef);
+    }
+  });
+
+  it('admin berwenang menerbitkan PO walau tidak terdaftar di Master CRM', () => {
+    const izinAdmin = izinEfektif('admin', null);
+    expect(bolehTerbitPO(peranMasterDari('admin', 'Sales'), izinAdmin)).toBe(true);
+    expect(bolehTerbitPO(peranMasterDari('admin', 'Sales'), [])).toBe(true);
+    // Non-admin tanpa peran penerbit tetap ditolak.
+    expect(bolehTerbitPO(peranMasterDari('staff', null), izinEfektif('staff', null))).toBe(false);
   });
 });
 

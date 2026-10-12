@@ -157,8 +157,14 @@ export function normalisasiPeran(role?: string | null): Peran {
  * didaftarkan di Master CRM.
  */
 export function peranMasterDari(role?: string | null, refPeran?: string | null): string {
+  // Admin menang lebih dulu. Ini urutan yang sama dengan `profilPemakai()` di
+  // server: baris `crm_ref_sales` hanya MENAMBAH wewenang, tidak boleh
+  // menguranginya. Dulu tidak begitu — akun yang dinaikkan jadi admin tetapi
+  // pernah dicatat sebagai "Sales" di Master CRM tetap berperan Sales, jadi
+  // admin tidak bisa menerbitkan PO atau mengunci Final Survey.
+  if (normalisasiPeran(role) === 'admin') return 'Admin Sistem';
   if (refPeran) return refPeran;
-  return normalisasiPeran(role) === 'admin' ? 'Admin Sistem' : 'Sales';
+  return 'Sales';
 }
 
 /** Label peran Master CRM yang boleh mengunci Final Survey — cerminan PERAN_PENGUNCI. */
@@ -183,7 +189,18 @@ export const bolehKunciFinalMaster = (peranMaster: string) =>
 /** Label peran Master CRM yang boleh menerbitkan PO — cerminan PERAN_PENERBIT. */
 export const PERAN_PENERBIT = ['Operasional', 'Direktur', 'Manager', 'Admin Sistem'] as const;
 
-/** Boleh menerbitkan PO? Cerminan pemeriksaan di functions/api/po.ts. */
+/**
+ * Boleh menerbitkan PO? Cerminan `bolehTerbitkanPO()` di functions/api/po.ts.
+ *
+ * Peran Master CRM penerbit ATAU izin liar '*'. Izin halaman `po` TIDAK cukup
+ * — PRD 9.7 menyerahkan penerbitan kepada PIC PO, sedangkan staff hanya
+ * membuat PO-nya. Admin lolos lewat peran 'Admin Sistem'.
+ */
+export const bolehTerbitPO = (peranMaster: string, izin: string[]) =>
+  izin.includes('*') ||
+  (PERAN_PENERBIT as readonly string[]).includes(peranMaster);
+
+/** Boleh menerbitkan PO hanya lewat peran Master CRM (tanpa melihat izin). */
 export const bolehTerbitPOMaster = (peranMaster: string) =>
   (PERAN_PENERBIT as readonly string[]).includes(peranMaster);
 

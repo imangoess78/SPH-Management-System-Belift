@@ -55,14 +55,29 @@ async function profilPemakai(userId: string, env: Env) {
     .bind(userId).first<{ full_name: string | null; email: string | null; email_login: string | null; role: string | null }>();
   const email = (p?.email || p?.email_login || '').toLowerCase();
   const nama = p?.full_name || p?.email_login || 'Pengguna';
-  let peran = p?.role === 'admin' ? 'Admin Sistem' : 'Sales';
+  // Admin harus menang atas baris Master CRM.
+  //
+  // Dulu baris `crm_ref_sales` diperiksa lebih dulu dan LANGSUNG dikembalikan,
+  // sehingga peran di sana menimpa status admin: akun yang dinaikkan jadi
+  // admin tetapi pernah dicatat sebagai "Sales" di Master CRM tetap berperan
+  // Sales — tidak bisa mengunci Final Survey / menerbitkan PO, padahal admin
+  // seharusnya berwenang atas semuanya. Peran Master CRM hanya MENAMBAH
+  // wewenang, tidak boleh MENGURANGI.
+  if (p?.role === 'admin') {
+    const ref = email
+      ? await env.sph_management_db
+          .prepare('SELECT nama FROM crm_ref_sales WHERE lower(email)=? AND (status IS NULL OR status="Aktif")')
+          .bind(email).first<{ nama: string }>()
+      : null;
+    return { nama: ref?.nama || nama, peran: 'Admin Sistem', email };
+  }
   if (email) {
     const ref = await env.sph_management_db
       .prepare('SELECT nama, peran FROM crm_ref_sales WHERE lower(email)=? AND (status IS NULL OR status="Aktif")')
       .bind(email).first<{ nama: string; peran: string }>();
     if (ref) return { nama: ref.nama, peran: ref.peran, email };
   }
-  return { nama, peran, email };
+  return { nama, peran: 'Sales', email };
 }
 
 function urai(row: Record<string, unknown>) {

@@ -12,7 +12,7 @@ import { poApi, type BalikanPoDetail } from '@/lib/survey-api';
 import { cetakPo, salinRingkasPo } from '@/lib/survey-cetak';
 import { useCrmUser } from '@/hooks/useCrmUser';
 import { useAuth } from '@/hooks/useAuth';
-import { bolehTerbitPOMaster, bolehUbahData } from '../../../shared/akses';
+import { bolehTerbitPO, bolehUbahData } from '../../../shared/akses';
 import { MAKS_REVISI_TANPA_APPROVAL, type PerubahanField } from '@/lib/survey-types';
 import { fmtTglPendek, fmtWaktu, warnaTingkat, lencanaTingkat, labelTingkat } from '@/lib/survey-utils';
 
@@ -42,7 +42,7 @@ export default function PoDetail() {
   //    (cerminan `cakupanUbah !== 'tidak'`).
   // Dulu keduanya memakai peran Master CRM, sehingga akun yang boleh mengubah
   // PO tidak melihat tombol Simpan.
-  const bolehTerbit = bolehTerbitPOMaster(peranMaster);
+  const bolehTerbit = bolehTerbitPO(peranMaster, izin);
   const bolehUbah = bolehUbahData(izin);
 
   const muat = useCallback(async () => {
