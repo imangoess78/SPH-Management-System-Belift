@@ -3,6 +3,8 @@ import { boleh } from '../../shared/akses';
 import { bolehSentuh, saringPemilik, wajibHalaman, wajibSalahSatu, type Akses } from '../lib/akses';
 import { pindahkanStatus } from '../lib/riwayat';
 import { kirim } from '../lib/notifikasi';
+import { keSpkFinal, daftarSpkFinal, type BarisSph } from '../../shared/spk-dokumen';
+import { tautkanSpkKeLead } from '../lib/taut-spk';
 
 interface Env { sph_management_db: D1Database }
 
@@ -524,6 +526,78 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
           return ok({ data: res.results || [] });
         }
         break;
+      }
+      case 'spk_final': {
+        // Daftar SPK final — jangkar Final Survey bila tim melompat langsung
+        // dari SPK tanpa melewati Survey Sales.
+        if (method !== 'GET') break;
+        const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+
+        // Batasan kepemilikan disamakan dengan /api/data: sales hanya melihat
+        // dokumennya sendiri. `user_id` yang menunjuk akun tak ada TIDAK
+        // dianggap milik siapa pun — kalau tidak, dokumen itu bocor ke setiap
+        // sales dan kebocorannya justru tampak seperti "daftar lengkap".
+        const params: unknown[] = [];
+        let batas = '';
+        if (akses.cakupanLihat === 'sendiri') {
+          batas = ` AND ((user_id = ? AND user_id IN (SELECT id FROM app_users))
+                     OR (user_id IS NULL AND lower(trim(coalesce(nama_sales,''))) <> ''
+                         AND lower(trim(nama_sales)) IN (lower(trim(?)), lower(trim(?)))))`;
+          params.push(akses.userId, akses.namaSales, akses.nama);
+        }
+
+        const res = await env.sph_management_db.prepare(
+          `SELECT id, nomor_sph, tanggal, kepada, nama_pic, status, nama_sales, jenis_lift, id_lead, specs
+           FROM sph WHERE lower(trim(coalesce(status,'')))='final'${batas}`).bind(...params).all();
+        let data = daftarSpkFinal((res.results || []) as unknown as BarisSph[]);
+        if (q) {
+          data = data.filter(s =>
+            s.customer.toLowerCase().includes(q)
+            || s.nomor_spk.toLowerCase().includes(q)
+            || s.kota.toLowerCase().includes(q)
+            || s.sales.toLowerCase().includes(q));
+        }
+        return ok({ data });
+      }
+      case 'taut_spk': {
+        // Tautkan sebuah SPK final ke lead — dipakai saat Final Survey dimulai
+        // dari dokumen SPK, bukan dari lead.
+        if (method !== 'POST') break;
+        if (!boleh(akses.izin, 'survey_final')) {
+          return ok({ error: 'Peran Anda tidak berwenang memulai Final Survey.' }, 403);
+        }
+        if (akses.cakupanUbah === 'tidak') {
+          return ok({ error: 'Peran Anda tidak berwenang mengubah data.' }, 403);
+        }
+        const idSpk = String(body.id_spk || '');
+        if (!idSpk) return ok({ error: 'id_spk wajib diisi' }, 400);
+
+        const baris = await env.sph_management_db
+          .prepare(`SELECT id, nomor_sph, tanggal, kepada, nama_pic, status, nama_sales, user_id, jenis_lift, id_lead, specs
+                    FROM sph WHERE id=?`).bind(idSpk).first();
+        if (!baris) return ok({ error: 'SPK tidak ditemukan' }, 404);
+
+        // Kepemilikan dokumen diperiksa seperti di /api/data. Tanpa ini, sales
+        // dengan cakupan "sendiri" bisa menautkan SPK milik sales lain hanya
+        // dengan menebak id-nya.
+        //
+        // Dua jalur, karena keduanya memang dipakai di data nyata: `user_id`
+        // (paling pasti) dan `nama_sales` (cadangan untuk dokumen lama). Bila
+        // `user_id` menunjuk akun yang sudah tidak ada, dokumen itu TIDAK
+        // dianggap milik siapa pun — sama seperti aturan di /api/data.
+        const dok = baris as { nama_sales: string | null; user_id: string | null };
+        const milikSendiri = akses.cakupanUbah === 'semua'
+          || (!!dok.user_id && dok.user_id === akses.userId)
+          || bolehSentuh(akses, dok.nama_sales, 'ubah');
+        if (!milikSendiri) {
+          return ok({ error: 'SPK ini bukan milik Anda, tidak dapat ditautkan.' }, 403);
+        }
+
+        const spk = keSpkFinal(baris as unknown as BarisSph);
+        if (!spk) return ok({ error: 'Dokumen itu bukan SPK yang sudah final' }, 409);
+
+        const hasil = await tautkanSpkKeLead(spk, env);
+        return ok({ ok: true, ...hasil, nomor_spk: spk.nomor_spk });
       }
     }
     return ok({ error: `Aksi tidak dikenal: ${method} ${resource}` }, 405);

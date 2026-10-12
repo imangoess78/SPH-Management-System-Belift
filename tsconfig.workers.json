@@ -1,7 +1,7 @@
 {
   "//": "Pemeriksaan tipe untuk kode sisi server (functions/, shared/, workers/).",
   "//kenapa": "Sebelum ini berkas functions/ TIDAK PERNAH dicek tipe: esbuild menghapus impor tipe saat build, jadi kesalahan tipe apa pun lolos ke produksi tanpa ketahuan.",
-  "//catatan": "Hanya `shared/backup.ts` yang ikut dari shared/. `shared/akses.ts` dipakai bersama frontend, jadi jalur kodenya milik DOM dan diperiksa oleh tsconfig.app.json. Kalau keduanya dimasukkan ke satu proyek, tipe Response/Database dua-duanya bentrok dan hasil pemeriksaannya jadi sampah.",
+  "//catatan": "Hanya `shared/backup.ts` yang ikut dari shared/. `shared/akses.ts` dipakai bersama frontend, jadi jalur kodenya milik DOM dan diperiksa oleh tsconfig.app.json. Kalau keduanya dimasukkan ke satu proyek, tipe Response/Database dua-duanya bentrok dan hasil pemeriksaannya jadi sampah. `shared/spk-dokumen.ts` ikut di sini karena hanya berisi pembacaan data (tanpa DOM), dan justru wajib ikut agar mesin nama customer yang dipakai bersama server dan UI tidak pernah lepas dari pemeriksaan tipe.",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -14,5 +14,5 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["functions/**/*.ts", "shared/backup.ts", "workers/**/*.ts"]
+  "include": ["functions/**/*.ts", "shared/backup.ts", "shared/spk-dokumen.ts", "workers/**/*.ts"]
 }

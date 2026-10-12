@@ -5,6 +5,7 @@ import type {
   SurveyRowTerurai, RiwayatRow, ProyekRow, PoRow, PoRevisiRow,
   TemuanDiff, PerubahanField, DataTeknis,
 } from './survey-types';
+import type { SpkFinal } from '../../shared/spk-dokumen';
 
 async function minta<T>(base: string, params: Record<string, string | number | undefined>, init?: RequestInit): Promise<T> {
   const qs = new URLSearchParams();
@@ -66,6 +67,17 @@ export interface BalikanPoDetail {
 
 // ── API ─────────────────────────────────────────────────────
 
+export interface BalikanTautSpk {
+  ok: boolean;
+  id_lead: string;
+  kode_lead: string | null;
+  /** true bila lead-nya baru dibuat oleh pemanggilan ini. */
+  baru: boolean;
+  /** 'id_lead dokumen' | 'nama cocok' | 'nama+kota cocok' | 'dibuat baru'. */
+  cara: string;
+  nomor_spk: string;
+}
+
 export const surveyApi = {
   // ── Survey ──
   daftar: (f: { jenis?: 'sales' | 'final'; id_lead?: string; terkunci?: 0 | 1; q?: string } = {}) =>
@@ -94,6 +106,26 @@ export const surveyApi = {
   // ── Lacak & proyek ──
   lacak: (idLead: string) => minta<BalikanLacak>(S, { resource: 'lacak', id_lead: idLead }),
   proyek: () => minta<{ data: ProyekRow[] }>(S, { resource: 'proyek' }),
+};
+
+/**
+ * SPK final sebagai jangkar Final Survey.
+ *
+ * Dipisah dari `surveyApi` karena bukan bagian dari modul Survey — ini
+ * membaca tabel `sph` (modul dokumen). Tetap dikelompokkan di berkas ini
+ * supaya halaman Survey tidak perlu tahu dua basis URL.
+ *
+ * Alur baku: Survey Sales → Final Survey. Alur lapangan: SPH → SPK → Final
+ * Survey. Dokumen SPK tidak menyimpan `id_lead`, jadi `taut` yang
+ * menyelesaikan penautannya (cari lead yang namanya cocok → buat bila belum
+ * ada → tulis balik ke dokumen).
+ */
+export const spkApi = {
+  final: (q?: string) => minta<{ data: SpkFinal[] }>(S, { resource: 'spk_final', q }),
+
+  taut: (idSpk: string) =>
+    minta<BalikanTautSpk>(S, { resource: 'taut_spk' },
+      { method: 'POST', body: JSON.stringify({ id_spk: idSpk }) }),
 };
 
 export const poApi = {
