@@ -127,11 +127,16 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
       return true;
     });
     const t = q.trim().toLowerCase();
+    // Pengaman `|| ''` dipakai seragam untuk keempat kolom — sejajar dengan
+    // penyaring lead di atas (baris ~109). Nilai kolom hari ini selalu string
+    // (keSpkFinal memaksa lewat `teks()`), tetapi satu galat render di sini
+    // mematikan SELURUH tabel, bukan cuma satu baris: itu harga yang tidak
+    // sebanding dengan menghemat empat potong `|| ''`.
     return t ? tersaring.filter(s =>
-      s.customer.toLowerCase().includes(t)
-      || s.nomor_spk.toLowerCase().includes(t)
-      || s.kota.toLowerCase().includes(t)
-      || s.sales.toLowerCase().includes(t)) : tersaring;
+      (s.customer || '').toLowerCase().includes(t)
+      || (s.nomor_spk || '').toLowerCase().includes(t)
+      || (s.kota || '').toLowerCase().includes(t)
+      || (s.sales || '').toLowerCase().includes(t)) : tersaring;
   }, [spkList, final, leadSudahFinal, q]);
 
   const belumTahapSurvey = useMemo(
@@ -296,7 +301,7 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
                     {spkLayak.map(s => {
                       const lead = s.id_lead ? petaLead.get(s.id_lead) : undefined;
                       const cocokNama = !s.id_lead
-                        ? leads.find(l => (l.nama_prospek || '').toLowerCase().trim() === s.customer.toLowerCase().trim())
+                        ? leads.find(l => (l.nama_prospek || '').toLowerCase().trim() === (s.customer || '').toLowerCase().trim())
                         : undefined;
                       return (
                         <tr key={s.id} className="border-t hover:bg-muted/30">
