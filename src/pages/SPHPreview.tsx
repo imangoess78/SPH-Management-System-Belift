@@ -77,6 +77,10 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .rt{text-align:right}
 h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 .page.spk-body{min-height:0;height:auto;overflow:visible}
+/* Halaman Opsi Desain = halaman SENDIRI (lihat SPHForm/index.css).
+   .page.spk-body sengaja mengalir; .page-desain TIDAK boleh ikut mengalir. */
+.page.page-desain{page-break-before:always;break-before:page;page-break-after:always;break-after:page}
+.page-desain .dgrid,.page-desain .dcard{page-break-inside:avoid;break-inside:avoid}
 .pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
 @media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page.spk-body{min-height:0;height:auto;page-break-after:auto;break-after:auto}.page:last-child{page-break-after:auto;break-after:auto}}
 `;

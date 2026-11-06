@@ -232,7 +232,7 @@ export default function SurveyPilihLead({ jenis }: { jenis: 'sales' | 'final' })
           <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
           <span>
             Sebagian data tidak bisa dimuat: <strong>{gagal.join(', ')}</strong>. Bagian lain
-            tetap ditampilkan. Bila daftar yang Mas butuhkan ikut kosong, akun ini mungkin belum
+            tetap ditampilkan. Bila daftar yang Anda butuhkan ikut kosong, akun ini mungkin belum
             diberi izin halaman terkait — minta admin menyesuaikan di <em>Manajemen Akun</em>.
           </span>
         </div>

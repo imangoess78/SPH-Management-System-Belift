@@ -636,6 +636,16 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
     page-break-after: auto;
     break-after: auto;
   }
+  /* Halaman Opsi Desain = halaman SENDIRI.
+     WAJIB diletakkan SETELAH aturan di atas dan berlaku juga di media print,
+     supaya blok desain tidak mengalir naik ke halaman tanda tangan kontrak. */
+  .page.page-desain {
+    page-break-before: always;
+    break-before: page;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page-desain .dgrid, .page-desain .dcard { page-break-inside: avoid; break-inside: avoid; }
   .page:last-child { page-break-after: auto; break-after: auto; }
   .plabel { display: none !important; }
 }

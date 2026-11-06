@@ -167,6 +167,14 @@ tr.subrow td:nth-child(2)::before{content:"↳ "}
 .rt{text-align:right}
 h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 .page.spk-body{min-height:0;height:auto;overflow:visible;page-break-after:auto;break-after:auto}
+/* Halaman Opsi Desain = halaman SENDIRI.
+   Jangan dijadikan .spk-body (itu membuatnya mengalir & menempel ke halaman
+   sebelumnya). Justru harus tetap punya pecah halaman sendiri, dan pastikan
+   halaman SEBELUMNYA sudah ditutup supaya blok desain tidak naik ke area
+   tanda tangan kontrak. */
+.page.page-desain{page-break-before:always;break-before:page;page-break-after:always;break-after:page}
+.page-desain .dgrid{page-break-inside:avoid;break-inside:avoid}
+.page-desain .dcard{page-break-inside:avoid;break-inside:avoid}
 .pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
 </style>
 </head>

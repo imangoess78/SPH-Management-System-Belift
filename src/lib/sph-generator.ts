@@ -232,7 +232,11 @@ function desainDoc(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<
       (o.img ? '<img src="' + o.img + '" alt="' + esc(nm) + '" crossorigin="anonymous">' : '<div class="ph">Gambar ' + DESAIN_LABEL[k] + '<br>' + esc(o.kode) + '</div>') +
       '</div><div class="cap"><b>' + DESAIN_LABEL[k] + '</b>' + esc(nm) + ketTxt + catTxt + '</div></div>';
   }).join('');
-  return '<div class="page cont"><h3 class="secttl">Opsi Desain — ' + esc(s.tipeKabin) + '</h3>' +
+  // Halaman Opsi Desain berdiri sendiri: WAJIB pecah halaman sebelum & sesudahnya.
+  // Sebelumnya kelasnya `page cont` — tanpa `spk-body` dan bukan `:last-child`,
+  // jadi rantai rule print pecah dan halaman ini mengalir naik menimpa halaman
+  // tanda tangan Pasal 10 (bug: Opsi Desain ikut ke halaman kontrak).
+  return '<div class="page cont page-desain"><h3 class="secttl">Opsi Desain — ' + esc(s.tipeKabin) + '</h3>' +
     '<div class="dgrid">' + cards + '</div>' +
     '<p style="margin-top:6mm;font-size:9pt;font-style:italic">Gambar bersifat ilustrasi. Warna dan tekstur final ' +
     'mengikuti sampel material yang disetujui saat survey final.</p><div class="pgnum">·</div></div>';

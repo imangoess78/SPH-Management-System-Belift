@@ -1,11 +1,13 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, ImagePlus, X, Check, ImageOff } from 'lucide-react';
 import {
-  DT_FIELDS, KELOMPOK_FIELD, DAFTAR_ADDON, JUDUL_DOKUMENTASI, PERTANYAAN_KESIMPULAN, OPSI_JAWAB,
+  DT_FIELDS, DT_FIELDS_TAMPIL, KELOMPOK_FIELD, DAFTAR_ADDON, JUDUL_DOKUMENTASI,
+  PERTANYAAN_KESIMPULAN, OPSI_JAWAB, hitungTravelling, hitungTotalHeight,
   type DataTeknis, type Lantai, type AddOn, type BarisDokumentasi, type PekerjaanTambahan,
-  type ButirKesimpulan, type FotoDok,
+  type ButirKesimpulan, type FotoDok, type FieldDef,
 } from '@/lib/survey-types';
 
 export const KOSONG = '__kosong__';
@@ -14,6 +16,15 @@ export const bacaTeks = (dt: DataTeknis, k: string): string => {
   const v = dt[k];
   return v === null || v === undefined || Array.isArray(v) ? '' : String(v);
 };
+
+/** Lampiran gambar milik satu spec / remark. */
+export const bacaFoto = (dt: DataTeknis, k: string): FotoDok[] => {
+  const v = dt['gambar:' + k];
+  return Array.isArray(v) ? (v as FotoDok[]) : [];
+};
+
+/** Note (keterangan) milik satu spec. */
+export const bacaNote = (dt: DataTeknis, k: string): string => bacaTeks(dt, 'note:' + k);
 
 export const bacaLantai = (dt: DataTeknis): Lantai[] => (dt.lantai as Lantai[]) || [];
 
@@ -26,6 +37,7 @@ export function dtKosong(): DataTeknis {
   for (const f of DT_FIELDS) dt[f.key] = '';
   dt.lantai = [];
   dt.addon = DAFTAR_ADDON.map(a => ({ ...a }));
+  dt.remarks = '';
   return dt;
 }
 
@@ -41,46 +53,270 @@ export function pekerjaanKosong(): PekerjaanTambahan[] {
   return [{ nama: '', on: false, ket: '' }];
 }
 
+// ── Unggah gambar (dipakai dokumentasi, spec, dan remark) ────
+//  Bucket khusus `survey-photos` (terdaftar di functions/api/media.ts).
+//  Yang disimpan adalah KUNCI mentah, bukan URL jadi — URL dibentuk saat
+//  ditampilkan supaya bisa dipakai juga di dokumen cetak.
+async function unggahFoto(file: File): Promise<FotoDok> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `${crypto.randomUUID()}.${ext || 'jpg'}`;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('bucket', 'survey-photos');
+  fd.append('path', path);
+  const r = await fetch('/api/media', { method: 'POST', body: fd, credentials: 'same-origin' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j as { error?: string }).error || 'Gagal mengunggah gambar');
+  return { key: `recovery/2026-08-19/survey-photos/${path}`, nama: file.name };
+}
+
+/** URL tampil untuk satu gambar (foto lapangan / lampiran spec). */
+export const urlFoto = (key: string): string => `/api/media?key=${encodeURIComponent(key)}`;
+
+// ── Database Desain: opsi gambar Plafon & Lantai Cabin ──────
+//  Diambil sekali per muat halaman. Kalau endpoint menolak (403/401),
+//  panel TIDAK boleh ikut mati — cukup tampilkan keterangan.
+interface OpsiDesain { id: string; nama: string; img: string }
+
+let cacheDesain: Record<string, OpsiDesain[]> | null = null;
+
+function useDesainKatalog(): { peta: Record<string, OpsiDesain[]>; galat: string } {
+  const [peta, setPeta] = useState<Record<string, OpsiDesain[]>>(cacheDesain || {});
+  const [galat, setGalat] = useState('');
+
+  useEffect(() => {
+    if (cacheDesain) return;
+    let aktif = true;
+    fetch('/api/data?table=design_items')
+      .then(async r => {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((j as { error?: string }).error || `HTTP ${r.status}`);
+        return j as { data?: Array<Record<string, unknown>> };
+      })
+      .then(j => {
+        if (!aktif) return;
+        const hasil: Record<string, OpsiDesain[]> = {};
+        for (const row of j.data || []) {
+          const kat = String(row.category || '').trim();
+          if (!kat) continue;
+          const url = String(row.image_url || '').trim();
+          if (!url) continue;
+          (hasil[kat] ||= []).push({
+            id: String(row.id ?? url),
+            nama: String(row.name || row.sku || 'Tanpa nama').trim(),
+            img: url,
+          });
+        }
+        cacheDesain = hasil;
+        setPeta(hasil);
+      })
+      .catch(e => { if (aktif) setGalat(e instanceof Error ? e.message : 'Gagal memuat katalog desain'); });
+    return () => { aktif = false; };
+  }, []);
+
+  return { peta, galat };
+}
+
+/** Pemilih gambar dari Database Desain (Plafon / Lantai Cabin). */
+function PemilihDesain({
+  f, nilai, urlTerpilih, opsi, galat, bacaSaja, pilih,
+}: {
+  f: FieldDef;
+  nilai: string;
+  urlTerpilih: string;
+  opsi: OpsiDesain[];
+  galat: string;
+  bacaSaja?: boolean;
+  pilih: (nama: string, img: string) => void;
+}) {
+  const [buka, setBuka] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        {urlTerpilih ? (
+          <img src={urlTerpilih} alt={nilai} className="w-12 h-12 rounded border object-cover shrink-0" />
+        ) : (
+          <div className="w-12 h-12 rounded border grid place-items-center bg-muted/40 shrink-0">
+            <ImageOff className="w-4 h-4 text-muted-foreground" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm truncate">{nilai || <span className="text-muted-foreground">Belum dipilih</span>}</p>
+          {!bacaSaja && (
+            <Button type="button" size="sm" variant="outline" className="h-7 mt-1 text-xs" onClick={() => setBuka(v => !v)}>
+              {buka ? 'Tutup' : 'Pilih gambar'}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {buka && !bacaSaja && (
+        <div className="rounded-md border p-2 max-h-56 overflow-y-auto">
+          {galat && <p className="text-xs text-destructive">Katalog desain tidak bisa dimuat: {galat}</p>}
+          {!galat && opsi.length === 0 && <p className="text-xs text-muted-foreground">Belum ada gambar untuk kategori ini.</p>}
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {opsi.map(o => {
+              const aktif = nilai === o.nama;
+              return (
+                <button type="button" key={o.id} onClick={() => { pilih(o.nama, o.img); setBuka(false); }}
+                  className={`relative rounded border overflow-hidden text-left ${aktif ? 'ring-2 ring-primary' : ''}`}>
+                  <img src={o.img} alt={o.nama} className="w-full h-16 object-cover" />
+                  <span className="block px-1 py-0.5 text-[10px] leading-tight truncate">{o.nama}</span>
+                  {aktif && <span className="absolute top-0.5 right-0.5 bg-primary text-white rounded-full p-0.5"><Check className="w-2.5 h-2.5" /></span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Baris lampiran gambar untuk satu spec / remark. */
+function LampiranGambar({
+  daftar, bacaSaja, ubah,
+}: {
+  daftar: FotoDok[];
+  bacaSaja?: boolean;
+  ubah: (f: FotoDok[]) => void;
+}) {
+  const [sibuk, setSibuk] = useState(false);
+  const [galat, setGalat] = useState('');
+
+  const tambah = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setSibuk(true); setGalat('');
+    try {
+      const baru: FotoDok[] = [];
+      for (const f of Array.from(files)) baru.push(await unggahFoto(f));
+      ubah([...daftar, ...baru]);
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal mengunggah gambar');
+    } finally { setSibuk(false); }
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {daftar.map((f, i) => (
+          <div key={f.key + i} className="relative group">
+            <img src={urlFoto(f.key)} alt={f.nama} className="w-10 h-10 rounded border object-cover" />
+            {!bacaSaja && (
+              <button type="button" onClick={() => ubah(daftar.filter((_, j) => j !== i))}
+                className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] leading-none opacity-0 group-hover:opacity-100"
+                title="Hapus gambar">×</button>
+            )}
+          </div>
+        ))}
+        {!bacaSaja && (
+          <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer rounded border border-dashed px-1.5 py-1 hover:border-primary">
+            <ImagePlus className="w-3 h-3" />
+            {sibuk ? 'Mengunggah…' : 'Gambar'}
+            <input type="file" accept="image/*" multiple className="hidden" disabled={sibuk}
+              onChange={e => { void tambah(e.target.files); e.currentTarget.value = ''; }} />
+          </label>
+        )}
+      </div>
+      {galat && <p className="text-[11px] text-destructive">{galat}</p>}
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════
-//  1. DATA TEKNIS — 57 field, dikelompokkan
+//  1. DATA TEKNIS — per kelompok, tiap spec punya Note + gambar
 // ════════════════════════════════════════════════════════════
 export function DataTeknisPanel({
   dt, ubah, bacaSaja, wajibKosong = [],
 }: {
   dt: DataTeknis;
-  ubah: (k: string, v: string) => void;
+  ubah: (k: string, v: string | FotoDok[]) => void;
   bacaSaja?: boolean;
   wajibKosong?: string[];
 }) {
-  const set = (k: string, v: string) => { if (!bacaSaja) ubah(k, v); };
+  const set = (k: string, v: string | FotoDok[]) => { if (!bacaSaja) ubah(k, v); };
+  const { peta, galat } = useDesainKatalog();
+
+  // Travelling & Total Height dihitung ulang setiap kali pit/overhead/tinggi
+  // lantai berubah, lalu DITULIS ke dt supaya ikut tersimpan, tercetak, dan
+  // terbaca mesin diff — bukan sekadar tampilan.
+  const travel = hitungTravelling(bacaLantai(dt));
+  const total = hitungTotalHeight(dt);
+  const travelTeks = travel ? String(travel) : '';
+  const totalTeks = total ? String(total) : '';
+
+  useEffect(() => {
+    if (bacaSaja) return;
+    if (bacaTeks(dt, 'travelling') !== travelTeks) ubah('travelling', travelTeks);
+    if (bacaTeks(dt, 'totalHeight') !== totalTeks) ubah('totalHeight', totalTeks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelTeks, totalTeks, bacaSaja]);
+
+  const jumlahLantai = bacaLantai(dt).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {KELOMPOK_FIELD.map(kel => {
-        const field = DT_FIELDS.filter(f => f.kel === kel);
+        const field = DT_FIELDS_TAMPIL.filter(f => f.kel === kel);
         if (!field.length) return null;
         return (
           <div key={kel}>
             <h3 className="text-sm font-semibold mb-3 pb-1.5 border-b">{kel}</h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {field.map(f => {
                 const nilai = bacaTeks(dt, f.key);
                 const kurang = wajibKosong.includes(f.key);
+                const note = bacaNote(dt, f.key);
+                const gambar = bacaFoto(dt, f.key);
+                const imgDesain = bacaTeks(dt, 'imgdesain:' + f.key);
+                const hitung = f.jenis === 'hitung';
+
                 return (
-                  <div key={f.key} className="space-y-1">
+                  <div key={f.key} className="rounded-lg border p-3 space-y-2">
                     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                       {f.label}
                       {f.satuan && <span className="font-normal opacity-70">({f.satuan})</span>}
                       {kurang && <AlertTriangle className="w-3 h-3 text-amber-500" />}
                     </label>
+
+                    {/* Nilai */}
                     {f.jenis === 'pilih' ? (
-                      <Select value={nilai || KOSONG} onValueChange={v => set(f.key, v === KOSONG ? '' : v)} disabled={bacaSaja}>
-                        <SelectTrigger className={kurang ? 'border-amber-400' : ''}><SelectValue placeholder="—" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={KOSONG}>—</SelectItem>
-                          {f.opsi?.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      // Nilai lama yang tidak ada lagi di daftar opsi (mis. Bahan
+                      // Cabin "Kombinasi SS + Kaca") tetap DITAMPILKAN sebagai
+                      // pilihan "lama". Tanpa ini, Select tampak kosong dan
+                      // seolah data hilang — padahal isinya masih tersimpan.
+                      (() => {
+                        const opsi = f.opsi || [];
+                        const asing = !!nilai && !opsi.includes(nilai);
+                        return (
+                          <Select value={nilai || KOSONG} onValueChange={v => set(f.key, v === KOSONG ? '' : v)} disabled={bacaSaja}>
+                            <SelectTrigger className={kurang ? 'border-amber-400' : ''}><SelectValue placeholder="—" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={KOSONG}>—</SelectItem>
+                              {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
+                              {opsi.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()
+                    ) : f.jenis === 'desain' ? (
+                      <PemilihDesain
+                        f={f} nilai={nilai} urlTerpilih={imgDesain}
+                        opsi={peta[f.kategori || ''] || []} galat={galat} bacaSaja={bacaSaja}
+                        pilih={(nama, img) => { set(f.key, nama); set('imgdesain:' + f.key, img); }}
+                      />
+                    ) : hitung ? (
+                      <div>
+                        <Input value={nilai} readOnly disabled placeholder="—" className="bg-muted/40" />
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          {f.key === 'travelling'
+                            ? (jumlahLantai > 1
+                              ? `Otomatis dari ${jumlahLantai} lantai (tanpa pit)`
+                              : 'Isi tabel Lantai dulu — butuh minimal 2 lantai')
+                            : 'Pit + Travelling + Overhead'}
+                        </p>
+                      </div>
                     ) : (
                       <Input
                         value={nilai}
@@ -90,6 +326,23 @@ export function DataTeknisPanel({
                         className={kurang ? 'border-amber-400' : ''}
                       />
                     )}
+
+                    {/* Note per spec */}
+                    {!hitung && (
+                      <Input
+                        value={note}
+                        onChange={e => set('note:' + f.key, e.target.value)}
+                        placeholder={f.catatan ? `Note: ${f.catatan}` : 'Note'}
+                        disabled={bacaSaja}
+                        className="h-8 text-xs"
+                      />
+                    )}
+
+                    {/* Lampiran gambar per spec */}
+                    {!hitung && (
+                      <LampiranGambar daftar={gambar} bacaSaja={bacaSaja}
+                        ubah={f2 => set('gambar:' + f.key, f2)} />
+                    )}
                   </div>
                 );
               })}
@@ -97,6 +350,23 @@ export function DataTeknisPanel({
           </div>
         );
       })}
+
+      {/* Remarks — teks bebas + gambar, keduanya bisa diubah */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3 pb-1.5 border-b">Remarks</h3>
+        <div className="rounded-lg border p-3 space-y-2">
+          <textarea
+            value={bacaTeks(dt, 'remarks')}
+            onChange={e => set('remarks', e.target.value)}
+            disabled={bacaSaja}
+            rows={3}
+            placeholder="Catatan tambahan / kesepakatan lapangan…"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+          />
+          <LampiranGambar daftar={bacaFoto(dt, 'remarks')} bacaSaja={bacaSaja}
+            ubah={f2 => set('gambar:remarks', f2)} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -115,6 +385,7 @@ export function LantaiPanel({
     const baru = lantai.map((r, j) => j === i ? { ...r, [k]: v } : r);
     ubah(baru);
   };
+  const travel = hitungTravelling(lantai);
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -163,6 +434,10 @@ export function LantaiPanel({
           </table>
         </div>
       )}
+      <p className="text-xs text-muted-foreground">
+        Travelling Height dihitung otomatis dari tinggi antar-lantai (lantai dasar tidak dihitung, pit tidak ikut):{' '}
+        <strong>{travel ? travel + ' mm' : '—'}</strong>
+      </p>
     </div>
   );
 }
@@ -238,27 +513,7 @@ export function AddOnPanel({
 
 // ════════════════════════════════════════════════════════════
 //  4. DOKUMENTASI — 24 slot, unggah foto lewat /api/media
-//  Bucket khusus `survey-photos` (ditambahkan ke daftar bucket yang
-//  diizinkan di functions/api/media.ts). Yang disimpan adalah KUNCI
-//  mentah, bukan URL jadi — URL dibentuk saat ditampilkan supaya bisa
-//  dipakai juga di dokumen cetak.
 // ════════════════════════════════════════════════════════════
-async function unggahFoto(file: File): Promise<FotoDok> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const path = `${crypto.randomUUID()}.${ext || 'jpg'}`;
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('bucket', 'survey-photos');
-  fd.append('path', path);
-  const r = await fetch('/api/media', { method: 'POST', body: fd, credentials: 'same-origin' });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((j as { error?: string }).error || 'Gagal mengunggah foto');
-  return { key: `recovery/2026-08-19/survey-photos/${path}`, nama: file.name };
-}
-
-/** URL tampil untuk satu foto dokumentasi. */
-export const urlFoto = (key: string): string => `/api/media?key=${encodeURIComponent(key)}`;
-
 export function DokumentasiPanel({
   baris, ubah, bacaSaja,
 }: {

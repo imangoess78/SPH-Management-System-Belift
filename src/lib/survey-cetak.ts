@@ -9,9 +9,11 @@
 //  ditulis lewat potongan variabel agar tidak salah kutip.
 // ============================================================
 
-import { DT_FIELDS, type DataTeknis, type BarisDokumentasi, type PekerjaanTambahan,
+import { DT_FIELDS, KELOMPOK_FIELD, KELOMPOK_EN, FIELD_WAJIB_KUNCI,
+  hitungTravelling, hitungTotalHeight,
+  type DataTeknis, type BarisDokumentasi, type PekerjaanTambahan,
   type ButirKesimpulan, type TtdSurvey, type AddOn, type Lantai, type TemuanDiff,
-  type PoRevisiRow } from './survey-types';
+  type FotoDok, type PoRevisiRow } from './survey-types';
 // Mesin cetak bersama (jendela baru + penyiapan gambar) ada di ./cetak supaya
 // SPH, Survey, Lacak, dan PO memakai jalur yang sama persis.
 import { cetakHtml } from './cetak';
@@ -74,6 +76,17 @@ td.nilai{width:62%}
 .galeri figure{margin:0;width:46mm}
 .galeri img{width:100%;height:32mm;object-fit:cover;border:.6pt solid #DFD8D1}
 .galeri figcaption{font-size:7.5pt;color:#7A6E66;text-align:center;margin-top:.5mm}
+/* Tabel spesifikasi gaya spec sheet pabrik: No | Parameter | Value | Note */
+table.spek th{width:auto}
+table.spek th.no{width:9mm;text-align:center}
+table.spek th.par{width:42%}
+table.spek th.note{width:26%}
+table.spek td.no{color:#7A6E66;font-size:8.5pt;text-align:center;font-family:ui-monospace,monospace}
+table.spek td.note{font-size:8.5pt;color:#4A3A2E}
+.spekgbr{display:flex;flex-wrap:wrap;gap:2mm;margin:-1mm 0 3mm}
+.spekgbr figure{margin:0;width:38mm}
+.spekgbr img{width:100%;height:28mm;object-fit:cover;border:.6pt solid #DFD8D1}
+.spekgbr figcaption{font-size:7pt;color:#7A6E66;text-align:center;margin-top:.4mm}
 `;
 
 /** Dekorasi sudut kanan-bawah, sama seperti dokumen SPH/SPK. */
@@ -101,12 +114,111 @@ export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: 
 
 // ── Bagian isi dokumen yang dipakai bersama ─────────────────
 
+/** URL tampil gambar lampiran (kunci R2 → /api/media). */
+const urlGambar = (key: string): string => '/api/media?key=' + encodeURIComponent(key);
+
+/**
+ * Nilai satu field untuk cetak, sudah lengkap dengan satuan.
+ * Field desain (Plafon/Lantai Cabin) memakai nama pilihan pengguna.
+ */
+function nilaiCetak(dt: DataTeknis, key: string, satuan?: string): string {
+  const mentah = dt[key];
+  let teks = mentah === null || mentah === undefined || Array.isArray(mentah) ? '' : String(mentah).trim();
+  if (teks && satuan && !/kg|mm|m\/min|kW|orang|meter/i.test(teks)) teks += ' ' + satuan;
+  return teks ? esc(teks) : '<span class="kosong">—</span>';
+}
+
+/**
+ * Data Teknis — format spec sheet pabrik: No | Parameter | Value | Note.
+ * Judul parameter & kelompok memakai bahasa Inggris (permintaan klien),
+ * Note memakai catatan pengisi; bila kosong, dipakai catatan baku field.
+ *
+ * Baris yang dicetak = field yang ADA isinya (nilai / Note / gambar pilihan).
+ * Mencetak seluruh 50+ parameter hanya akan menghasilkan dokumen penuh tanda
+ * "—" dan menyulitkan pembaca pabrik; kelengkapan sudah tampil di Berkas.
+ */
 function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
-  const field = hanyaWajib
-    ? DT_FIELDS.filter(f => ['jenisLift','kapasitas','kecepatan','sfd','shaftSize','pitDepth','overhead','tipePintu','bukaanPintu','cabinSize','bahanCabin','finishCabin','dayaMesin','power'].includes(f.key))
+  // Dasar = SELURUH field, termasuk yang disembunyikan dari form. Baris hanya
+  // dicetak bila ada isinya, jadi field lama (Sill Pintu, Finishing Cabin, …)
+  // tetap muncul di dokumen yang sudah terlanjur menyimpannya — sedangkan
+  // field yang kosong tidak ikut membanjiri halaman dengan tanda "—".
+  const dasar = hanyaWajib
+    ? DT_FIELDS.filter(f => FIELD_WAJIB_KUNCI.includes(f.key))
     : DT_FIELDS;
-  return field.map(f => '<tr><th>' + esc(f.label) + (f.satuan ? ' (' + esc(f.satuan) + ')' : '')
-    + '</th><td class="nilai">' + isi(dt[f.key]) + '</td></tr>').join('');
+
+  // Dokumen lama (dibuat sebelum revisi) belum menyimpan travelling/totalHeight.
+  // Tanpa cadangan ini, dua parameter penting itu hilang dari cetakan padahal
+  // tabel lantainya lengkap. Nilai tersimpan tetap diutamakan.
+  const dtEf: DataTeknis = { ...dt };
+  if (!String(dtEf.travelling ?? '').trim()) {
+    const t = hitungTravelling(dt.lantai as Lantai[] | undefined);
+    if (t) dtEf.travelling = String(t);
+  }
+  if (!String(dtEf.totalHeight ?? '').trim()) {
+    const t = hitungTotalHeight(dt);
+    if (t) dtEf.totalHeight = String(t);
+  }
+
+  let nomor = 0;
+  let html = '';
+
+  for (const kel of KELOMPOK_FIELD) {
+    const barisField = dasar.filter(f => {
+      if (f.kel !== kel) return false;
+      const nilai = dtEf[f.key];
+      const ada = !(nilai === null || nilai === undefined || String(nilai).trim() === '');
+      // Field sembunyi hanya dicetak kalau benar-benar berisi nilai — Note
+      // sisa tidak boleh menghidupkan kembali parameter yang sudah dihapus.
+      if (f.sembunyi) return ada;
+      const note = dtEf['note:' + f.key];
+      const img = dtEf['imgdesain:' + f.key];
+      return ada || !!String(note ?? '').trim() || !!String(img ?? '').trim();
+    });
+    if (!barisField.length) continue;
+
+    const gambarKel: string[] = [];
+    const baris = barisField.map(f => {
+      nomor += 1;
+      const note = String(dtEf['note:' + f.key] ?? '').trim() || f.catatan || '';
+      const imgDesain = String(dtEf['imgdesain:' + f.key] ?? '').trim();
+      if (imgDesain) {
+        gambarKel.push('<figure><img src="' + esc(imgDesain) + '" alt="' + esc(f.en) + '">'
+          + '<figcaption>' + esc(f.en) + '</figcaption></figure>');
+      }
+      const lampiran = Array.isArray(dtEf['gambar:' + f.key]) ? (dtEf['gambar:' + f.key] as FotoDok[]) : [];
+      lampiran.forEach((g, i) => {
+        if (!g?.key) return;
+        gambarKel.push('<figure><img src="' + esc(urlGambar(g.key)) + '" alt="' + esc(f.en) + '">'
+          + '<figcaption>' + esc(f.en) + (lampiran.length > 1 ? ' ' + (i + 1) : '') + '</figcaption></figure>');
+      });
+      return '<tr><td class="no">' + String(nomor).padStart(3, '0') + '</td>'
+        + '<td>' + esc(f.en) + '</td>'
+        + '<td class="nilai">' + nilaiCetak(dtEf, f.key, f.satuan) + '</td>'
+        + '<td class="note">' + (note ? esc(note) : '<span class="kosong">—</span>') + '</td></tr>';
+    }).join('');
+
+    html += '<h2>' + esc(KELOMPOK_EN[kel]) + '</h2>'
+      + '<table class="spek"><tr>'
+      + '<th class="no">No</th><th class="par">Parameter</th><th class="val">Value</th><th class="note">Note</th>'
+      + '</tr>' + baris + '</table>';
+    if (gambarKel.length) html += '<div class="spekgbr">' + gambarKel.join('') + '</div>';
+  }
+
+  // Remarks: catatan bebas + gambar, tampil apa adanya (editable di form).
+  const remarks = String(dt.remarks ?? '').trim();
+  const gambarRemarks = Array.isArray(dt['gambar:remarks']) ? (dt['gambar:remarks'] as FotoDok[]) : [];
+  if (remarks || gambarRemarks.length) {
+    html += '<h2>Remarks</h2>';
+    if (remarks) html += '<p style="white-space:pre-wrap">' + esc(remarks) + '</p>';
+    if (gambarRemarks.length) {
+      html += '<div class="spekgbr">' + gambarRemarks.map((g, i) => g?.key
+        ? '<figure><img src="' + esc(urlGambar(g.key)) + '" alt="Remarks">'
+          + '<figcaption>Remarks' + (gambarRemarks.length > 1 ? ' ' + (i + 1) : '') + '</figcaption></figure>'
+        : '').join('') + '</div>';
+    }
+  }
+
+  return html;
 }
 
 function tabelLantai(lantai: Lantai[] | undefined): string {
@@ -217,7 +329,7 @@ export function htmlSurvey(b: BahanCetakSurvey): string {
     + '</table>';
 
   const isiHtml = kepala
-    + '<h2>Data Teknis</h2><table>' + tabelDt(b.dt) + '</table>'
+    + tabelDt(b.dt)
     + tabelLantai(b.dt.lantai as unknown as Lantai[])
     + tabelAddon(b.dt.addon as unknown as AddOn[])
     + tabelPekerjaan(b.pekerjaan)
@@ -391,7 +503,7 @@ export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string,
     + (dt
       ? '<p style="font-size:9.5pt;margin:0 0 2mm">Data ini adalah salinan <strong>Final Survey terkunci</strong>'
         + (rev && rev.rev > 1 ? ' pada revisi ke-' + rev.rev : '') + '.</p>'
-        + '<table>' + tabelDt(dt) + '</table>'
+        + tabelDt(dt)
         + tabelLantai(dt.lantai as unknown as Lantai[])
         + tabelAddon(dt.addon as unknown as AddOn[])
       : '<div class="kotak">PO belum diterbitkan — data teknis acuan belum terkunci.</div>')

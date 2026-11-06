@@ -13,7 +13,7 @@ import { useCrmUser } from '@/hooks/useCrmUser';
 import { useAuth } from '@/hooks/useAuth';
 import { boleh, bolehKunciFinal } from '../../../shared/akses';
 import {
-  DT_FIELDS, FIELD_WAJIB_KUNCI, KELOMPOK_FIELD,
+  DT_FIELDS_TAMPIL, FIELD_WAJIB_KUNCI, KELOMPOK_FIELD,
   type DataTeknis, type Lantai, type AddOn, type BarisDokumentasi,
   type PekerjaanTambahan, type ButirKesimpulan, type TtdSurvey, type RiwayatRow,
 } from '@/lib/survey-types';
@@ -158,11 +158,13 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
     () => FIELD_WAJIB_KUNCI.filter(k => !bacaTeks(dt, k).trim()),
     [dt],
   );
+  // Kelengkapan dihitung dari field yang TAMPIL saja — field yang dihapus
+  // klien (sembunyi) tidak boleh membuat persentase mustahil mencapai 100%.
   const terisi = useMemo(
-    () => DT_FIELDS.filter(f => bacaTeks(dt, f.key).trim()).length,
+    () => DT_FIELDS_TAMPIL.filter(f => bacaTeks(dt, f.key).trim()).length,
     [dt],
   );
-  const persen = Math.round((terisi / DT_FIELDS.length) * 100);
+  const persen = Math.round((terisi / DT_FIELDS_TAMPIL.length) * 100);
 
   // ── Simpan ────────────────────────────────────────────────
   const kumpulkan = useCallback(() => ({
@@ -327,7 +329,7 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
             <div className={`h-full transition-all ${persen === 100 ? 'bg-green-500' : persen >= 60 ? 'bg-amber-500' : 'bg-rose-400'}`}
               style={{ width: `${persen}%` }} />
           </div>
-          <span className="text-xs font-semibold whitespace-nowrap">{terisi}/{DT_FIELDS.length} · {persen}%</span>
+          <span className="text-xs font-semibold whitespace-nowrap">{terisi}/{DT_FIELDS_TAMPIL.length} · {persen}%</span>
         </div>
       </Card>
 
