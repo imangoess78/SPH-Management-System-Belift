@@ -267,7 +267,7 @@ describe('lebar kolom setiap tabel dokumen', () => {
       kapasitas: '1000',
       'note:kapasitas': 'Catatan panjang yang butuh ruang lebar di kolom Note.',
       lantai: [{ no: 1, lantai: 'Lantai 1', tinggi: '4300', door: '800', finishing: 'Granit' }],
-      addon: [{ kode: 'A1', nama: 'Tirai', on: true, ada: true, fotoLink: '' }],
+      addon: [{ kode: 'A1', nama: 'Tirai', on: true, ada: true, fotoLink: '' }] as never,
     },
     dokumentasi: dokumentasiKosong(),
     pekerjaan: [{ nama: 'Bongkar', on: true, ket: 'termasuk angkut' }],
