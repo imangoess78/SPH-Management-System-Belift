@@ -10,7 +10,7 @@
 // ============================================================
 
 import { DT_FIELDS, KELOMPOK_FIELD, KELOMPOK_EN, FIELD_WAJIB_KUNCI,
-  hitungTravelling, hitungTotalHeight,
+  hitungTravelling, hitungOverhead, hitungTotalHeight,
   type DataTeknis, type BarisDokumentasi, type PekerjaanTambahan,
   type ButirKesimpulan, type TtdSurvey, type AddOn, type Lantai, type TemuanDiff,
   type FotoDok, type PoRevisiRow } from './survey-types';
@@ -55,10 +55,13 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 .subdocno{text-align:center;font-size:9pt;color:#7A6E66;margin-bottom:6mm}
 h2{font-size:11pt;margin:6mm 0 2mm;font-weight:700;color:#A63F04;border-bottom:.7pt solid #DFD8D1;padding-bottom:1mm}
 h3{font-size:10pt;margin:4mm 0 1.5mm;font-weight:700}
-table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:3mm}
-th,td{border:.6pt solid #DFD8D1;padding:1.6mm 2.2mm;text-align:left;vertical-align:top}
-th{background:#F7F4F1;font-weight:600;width:38%}
-td.nilai{width:62%}
+/* table-layout:fixed WAJIB. Dengan auto, browser mengabaikan lebar persen dan
+   memeras kolom berisi teks panjang — dulu kolom Note menyusut jadi 7% (45px
+   dari 665px) sehingga catatan teknis terpotong jadi satu kata per baris.
+   Lebar tiap tabel sekarang dikunci lewat <colgroup> (lihat kolom()). */
+table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:3mm;table-layout:fixed}
+th,td{border:.6pt solid #DFD8D1;padding:1.6mm 2.2mm;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+th{background:#F7F4F1;font-weight:600}
 .kosong{color:#B9AFA6}
 .kolom2{display:flex;gap:6mm}.kolom2>div{flex:1}
 .sigbox{height:20mm;position:relative;margin-top:2mm}
@@ -76,16 +79,17 @@ td.nilai{width:62%}
 .galeri figure{margin:0;width:46mm}
 .galeri img{width:100%;height:32mm;object-fit:cover;border:.6pt solid #DFD8D1}
 .galeri figcaption{font-size:7.5pt;color:#7A6E66;text-align:center;margin-top:.5mm}
-/* Tabel spesifikasi gaya spec sheet pabrik: No | Parameter | Value | Note */
-table.spek th{width:auto}
-table.spek th.no{width:9mm;text-align:center}
-table.spek th.par{width:42%}
-table.spek th.note{width:26%}
+.video{border:.7pt solid #DFD8D1;padding:2.5mm 3mm;border-radius:1mm;background:#FAF8F6;font-size:9pt}
+.video a{color:#592203;word-break:break-all}
+.video .ket{font-size:8pt;color:#7A6E66;margin-top:.8mm}
+/* Tabel spesifikasi gaya spec sheet pabrik: No | Parameter | Value | Note.
+   Lebar kolom diatur <colgroup>, bukan di sini. */
+table.spek th.no{text-align:center}
 table.spek td.no{color:#7A6E66;font-size:8.5pt;text-align:center;font-family:ui-monospace,monospace}
 table.spek td.note{font-size:8.5pt;color:#4A3A2E}
 .spekgbr{display:flex;flex-wrap:wrap;gap:2mm;margin:-1mm 0 3mm}
-.spekgbr figure{margin:0;width:38mm}
-.spekgbr img{width:100%;height:28mm;object-fit:cover;border:.6pt solid #DFD8D1}
+.spekgbr figure{margin:0;width:44mm}
+.spekgbr img{width:100%;height:32mm;object-fit:contain;background:#fff;border:.6pt solid #DFD8D1}
 .spekgbr figcaption{font-size:7pt;color:#7A6E66;text-align:center;margin-top:.4mm}
 `;
 
@@ -114,8 +118,26 @@ export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: 
 
 // ── Bagian isi dokumen yang dipakai bersama ─────────────────
 
-/** URL tampil gambar lampiran (kunci R2 → /api/media). */
-const urlGambar = (key: string): string => '/api/media?key=' + encodeURIComponent(key);
+/**
+ * Lebar kolom eksplisit. Dipakai bersama `table-layout:fixed` di GAYA supaya
+ * persentase benar-benar dihormati browser. Tanpa ini, tabel berisi teks
+ * panjang (Note, Keterangan, Alasan) akan menekan kolom lain sampai tak
+ * terbaca — sudah dibuktikan lewat pengukuran Chromium.
+ */
+const kolom = (...lebar: string[]): string =>
+  '<colgroup>' + lebar.map(w => '<col style="width:' + w + '">').join('') + '</colgroup>';
+
+/**
+ * URL tampil gambar lampiran (kunci R2 → /api/media).
+ *
+ * Nilai bisa berupa kunci mentah hasil unggah survey ATAU URL siap pakai dari
+ * Master Data (`/api/media?key=…`). Yang sudah berupa URL dipakai apa adanya;
+ * membungkusnya lagi akan menghasilkan alamat rusak.
+ */
+const urlGambar = (key: string): string =>
+  (!key ? '' : (key.startsWith('/api/media') || /^(https?:)?\/\//.test(key))
+    ? key
+    : '/api/media?key=' + encodeURIComponent(key));
 
 /**
  * Nilai satu field untuk cetak, sudah lengkap dengan satuan.
@@ -146,15 +168,20 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
     ? DT_FIELDS.filter(f => FIELD_WAJIB_KUNCI.includes(f.key))
     : DT_FIELDS;
 
-  // Dokumen lama (dibuat sebelum revisi) belum menyimpan travelling/totalHeight.
-  // Tanpa cadangan ini, dua parameter penting itu hilang dari cetakan padahal
-  // tabel lantainya lengkap. Nilai tersimpan tetap diutamakan.
+  // Travelling & Overhead berasal dari Tabel Lantai (sumber kebenaran).
+  //
+  // Dulu hanya diisi bila kosong. Akibatnya dokumen lama yang masih menyimpan
+  // angka rumus LAMA (travelling 7000) bisa tercetak berbeda dengan Total
+  // Height yang dihitung dari rumus baru. Sekarang, begitu tabel lantai
+  // terisi, nilainya selalu dihitung ulang supaya konsisten satu dokumen.
+  // Kalau tabel lantai kosong, nilai tersimpan/manual dipakai apa adanya.
   const dtEf: DataTeknis = { ...dt };
-  if (!String(dtEf.travelling ?? '').trim()) {
-    const t = hitungTravelling(dt.lantai as Lantai[] | undefined);
-    if (t) dtEf.travelling = String(t);
-  }
-  if (!String(dtEf.totalHeight ?? '').trim()) {
+  const lantaiDt = dt.lantai as Lantai[] | undefined;
+  const travelHitung = hitungTravelling(lantaiDt);
+  if (travelHitung) dtEf.travelling = String(travelHitung);
+  const ohHitung = hitungOverhead(lantaiDt);
+  if (ohHitung) dtEf.overhead = String(ohHitung);
+  if (!String(dtEf.totalHeight ?? '').trim() || travelHitung || ohHitung) {
     const t = hitungTotalHeight(dt);
     if (t) dtEf.totalHeight = String(t);
   }
@@ -182,7 +209,10 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
       const note = String(dtEf['note:' + f.key] ?? '').trim() || f.catatan || '';
       const imgDesain = String(dtEf['imgdesain:' + f.key] ?? '').trim();
       if (imgDesain) {
-        gambarKel.push('<figure><img src="' + esc(imgDesain) + '" alt="' + esc(f.en) + '">'
+        // Wajib lewat urlGambar(): nilai dari Database Desain bisa berupa key
+        // penyimpanan mentah ("recovery/.../x.png"), bukan URL siap pakai.
+        // Tanpa ini, gambarnya dicetak sebagai alamat rusak alias tidak tampil.
+        gambarKel.push('<figure><img src="' + esc(urlGambar(imgDesain)) + '" alt="' + esc(f.en) + '">'
           + '<figcaption>' + esc(f.en) + '</figcaption></figure>');
       }
       const lampiran = Array.isArray(dtEf['gambar:' + f.key]) ? (dtEf['gambar:' + f.key] as FotoDok[]) : [];
@@ -198,7 +228,7 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
     }).join('');
 
     html += '<h2>' + esc(KELOMPOK_EN[kel]) + '</h2>'
-      + '<table class="spek"><tr>'
+      + '<table class="spek">' + kolom('9mm', '28%', '29%', '38%') + '<tr>'
       + '<th class="no">No</th><th class="par">Parameter</th><th class="val">Value</th><th class="note">Note</th>'
       + '</tr>' + baris + '</table>';
     if (gambarKel.length) html += '<div class="spekgbr">' + gambarKel.join('') + '</div>';
@@ -223,11 +253,13 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
 
 function tabelLantai(lantai: Lantai[] | undefined): string {
   if (!lantai?.length) return '';
-  const baris = lantai.map((l, i) => '<tr><td>' + (i + 1) + '</td><td>' + isi(l.lantai) + '</td><td>'
+  // Kolom "No" sengaja tidak dicetak (permintaan klien 6 Nov 2026) — urutan
+  // baris sudah menunjukkan nomor lantai.
+  const baris = lantai.map(l => '<tr><td>' + isi(l.lantai) + '</td><td>'
     + isi(l.tinggi) + '</td><td>' + isi(l.door) + '</td><td>' + isi(l.finishing) + '</td></tr>').join('');
-  return '<h2>Tabel Lantai</h2><table><tr><td style="width:8%"><strong>No</strong></td>'
-    + '<td style="width:20%"><strong>Lantai</strong></td><td style="width:22%"><strong>Tinggi (mm)</strong></td>'
-    + '<td style="width:25%"><strong>Bukaan Pintu</strong></td><td style="width:25%"><strong>Finishing</strong></td></tr>'
+  return '<h2>Tabel Lantai</h2><table>' + kolom('20%', '24%', '28%', '28%')
+    + '<tr><td><strong>Lantai</strong></td><td><strong>Tinggi (mm)</strong></td>'
+    + '<td><strong>Bukaan Pintu</strong></td><td><strong>Finishing</strong></td></tr>'
     + baris + '</table>';
 }
 
@@ -237,19 +269,51 @@ function tabelAddon(addon: AddOn[] | undefined): string {
   const baris = ada.map(a => '<tr><td>' + isi(a.kode) + '</td><td>' + esc(a.nama) + '</td>'
     + '<td>' + (a.on ? 'Ya' : '—') + '</td><td>' + (a.ada ? 'Ya' : '—') + '</td><td>'
     + (a.fotoLink ? esc(a.fotoLink) : '<span class="kosong">—</span>') + '</td></tr>').join('');
-  return '<h2>Add-on</h2><table><tr><td style="width:18%"><strong>Kode</strong></td><td style="width:32%"><strong>Nama</strong></td>'
-    + '<td style="width:12%"><strong>Dipesan</strong></td><td style="width:12%"><strong>Sudah Ada</strong></td>'
-    + '<td style="width:26%"><strong>Foto</strong></td></tr>' + baris + '</table>';
+  return '<h2>Add-on</h2><table>' + kolom('12%', '28%', '11%', '11%', '38%')
+    + '<tr><td><strong>Kode</strong></td><td><strong>Nama</strong></td>'
+    + '<td><strong>Dipesan</strong></td><td><strong>Sudah Ada</strong></td>'
+    + '<td><strong>Foto</strong></td></tr>' + baris + '</table>';
 }
 
-function galeriFoto(dok: BarisDokumentasi[]): string {
+function isiGaleri(dok: BarisDokumentasi[]): string {
   // Baris tanpa kolom `foto` (data lama / sebagian terisi) tidak boleh
   // menggagalkan seluruh dokumen cetak.
   const baris = Array.isArray(dok) ? dok : [];
-  const isiFoto = baris.filter(d => d && Array.isArray(d.foto) && d.foto.length).flatMap(d =>
-    d.foto.map(f => '<figure><img src="/api/media?key=' + encodeURIComponent(f.key) + '" alt="' + esc(d.judul)
-      + '"><figcaption>' + esc(d.judul) + '</figcaption></figure>')).join('');
-  return isiFoto ? '<h2>Dokumentasi Foto</h2><div class="galeri">' + isiFoto + '</div>' : '';
+  return baris.filter(d => d && Array.isArray(d.foto) && d.foto.length).flatMap(d =>
+    d.foto.filter(f => f && f.key).map((f, i) => '<figure><img src="' + esc(urlGambar(f.key))
+      + '" alt="' + esc(d.judul) + '"><figcaption>' + esc(d.judul)
+      + (d.foto.length > 1 ? ' (' + (i + 1) + '/' + d.foto.length + ')' : '') + '</figcaption></figure>')).join('');
+}
+
+/** Tautan video: kalau user mengetik tanpa skema (youtube.com/…), tambahkan
+ *  https:// supaya tetap bisa diklik. Teks yang bukan URL dicetak apa adanya. */
+function urlVideo(v: string): string {
+  const t = v.trim();
+  if (!t) return '';
+  return /^[a-z][a-z0-9+.-]*:/i.test(t) ? t : 'https://' + t.replace(/^\/+/, '');
+}
+
+/**
+ * Bagian Dokumentasi — foto dan tautan video dalam SATU section.
+ *
+ * Dulu tautan video dicetak sebagai baris di tabel "Identitas Proyek" di
+ * halaman pertama, sehingga tidak terbaca sebagai dokumentasi. Sekarang
+ * keduanya menyatu: judul "Dokumentasi", isinya galeri foto lalu tautan video.
+ * Kalau salah satu kosong, yang lain tetap tampil; kalau dua-duanya kosong,
+ * section tidak dicetak sama sekali.
+ */
+function bagianDokumentasi(dok: BarisDokumentasi[], videoLink: string): string {
+  const foto = isiGaleri(dok);
+  const video = (typeof videoLink === 'string' ? videoLink : '').trim();
+  if (!foto && !video) return '';
+  return '<h2>Dokumentasi</h2>'
+    + (foto ? '<div class="galeri">' + foto + '</div>' : '')
+    + (video
+      ? '<div class="video"' + (foto ? ' style="margin-top:3mm"' : '') + '>'
+        + '<strong style="font-size:9pt">Video Dokumentasi</strong>'
+        + '<div><a href="' + esc(urlVideo(video)) + '" target="_blank" rel="noopener">' + esc(video) + '</a></div>'
+        + '<div class="ket">Klik / pindai tautan untuk membuka rekaman video survey.</div></div>'
+      : '');
 }
 
 function tabelPekerjaan(p: PekerjaanTambahan[] | undefined): string {
@@ -259,17 +323,19 @@ function tabelPekerjaan(p: PekerjaanTambahan[] | undefined): string {
   const ada = (Array.isArray(p) ? p : []).filter(x => x && teks(x.nama));
   if (!ada.length) return '';
   const baris = ada.map(x => '<tr><td>' + esc(x.nama) + '</td><td>' + (x.on ? 'Ya' : 'Tidak') + '</td><td>' + isi(x.ket) + '</td></tr>').join('');
-  return '<h2>Pekerjaan Tambahan</h2><table><tr><td style="width:35%"><strong>Pekerjaan</strong></td>'
-    + '<td style="width:15%"><strong>Dikerjakan</strong></td><td style="width:50%"><strong>Keterangan</strong></td></tr>'
+  return '<h2>Pekerjaan Tambahan</h2><table>' + kolom('32%', '14%', '54%')
+    + '<tr><td><strong>Pekerjaan</strong></td>'
+    + '<td><strong>Dikerjakan</strong></td><td><strong>Keterangan</strong></td></tr>'
     + baris + '</table>';
 }
 
 function tabelKesimpulan(k: ButirKesimpulan[] | undefined): string {
   const ada = (Array.isArray(k) ? k : []).filter(x => x && x.jawab);
   if (!ada.length) return '';
-  const baris = ada.map((x, i) => '<tr><td>' + (i + 1) + '. ' + esc(x.q) + '</td><td style="width:22%">'
-    + esc(x.jawab) + '</td><td style="width:33%">' + isi(x.alasan) + '</td></tr>').join('');
-  return '<h2>Kesimpulan</h2><table><tr><td style="width:45%"><strong>Pertanyaan</strong></td>'
+  const baris = ada.map((x, i) => '<tr><td>' + (i + 1) + '. ' + esc(x.q) + '</td><td>'
+    + esc(x.jawab) + '</td><td>' + isi(x.alasan) + '</td></tr>').join('');
+  return '<h2>Kesimpulan</h2><table>' + kolom('38%', '18%', '44%')
+    + '<tr><td><strong>Pertanyaan</strong></td>'
     + '<td><strong>Jawaban</strong></td><td><strong>Alasan</strong></td></tr>' + baris + '</table>';
 }
 
@@ -314,7 +380,7 @@ export interface BahanCetakSurvey {
  */
 export function htmlSurvey(b: BahanCetakSurvey): string {
   const final = b.jenis === 'final';
-  const kepala = '<h2>Identitas Proyek</h2><table>'
+  const kepala = '<h2>Identitas Proyek</h2><table>' + kolom('36%', '64%')
     + '<tr><th>Kode Proyek</th><td class="nilai"><strong>' + isi(b.kodeProyek) + '</strong></td></tr>'
     + '<tr><th>Kode Lead</th><td class="nilai">' + esc(b.kodeLead) + '</td></tr>'
     + '<tr><th>Nama Proyek / Customer</th><td class="nilai">' + esc(b.namaProspek) + '</td></tr>'
@@ -323,7 +389,6 @@ export function htmlSurvey(b: BahanCetakSurvey): string {
     + esc(final ? b.surveyor : b.ttd.sales) + '</td></tr>'
     + '<tr><th>PJ Lapangan</th><td class="nilai">' + isi(b.pjLapangan) + (b.pjTelp ? ' · ' + esc(b.pjTelp) : '') + '</td></tr>'
     + '<tr><th>Jam Kerja di Lokasi</th><td class="nilai">' + isi(b.jamKerja) + '</td></tr>'
-    + (b.videoLink ? '<tr><th>Tautan Video</th><td class="nilai">' + esc(b.videoLink) + '</td></tr>' : '')
     + (final && b.dikunciOleh ? '<tr><th>Dikunci Oleh</th><td class="nilai">' + esc(b.dikunciOleh)
       + ' · ' + fmtTgl(b.dikunciPada) + '</td></tr>' : '')
     + '</table>';
@@ -334,7 +399,7 @@ export function htmlSurvey(b: BahanCetakSurvey): string {
     + tabelAddon(b.dt.addon as unknown as AddOn[])
     + tabelPekerjaan(b.pekerjaan)
     + tabelKesimpulan(b.kesimpulan)
-    + galeriFoto(b.dokumentasi)
+    + bagianDokumentasi(b.dokumentasi, b.videoLink)
     + (b.catatanLapangan ? '<h2>Catatan Lapangan</h2><div class="kotak">' + esc(b.catatanLapangan).replace(/\n/g, '<br>') + '</div>' : '')
     + blokTtd(b.ttd, final);
 
@@ -428,7 +493,7 @@ export async function cetakLacak(b: BahanCetakLacak) {
   const kritis = temuan.filter(t => t.tingkat === 'kritis').length;
   const perhatian = temuan.filter(t => t.tingkat === 'perhatian').length;
 
-  const kepala = '<h2>Proyek</h2><table>'
+  const kepala = '<h2>Proyek</h2><table>' + kolom('32%', '68%')
     + '<tr><th>Nama Proyek / Customer</th><td class="nilai">' + esc(b.namaProspek) + '</td></tr>'
     + '<tr><th>Kode Lead</th><td class="nilai">' + esc(b.kodeLead) + '</td></tr>'
     + '<tr><th>Kode Proyek</th><td class="nilai">' + isi(b.kodeProyek) + '</td></tr>'
@@ -436,7 +501,7 @@ export async function cetakLacak(b: BahanCetakLacak) {
     + '<tr><th>Tanggal Cetak</th><td class="nilai">' + fmtTgl(new Date().toISOString()) + '</td></tr>'
     + '</table>';
 
-  const rantai = '<h2>Titik Data Kunci</h2><table>'
+  const rantai = '<h2>Titik Data Kunci</h2><table>' + kolom('40%', '60%')
     + b.titik.map(t => '<tr><th>' + esc(t.label) + '</th><td class="nilai">' + esc(t.sub) + '</td></tr>').join('')
     + '</table>';
 
@@ -487,7 +552,7 @@ export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string,
   const dt = (rev?.dt || null) as DataTeknis | null;
   const pakaiPabrik = pabrik || po.pabrik;
 
-  const kepala = '<h2>Data Pesanan</h2><table>'
+  const kepala = '<h2>Data Pesanan</h2><table>' + kolom('36%', '64%')
     + '<tr><th>Nomor PO</th><td class="nilai"><strong>' + isi(po.no_po) + '</strong></td></tr>'
     + '<tr><th>Tanggal PO</th><td class="nilai">' + fmtTgl(po.tgl_po) + '</td></tr>'
     + '<tr><th>Kode Proyek</th><td class="nilai">' + isi(po.kode_proyek) + '</td></tr>'
@@ -508,9 +573,10 @@ export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string,
         + tabelAddon(dt.addon as unknown as AddOn[])
       : '<div class="kotak">PO belum diterbitkan — data teknis acuan belum terkunci.</div>')
     + (revisi.length > 1
-      ? '<h2>Catatan Revisi</h2><table><tr><td style="width:10%"><strong>Rev</strong></td>'
-        + '<td style="width:20%"><strong>Tanggal</strong></td><td style="width:20%"><strong>Oleh</strong></td>'
-        + '<td style="width:50%"><strong>Alasan / Perubahan</strong></td></tr>'
+      ? '<h2>Catatan Revisi</h2><table>' + kolom('10%', '20%', '18%', '52%')
+        + '<tr><td><strong>Rev</strong></td>'
+        + '<td><strong>Tanggal</strong></td><td><strong>Oleh</strong></td>'
+        + '<td><strong>Alasan / Perubahan</strong></td></tr>'
         + revisi.map(r => '<tr><td>' + r.rev + '</td><td>' + fmtTgl(r.tgl_revisi) + '</td><td>' + isi(r.oleh)
           + '</td><td>' + isi(r.alasan) + (r.jml_perubahan ? ' · ' + r.jml_perubahan + ' perubahan' : '') + '</td></tr>').join('')
         + '</table>'
