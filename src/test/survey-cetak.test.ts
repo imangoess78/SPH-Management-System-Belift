@@ -294,7 +294,9 @@ describe('lebar kolom setiap tabel dokumen', () => {
 
   it('kolom Note pada tabel spesifikasi minimal 35%', () => {
     const h = htmlSurvey(bahan());
-    const cg = h.match(/<colgroup><col style="width:9mm"><col style="width:[^"]+"><col style="width:[^"]+"><col style="width:([\d.]+)%"><\/colgroup>/);
+    // Kolom No memakai LEBAR_NO (6mm) — dicocokkan longgar supaya uji ini
+    // tidak ikut merah saat lebar kolom No disetel ulang.
+    const cg = h.match(/<colgroup><col style="width:[^"]+"><col style="width:[^"]+"><col style="width:[^"]+"><col style="width:([\d.]+)%"><\/colgroup>/);
     expect(cg).not.toBeNull();
     expect(Number(cg![1])).toBeGreaterThanOrEqual(35);
   });

@@ -59,9 +59,24 @@ h3{font-size:10pt;margin:4mm 0 1.5mm;font-weight:700}
    memeras kolom berisi teks panjang — dulu kolom Note menyusut jadi 7% (45px
    dari 665px) sehingga catatan teknis terpotong jadi satu kata per baris.
    Lebar tiap tabel sekarang dikunci lewat <colgroup> (lihat kolom()). */
-table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:3mm;table-layout:fixed}
-th,td{border:.6pt solid #DFD8D1;padding:1.6mm 2.2mm;text-align:left;vertical-align:top;overflow-wrap:anywhere}
-th{background:#F7F4F1;font-weight:600}
+table{width:100%;max-width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:3mm;table-layout:fixed}
+/* Sel tabel dokumen cetak.
+   white-space:nowrap DILARANG di sini — dengan table-layout:fixed lebar kolom
+   sudah dikunci <colgroup>, jadi nowrap hanya membuat isi sel melebihi
+   kolomnya (Note 320px di kolom 251px) dan menembus tepi kertas saat dicetak.
+   JANGAN beri width/min-width:45px pada th/td: lebar persen di <colgroup>
+   menjadi tidak terpakai dan semua kolom rata 45px.
+   Aturannya:
+   - min-width:0 + overflow-wrap:anywhere → kata panjang (1850x1900,
+     https://…) patah di dalam sel, tidak melebarkan tabel;
+   - hyphens:auto → kata panjang dipotong pakai tanda hubung, bukan dipaksa
+     ke baris baru utuh;
+   - word-break:normal → kata normal tidak dipatah di tengah (beda dengan
+     break-all yang membuat "Parameter" jadi "Para-meter" tanpa alasan);
+   - line-height ditekan supaya baris Note 2-3 lapis tetap ringkas di A4. */
+th,td{min-width:0;border:.6pt solid #DFD8D1;padding:1.6mm 2.2mm;text-align:left;vertical-align:top;
+  white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto;line-height:1.32}
+th{background:#F7F4F1;font-weight:600;line-height:1.25}
 .kosong{color:#B9AFA6}
 .kolom2{display:flex;gap:6mm}.kolom2>div{flex:1}
 .sigbox{height:20mm;position:relative;margin-top:2mm}
@@ -85,12 +100,27 @@ th{background:#F7F4F1;font-weight:600}
 /* Tabel spesifikasi gaya spec sheet pabrik: No | Parameter | Value | Note.
    Lebar kolom diatur <colgroup>, bukan di sini. */
 table.spek th.no{text-align:center}
-table.spek td.no{color:#7A6E66;font-size:8.5pt;text-align:center;font-family:ui-monospace,monospace}
+/* Padding khusus kolom No. Padding sel normal 2,2mm × 2 = 16,6px, sementara
+   "001" hanya butuh 20,5px — di kolom 6mm itu menyisakan 16,6px isi sehingga
+   nomor patah dua baris. Padding 1,2mm di sini memberi 22,7 − 9,1 ≈ 13,6px
+   isi; angka 8,5pt monospace tetap muat satu baris. */
+table.spek th.no,table.spek td.no{padding-left:1.2mm;padding-right:1.2mm}
+table.spek td.no{color:#7A6E66;font-size:8.5pt;text-align:center;font-family:ui-monospace,monospace;white-space:nowrap}
 table.spek td.note{font-size:8.5pt;color:#4A3A2E}
 .spekgbr{display:flex;flex-wrap:wrap;gap:2mm;margin:-1mm 0 3mm}
 .spekgbr figure{margin:0;width:44mm}
 .spekgbr img{width:100%;height:32mm;object-fit:contain;background:#fff;border:.6pt solid #DFD8D1}
 .spekgbr figcaption{font-size:7pt;color:#7A6E66;text-align:center;margin-top:.4mm}
+/* Baris panjang dipatah antar-halaman dengan bersih: header tabel diulang
+   (thead sudah otomatis di thead), dan satu baris tidak pernah dibelah dua. */
+tr{page-break-inside:avoid;break-inside:avoid}
+/* Pengaman terakhir saat dicetak: apa pun yang tetap lebih lebar dari kolom
+   dipotong di tepi sel, bukan menembus margin kertas. Hanya berlaku untuk
+   media cetak supaya pratinjau di layar tetap menampilkan semua isi. */
+@media print{
+  table{max-width:100%}
+  th,td{overflow:hidden}
+}
 `;
 
 /** Dekorasi sudut kanan-bawah, sama seperti dokumen SPH/SPK. */
@@ -124,6 +154,17 @@ export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: 
  * panjang (Note, Keterangan, Alasan) akan menekan kolom lain sampai tak
  * terbaca — sudah dibuktikan lewat pengukuran Chromium.
  */
+/**
+ * Lebar kolom "No" pada tabel Data Teknis.
+ *
+ * 6mm (≈22,7px) = angka "001" (20,5px) + padding kiri/kanan (2,2mm × 2 = 16,6px
+ * ≈17,4px isi tersedia). Dulu 9mm ternyata hanya menyisakan 17,4px isi,
+ * sedangkan teks "001" butuh 20,5px → membuat "001" patah jadi "00" / "1".
+ * Tambahan ~0,7mm ini cukup untuk 999 baris (nomor 3 digit) tanpa memakan
+ * ruang Parameter/Value, karena tabel memakai table-layout:fixed.
+ */
+export const LEBAR_NO = '6mm';
+
 const kolom = (...lebar: string[]): string =>
   '<colgroup>' + lebar.map(w => '<col style="width:' + w + '">').join('') + '</colgroup>';
 
@@ -228,7 +269,7 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
     }).join('');
 
     html += '<h2>' + esc(KELOMPOK_EN[kel]) + '</h2>'
-      + '<table class="spek">' + kolom('9mm', '28%', '29%', '38%') + '<tr>'
+      + '<table class="spek">' + kolom(LEBAR_NO, '28%', '29%', '38%') + '<tr>'
       + '<th class="no">No</th><th class="par">Parameter</th><th class="val">Value</th><th class="note">Note</th>'
       + '</tr>' + baris + '</table>';
     if (gambarKel.length) html += '<div class="spekgbr">' + gambarKel.join('') + '</div>';

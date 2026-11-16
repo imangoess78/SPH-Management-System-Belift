@@ -50,3 +50,6 @@ migration/tmp/
 migration/backup-*/
 migration/backup-*
 __pycache__/
+
+# TypeScript incremental build info
+*.tsbuildinfo
