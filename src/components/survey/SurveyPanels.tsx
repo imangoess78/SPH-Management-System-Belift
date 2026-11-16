@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash2, AlertTriangle, ImagePlus, X, Check, ImageOff } from 'lucide-react';
 import {
   DT_FIELDS, DT_FIELDS_TAMPIL, KELOMPOK_FIELD, DAFTAR_ADDON, JUDUL_DOKUMENTASI,
-  PERTANYAAN_KESIMPULAN, OPSI_JAWAB, hitungTravelling, hitungTotalHeight,
+  PERTANYAAN_KESIMPULAN, OPSI_JAWAB, hitungTravelling, hitungOverhead, hitungTotalHeight,
   type DataTeknis, type Lantai, type AddOn, type BarisDokumentasi, type PekerjaanTambahan,
   type ButirKesimpulan, type FotoDok, type FieldDef,
 } from '@/lib/survey-types';
@@ -70,13 +70,27 @@ async function unggahFoto(file: File): Promise<FotoDok> {
   return { key: `recovery/2026-08-19/survey-photos/${path}`, nama: file.name };
 }
 
-/** URL tampil untuk satu gambar (foto lapangan / lampiran spec). */
-export const urlFoto = (key: string): string => `/api/media?key=${encodeURIComponent(key)}`;
+/**
+ * URL tampil untuk satu gambar.
+ *
+ * `key` bisa berupa kunci R2 mentah (hasil unggah di sini) ATAU URL siap pakai
+ * dari Master Data (`/api/media?key=…`). Keduanya harus lolos apa adanya —
+ * sebelumnya semua dianggap kunci mentah, sehingga gambar yang diambil dari
+ * Master Data akan dibungkus dua kali dan gagal tampil.
+ */
+export const urlFoto = (key: string): string => {
+  if (!key) return '';
+  if (key.startsWith('/api/media') || /^(https?:)?\/\//.test(key)) return key;
+  return `/api/media?key=${encodeURIComponent(key)}`;
+};
+
+/** Batas jumlah foto per slot dokumentasi. */
+export const MAKS_FOTO_DOKUMENTASI = 5;
 
 // ── Database Desain: opsi gambar Plafon & Lantai Cabin ──────
 //  Diambil sekali per muat halaman. Kalau endpoint menolak (403/401),
 //  panel TIDAK boleh ikut mati — cukup tampilkan keterangan.
-interface OpsiDesain { id: string; nama: string; img: string }
+interface OpsiDesain { id: string; nama: string; img: string; kategori: string }
 
 let cacheDesain: Record<string, OpsiDesain[]> | null = null;
 
@@ -105,6 +119,7 @@ function useDesainKatalog(): { peta: Record<string, OpsiDesain[]>; galat: string
             id: String(row.id ?? url),
             nama: String(row.name || row.sku || 'Tanpa nama').trim(),
             img: url,
+            kategori: kat,
           });
         }
         cacheDesain = hasil;
@@ -176,14 +191,19 @@ function PemilihDesain({
 
 /** Baris lampiran gambar untuk satu spec / remark. */
 function LampiranGambar({
-  daftar, bacaSaja, ubah,
+  daftar, bacaSaja, ubah, master = [], galatMaster = '',
 }: {
   daftar: FotoDok[];
   bacaSaja?: boolean;
   ubah: (f: FotoDok[]) => void;
+  /** Gambar hasil unggah manual di Master Data → Database Desain. */
+  master?: OpsiDesain[];
+  galatMaster?: string;
 }) {
   const [sibuk, setSibuk] = useState(false);
   const [galat, setGalat] = useState('');
+  const [buka, setBuka] = useState(false);
+  const [kategori, setKategori] = useState('');
 
   const tambah = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -196,6 +216,20 @@ function LampiranGambar({
       setGalat(e instanceof Error ? e.message : 'Gagal mengunggah gambar');
     } finally { setSibuk(false); }
   };
+
+  // Ambil gambar dari Master Data: yang disimpan adalah URL siap pakai, bukan
+  // kunci R2 — urlFoto() sudah menangani dua bentuk sekaligus.
+  const ambilMaster = (o: OpsiDesain) => {
+    if (daftar.some(d => d.key === o.img)) { setBuka(false); return; }
+    ubah([...daftar, { key: o.img, nama: o.nama }]);
+    setBuka(false);
+  };
+
+  const kategoriAda = useMemo(
+    () => Array.from(new Set(master.map(m => m.kategori).filter(Boolean))).sort(),
+    [master],
+  );
+  const tampil = kategori ? master.filter(m => m.kategori === kategori) : master;
 
   return (
     <div className="space-y-1">
@@ -211,14 +245,53 @@ function LampiranGambar({
           </div>
         ))}
         {!bacaSaja && (
-          <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer rounded border border-dashed px-1.5 py-1 hover:border-primary">
-            <ImagePlus className="w-3 h-3" />
-            {sibuk ? 'Mengunggah…' : 'Gambar'}
-            <input type="file" accept="image/*" multiple className="hidden" disabled={sibuk}
-              onChange={e => { void tambah(e.target.files); e.currentTarget.value = ''; }} />
-          </label>
+          <>
+            <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px] font-normal"
+              onClick={() => setBuka(v => !v)}>
+              <ImagePlus className="w-3 h-3 mr-1" />
+              {buka ? 'Tutup' : 'Master Data'}
+            </Button>
+            <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer rounded border border-dashed px-1.5 py-1 hover:border-primary">
+              {sibuk ? 'Mengunggah…' : 'Unggah'}
+              <input type="file" accept="image/*" multiple className="hidden" disabled={sibuk}
+                onChange={e => { void tambah(e.target.files); e.currentTarget.value = ''; }} />
+            </label>
+          </>
         )}
       </div>
+
+      {buka && !bacaSaja && (
+        <div className="rounded-md border p-2 space-y-2 bg-muted/20">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground">Pilih gambar hasil upload manual di Master Data</p>
+            <select value={kategori} onChange={e => setKategori(e.target.value)}
+              className="h-7 rounded border bg-background px-1.5 text-[11px]">
+              <option value="">Semua kategori</option>
+              {kategoriAda.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          {galatMaster && <p className="text-[11px] text-destructive">Master Data tidak bisa dimuat: {galatMaster}</p>}
+          {!galatMaster && tampil.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Belum ada gambar. Unggah dulu di <strong>Master Data → Database Desain</strong>.
+            </p>
+          )}
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-52 overflow-y-auto">
+            {tampil.map(o => {
+              const terpakai = daftar.some(d => d.key === o.img);
+              return (
+                <button type="button" key={o.id} onClick={() => ambilMaster(o)} disabled={terpakai}
+                  className={`relative rounded border overflow-hidden text-left ${terpakai ? 'opacity-40' : 'hover:ring-2 hover:ring-primary'}`}>
+                  <img src={urlFoto(o.img)} alt={o.nama} className="w-full h-12 object-cover" />
+                  <span className="block px-1 py-0.5 text-[9px] leading-tight truncate">{o.nama}</span>
+                  {terpakai && <span className="absolute top-0.5 right-0.5 bg-primary text-white rounded-full p-0.5"><Check className="w-2.5 h-2.5" /></span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {galat && <p className="text-[11px] text-destructive">{galat}</p>}
     </div>
   );
@@ -238,20 +311,30 @@ export function DataTeknisPanel({
   const set = (k: string, v: string | FotoDok[]) => { if (!bacaSaja) ubah(k, v); };
   const { peta, galat } = useDesainKatalog();
 
-  // Travelling & Total Height dihitung ulang setiap kali pit/overhead/tinggi
-  // lantai berubah, lalu DITULIS ke dt supaya ikut tersimpan, tercetak, dan
-  // terbaca mesin diff — bukan sekadar tampilan.
+  // Seluruh gambar Master Data, apa pun kategorinya — dipakai tombol
+  // "Master Data" pada lampiran tiap spec dan Remarks.
+  const master = useMemo(() => Object.values(peta).flat(), [peta]);
+
+  // Travelling, Overhead & Total Height dihitung ulang setiap kali pit atau
+  // tinggi lantai berubah, lalu DITULIS ke dt supaya ikut tersimpan, tercetak,
+  // dan terbaca mesin diff — bukan sekadar tampilan.
+  //
+  // Overhead hanya ditulis bila tabel lantai sudah terisi; kalau tidak, nilai
+  // manual dokumen lama dibiarkan apa adanya.
   const travel = hitungTravelling(bacaLantai(dt));
+  const oh = hitungOverhead(bacaLantai(dt));
   const total = hitungTotalHeight(dt);
   const travelTeks = travel ? String(travel) : '';
+  const ohTeks = oh ? String(oh) : '';
   const totalTeks = total ? String(total) : '';
 
   useEffect(() => {
     if (bacaSaja) return;
     if (bacaTeks(dt, 'travelling') !== travelTeks) ubah('travelling', travelTeks);
+    if (ohTeks && bacaTeks(dt, 'overhead') !== ohTeks) ubah('overhead', ohTeks);
     if (bacaTeks(dt, 'totalHeight') !== totalTeks) ubah('totalHeight', totalTeks);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [travelTeks, totalTeks, bacaSaja]);
+  }, [travelTeks, ohTeks, totalTeks, bacaSaja]);
 
   const jumlahLantai = bacaLantai(dt).length;
 
@@ -312,9 +395,13 @@ export function DataTeknisPanel({
                         <p className="text-[11px] text-muted-foreground mt-1">
                           {f.key === 'travelling'
                             ? (jumlahLantai > 1
-                              ? `Otomatis dari ${jumlahLantai} lantai (tanpa pit)`
+                              ? `Otomatis: total ${jumlahLantai} lantai − lantai terakhir (tanpa pit)`
                               : 'Isi tabel Lantai dulu — butuh minimal 2 lantai')
-                            : 'Pit + Travelling + Overhead'}
+                            : f.key === 'overhead'
+                              ? (jumlahLantai > 0
+                                ? 'Otomatis: tinggi lantai terakhir'
+                                : 'Isi tabel Lantai dulu — pakai tinggi lantai terakhir')
+                              : 'Pit + Travelling + Overhead'}
                         </p>
                       </div>
                     ) : (
@@ -340,7 +427,7 @@ export function DataTeknisPanel({
 
                     {/* Lampiran gambar per spec */}
                     {!hitung && (
-                      <LampiranGambar daftar={gambar} bacaSaja={bacaSaja}
+                      <LampiranGambar daftar={gambar} bacaSaja={bacaSaja} master={master} galatMaster={galat}
                         ubah={f2 => set('gambar:' + f.key, f2)} />
                     )}
                   </div>
@@ -363,7 +450,7 @@ export function DataTeknisPanel({
             placeholder="Catatan tambahan / kesepakatan lapangan…"
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           />
-          <LampiranGambar daftar={bacaFoto(dt, 'remarks')} bacaSaja={bacaSaja}
+          <LampiranGambar daftar={bacaFoto(dt, 'remarks')} bacaSaja={bacaSaja} master={master} galatMaster={galat}
             ubah={f2 => set('gambar:remarks', f2)} />
         </div>
       </div>
@@ -403,7 +490,6 @@ export function LantaiPanel({
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr className="text-left">
-                <th className="p-2 w-12">No</th>
                 <th className="p-2">Lantai</th>
                 <th className="p-2">Tinggi (mm)</th>
                 <th className="p-2">Bukaan Pintu</th>
@@ -414,7 +500,6 @@ export function LantaiPanel({
             <tbody>
               {lantai.map((r, i) => (
                 <tr key={i} className="border-t">
-                  <td className="p-2 text-muted-foreground">{i + 1}</td>
                   {(['lantai', 'tinggi', 'door', 'finishing'] as const).map(k => (
                     <td key={k} className="p-1.5">
                       <Input value={r[k] || ''} onChange={e => set(i, k, e.target.value)} disabled={bacaSaja} className="h-8" />
@@ -435,7 +520,7 @@ export function LantaiPanel({
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Travelling Height dihitung otomatis dari tinggi antar-lantai (lantai dasar tidak dihitung, pit tidak ikut):{' '}
+        Travelling Height = jumlah seluruh tinggi lantai − tinggi lantai terakhir (pit tidak ikut):{' '}
         <strong>{travel ? travel + ' mm' : '—'}</strong>
       </p>
     </div>
@@ -521,21 +606,36 @@ export function DokumentasiPanel({
   ubah: (b: BarisDokumentasi[]) => void;
   bacaSaja?: boolean;
 }) {
+  const [galat, setGalat] = useState('');
   const set = (i: number, patch: Partial<BarisDokumentasi>) => ubah(baris.map((r, j) => j === i ? { ...r, ...patch } : r));
 
   const tambahFoto = async (i: number, files: FileList | null) => {
     if (!files?.length) return;
+    // Batas 5 foto per slot (permintaan klien). Lebihnya dipotong, dan
+    // pengguna diberi tahu — bukan dibuang diam-diam.
+    const sisa = MAKS_FOTO_DOKUMENTASI - (baris[i].foto?.length || 0);
+    if (sisa <= 0) { setGalat(`Maksimal ${MAKS_FOTO_DOKUMENTASI} foto per baris.`); return; }
+
+    const dipilih = Array.from(files);
+    if (dipilih.length > sisa) setGalat(`Hanya ${sisa} foto lagi yang bisa ditambahkan (maksimal ${MAKS_FOTO_DOKUMENTASI}).`);
+    else setGalat('');
+
     try {
       const baru: FotoDok[] = [];
-      for (const f of Array.from(files)) baru.push(await unggahFoto(f));
+      for (const f of dipilih.slice(0, sisa)) baru.push(await unggahFoto(f));
       set(i, { foto: [...baris[i].foto, ...baru], ada: true });
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Gagal mengunggah foto');
+      setGalat(e instanceof Error ? e.message : 'Gagal mengunggah foto');
     }
   };
 
   return (
     <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Unggah foto langsung dari perangkat — maksimal <strong>{MAKS_FOTO_DOKUMENTASI} foto</strong> per baris.
+        Foto ikut tercetak di dokumen Final Survey.
+      </p>
+      {galat && <p className="text-xs text-destructive">{galat}</p>}
       {baris.map((r, i) => (
         <div key={i} className="flex flex-wrap items-center gap-3 p-2.5 rounded-md border">
           <span className="w-6 text-xs text-muted-foreground text-right shrink-0">{r.no}.</span>
@@ -547,11 +647,17 @@ export function DokumentasiPanel({
           </label>
           {!bacaSaja && (
             <input type="file" accept="image/*" multiple
+              disabled={(r.foto?.length || 0) >= MAKS_FOTO_DOKUMENTASI}
+              title={(r.foto?.length || 0) >= MAKS_FOTO_DOKUMENTASI
+                ? `Maksimal ${MAKS_FOTO_DOKUMENTASI} foto — hapus salah satu untuk menambah`
+                : 'Unggah foto (bisa beberapa sekaligus)'}
               onChange={e => tambahFoto(i, e.target.files)}
-              className="text-xs max-w-[190px]" />
+              className="text-xs max-w-[190px] file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs disabled:opacity-50" />
           )}
-          <span className="text-xs text-muted-foreground w-16 text-right">{r.foto.length} foto</span>
-          {r.foto.length > 0 && (
+          <span className={`text-xs w-14 text-right ${(r.foto?.length || 0) >= MAKS_FOTO_DOKUMENTASI ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}`}>
+            {r.foto?.length || 0}/{MAKS_FOTO_DOKUMENTASI}
+          </span>
+          {(r.foto?.length || 0) > 0 && (
             <div className="flex gap-1.5 w-full pl-9">
               {r.foto.map((f, k) => (
                 <div key={k} className="relative group">

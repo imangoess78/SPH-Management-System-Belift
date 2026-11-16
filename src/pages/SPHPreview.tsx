@@ -43,6 +43,7 @@ body{margin:0;padding:0 0 24px;background:#F0EDE9;font-family:'Barlow',system-ui
 .ind{margin-left:8mm}
 .secttl{font-family:'Barlow Condensed',sans-serif;font-size:17pt;font-weight:500;margin:0 0 4mm}
 table.doc{width:100%;border-collapse:collapse;font-size:9pt;margin:3mm 0}
+.cat-unit{border:.6pt solid #4A3A2E;border-left:2.5pt solid #D95103;background:#FBF7F3;padding:2.5mm 3mm;margin-top:3mm;font-size:9pt;line-height:1.5;page-break-inside:avoid}
 table.doc th,table.doc td{border:.6pt solid #4A3A2E;padding:1.8mm 2.2mm;vertical-align:middle}
 table.doc th{font-weight:600;text-align:center}
 table.doc td.n{text-align:right;white-space:nowrap}

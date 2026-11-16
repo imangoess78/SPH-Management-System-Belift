@@ -172,9 +172,10 @@ export const DT_FIELDS: FieldDef[] = [
   { key: 'shaftSize',    label: 'Ukuran Shaft',  en: 'Shaft Size',   kel: 'Shaft', jenis: 'teks', satuan: 'mm', hint: 'P × L',
     catatan: 'Inside dimension.' },
   { key: 'pitDepth',     label: 'Kedalaman Pit', en: 'Pit Depth',    kel: 'Shaft', jenis: 'teks', satuan: 'mm' },
-  { key: 'overhead',     label: 'Overhead',      en: 'Overhead',     kel: 'Shaft', jenis: 'teks', satuan: 'mm' },
+  { key: 'overhead',     label: 'Overhead',      en: 'Overhead',     kel: 'Shaft', jenis: 'hitung', satuan: 'mm',
+    catatan: 'Otomatis: tinggi lantai terakhir (floor to floor).' },
   { key: 'travelling',   label: 'Travelling Height', en: 'Travelling Height', kel: 'Shaft', jenis: 'hitung', satuan: 'mm',
-    catatan: 'Otomatis: jumlah tinggi antar-lantai (floor to floor), tanpa pit.' },
+    catatan: 'Otomatis: jumlah seluruh tinggi lantai dikurangi lantai terakhir, tanpa pit.' },
   { key: 'totalHeight',  label: 'Total Height',  en: 'Total Height (Pit to Overhead)', kel: 'Shaft', jenis: 'hitung', satuan: 'mm',
     catatan: 'Otomatis: Pit + Travelling Height + Overhead.' },
   { key: 'bahanShaft',   label: 'Bahan Konstruksi Shaft', en: 'Shaft Construction', kel: 'Shaft', jenis: 'pilih',
@@ -275,20 +276,47 @@ export const angkaDari = (v: unknown): number => {
 };
 
 /**
- * Travelling Height = jumlah tinggi antar-lantai (floor to floor).
- * Lantai dasar tidak dihitung karena tidak ada perjalanan di atasnya —
- * pit TIDAK ikut, sesuai revisi klien.
+ * Tinggi tiap lantai dari tabel Floor to Floor, urut sesuai baris.
+ * Baris kosong diabaikan supaya baris tambahan yang belum diisi tidak
+ * mengubah hasil hitungan.
+ */
+export function tinggiLantai(lantai: Lantai[] | undefined): number[] {
+  return (Array.isArray(lantai) ? lantai : [])
+    .map(l => angkaDari(l?.tinggi))
+    .filter(t => t > 0);
+}
+
+/**
+ * Travelling Height = jumlah SELURUH tinggi lantai − tinggi lantai terakhir.
+ *
+ * Contoh 6 lantai 4300/3300/3100/3000/3000/3000 → 19.700 − 3.000 = 16.700 mm.
+ * Lantai terakhir dikeluarkan karena tingginya dipakai sebagai Overhead
+ * (lihat hitungOverhead). Pit TIDAK ikut.
  */
 export function hitungTravelling(lantai: Lantai[] | undefined): number {
-  const t = (Array.isArray(lantai) ? lantai : []).map(l => angkaDari(l?.tinggi));
-  return Math.round(t.slice(1).reduce((a, b) => a + b, 0));
+  const t = tinggiLantai(lantai);
+  if (t.length < 2) return 0;
+  const jumlah = t.reduce((a, b) => a + b, 0);
+  return Math.round(jumlah - t[t.length - 1]);
+}
+
+/**
+ * Overhead = tinggi lantai TERAKHIR pada tabel Floor to Floor.
+ * Kosong bila tabel lantai belum diisi (dokumen lama tetap pakai nilai manual).
+ */
+export function hitungOverhead(lantai: Lantai[] | undefined): number {
+  const t = tinggiLantai(lantai);
+  return t.length ? Math.round(t[t.length - 1]) : 0;
 }
 
 /** Total Height = Pit + Travelling Height + Overhead. */
 export function hitungTotalHeight(dt: DataTeknis): number {
   const pit = angkaDari(dt.pitDepth);
-  const oh = angkaDari(dt.overhead);
-  const travel = hitungTravelling(dt.lantai as Lantai[] | undefined);
+  const lantai = dt.lantai as Lantai[] | undefined;
+  // Overhead ikut tabel lantai bila ada; kalau tidak, pakai nilai tersimpan
+  // supaya dokumen lama tidak berubah.
+  const oh = hitungOverhead(lantai) || angkaDari(dt.overhead);
+  const travel = hitungTravelling(lantai);
   return Math.round(pit + travel + oh);
 }
 

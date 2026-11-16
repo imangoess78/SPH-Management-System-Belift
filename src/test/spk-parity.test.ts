@@ -182,3 +182,39 @@ describe('Struktur Steel/Aluminium tampil di blok Pekerjaan Sipil, bukan Instala
     expect(doc).toContain('Powder Coating Hitam');
   });
 });
+
+describe('Overhead & Travelling Height dari Tabel Lantai (SPH & SPK)', () => {
+  const enamLantai = [
+    { no: 1, lantai: '1', tinggi: '4300' },
+    { no: 2, lantai: '2', tinggi: '3300' },
+    { no: 3, lantai: '3', tinggi: '3100' },
+    { no: 4, lantai: '4', tinggi: '3000' },
+    { no: 5, lantai: '5', tinggi: '3000' },
+    { no: 6, lantai: '6', tinggi: '3000' },
+  ];
+
+  it('SPH: Overhead = lantai terakhir, Travelling = total − lantai terakhir', () => {
+    const doc = pageSPH({ ...s, lantai: enamLantai }, items, termin, 'satuan', pilih, DESAIN);
+    expect(doc).toContain('Overhead');
+    expect(doc).toContain('3.000 mm');       // tinggi lantai terakhir
+    expect(doc).toContain('16.700 mm');      // 19.700 − 3.000
+  });
+
+  it('SPK: angka yang sama ikut tercetak', () => {
+    const doc = pageSPK({ ...s, lantai: enamLantai }, items, termin, 'satuan', pilih, DESAIN);
+    expect(doc).toContain('16.700 mm');
+    expect(doc).toContain('3.000 mm');
+  });
+
+  it('tabel lantai kosong → tetap "After Survey" / "(Custom)" seperti dulu', () => {
+    const doc = pageSPH({ ...s, lantai: [] }, items, termin, 'satuan', pilih, DESAIN);
+    expect(doc).toContain('After Survey');
+    expect(doc).toContain('(Custom)');
+  });
+
+  it('satu lantai saja → Overhead terisi, Travelling tetap (Custom)', () => {
+    const doc = pageSPH({ ...s, lantai: [{ no: 1, lantai: '1', tinggi: '4000' }] }, items, termin, 'satuan', pilih, DESAIN);
+    expect(doc).toContain('4.000 mm');
+    expect(doc).toContain('(Custom)');
+  });
+});

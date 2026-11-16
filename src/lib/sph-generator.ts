@@ -6,7 +6,7 @@
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
   ASET, DESAIN, DESAIN_LABEL, KET_LABEL, KEL_LABEL, HARI_ID,
-  normalizeStrukturItems,
+  normalizeStrukturItems, LantaiUnit, totalFloorToFloor, angkaMm,
 } from './sph-types';
 import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords,
@@ -21,6 +21,8 @@ export interface GenState {
   jenisLift: string; tipeKabin: string; kapasitas: string; penumpang: string; kecepatan: string; mpm: string; sfd: string;
   tipeMesin: string; traksi: string; dayaMesin: string; power: string; pintu: string; bukaanPintu: string;
   tinggiKabin: string; shaftSize: string; cabinSize: string; pitDepth: string; namaLantai: string; baseFloor: string;
+  // Isian manual di bagian Unit lift & spesifikasi (opsional).
+  lantai?: LantaiUnit[]; floorToFloor?: string; catatanUnit?: string;
   ppn: 'exclude' | 'include'; masaBerlaku: string; freeMtn: string; garSpare: string; garMesin: string;
   waktuPengadaan: string; waktuInstalasi: string;
   tampilTtd: boolean; tampilDesain: boolean;
@@ -127,6 +129,35 @@ function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: bo
     '<div class="sig-nm">' + esc(nama) + '</div><div>' + esc(jabatan) + '</div>';
 }
 
+/**
+ * Overhead = tinggi lantai TERAKHIR pada Tabel Lantai (mm).
+ * Kosong → "After Survey" seperti sebelumnya.
+ */
+function nilaiOverhead(s: GenState): string {
+  const baris = (Array.isArray(s.lantai) ? s.lantai : [])
+    .map(l => angkaMm(l?.tinggi))
+    .filter(v => v > 0);
+  if (!baris.length) return 'After Survey';
+  return baris[baris.length - 1].toLocaleString('id-ID') + ' mm';
+}
+
+/**
+ * Travelling Height = jumlah SELURUH tinggi lantai − tinggi lantai terakhir.
+ *
+ * Lantai terakhir dikeluarkan karena tingginya sudah dipakai sebagai Overhead.
+ * Contoh 6 lantai 4300/3300/3100/3000/3000/3000 → 19.700 − 3.000 = 16.700 mm.
+ * Butuh minimal 2 lantai terisi; kalau kurang → "(Custom)" seperti sebelumnya.
+ */
+function nilaiTravelling(s: GenState): string {
+  const baris = (Array.isArray(s.lantai) ? s.lantai : [])
+    .map(l => angkaMm(l?.tinggi))
+    .filter(v => v > 0);
+  if (baris.length < 2) return '(Custom)';
+  const total = baris.reduce((a, b) => a + b, 0);
+  const travel = Math.round(total - baris[baris.length - 1]);
+  return travel.toLocaleString('id-ID') + ' mm';
+}
+
 function specRows(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>, adaStruktur = true): string {
   const ketCabin = ketDesain('cabin', pilihDesain, liveDesain);
   const ketStruktur = ketDesain('struktur', pilihDesain, liveDesain);
@@ -137,8 +168,8 @@ function specRows(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<s
     ['Stops/Floors/Doors', s.sfd], ['Floor Name', s.namaLantai], ['Base Floor', s.baseFloor],
     ['Rate of Traction Machine', s.dayaMesin], ['Traction Ratio', s.traksi],
     ['Power Supply', s.power, true], ['Lighting Power', '220V 50HZ'],
-    ['Shaft Size', s.shaftSize, true], ['Floor height', 'After Survey', true],
-    ['Overhead', 'After Survey', true], ['Travelling Height', '(Custom)', true],
+    ['Shaft Size', s.shaftSize, true], ['Floor to Floor', nilaiFloorToFloor(s), true],
+    ['Overhead', nilaiOverhead(s), true], ['Travelling Height', nilaiTravelling(s), true],
     ['Pit Depth', s.pitDepth, true], ['Door opening Type', s.pintu, true],
     ['Door opening Size', s.bukaanPintu, true], ['Cabin Size', s.cabinSize, true],
     ['Height of Cabin', s.tinggiKabin, true],
@@ -164,6 +195,55 @@ function specRows(s: GenState, pilihDesain: DesainPilihan, liveDesain?: Record<s
   return d.map((r, i) =>
     '<tr><td>' + String(i + 1).padStart(3, '0') + '</td><td>' + esc(r[0]) + '</td><td' + (r[2] ? ' class="hl"' : '') + '>' + esc(r[1]) + '</td></tr>'
   ).join('');
+}
+
+/**
+ * Catatan manual pada bagian Unit lift & spesifikasi.
+ *
+ * Ditulis bebas oleh sales (multi-baris) dan HANYA dicetak bila diisi, supaya
+ * dokumen lama yang belum punya catatan tetap sama persis seperti sebelumnya.
+ * Baris baru dipertahankan — catatan lapangan biasanya berupa daftar poin.
+ */
+function catatanUnitBlok(s: GenState): string {
+  const isi = String(s.catatanUnit || '').trim();
+  if (!isi) return '';
+  const baris = isi.split(/\r?\n/)
+    .map(x => x.trim())
+    .filter(Boolean)
+    .map(x => esc(x))
+    .join('<br>');
+  return '<div class="cat-unit"><strong>Catatan Unit &amp; Spesifikasi:</strong><br>' + baris + '</div>';
+}
+
+/**
+ * Nilai baris "Floor to Floor" pada tabel spesifikasi.
+ *
+ * Sumbernya Tabel Lantai: jumlah tinggi seluruh lantai yang diisi manual.
+ * Bila tabel belum diisi, jatuh ke isian tunggal lama (`floorToFloor`), dan
+ * bila itu pun kosong dokumen mencetak "After Survey" seperti sebelumnya.
+ */
+function nilaiFloorToFloor(s: GenState): string {
+  const total = totalFloorToFloor(s.lantai);
+  const terisi = (Array.isArray(s.lantai) ? s.lantai : []).filter(l => angkaMm(l?.tinggi) > 0).length;
+  if (total > 0) return total.toLocaleString('id-ID') + ' mm' + (terisi > 1 ? ' (' + terisi + ' lantai)' : '');
+  return String(s.floorToFloor || '').trim() || 'After Survey';
+}
+
+/** Tabel lantai: tinggi tiap lantai diisi manual (mm). */
+function tabelLantaiUnit(s: GenState): string {
+  const baris = (Array.isArray(s.lantai) ? s.lantai : []).filter(l => l && (String(l.lantai || '').trim() || angkaMm(l.tinggi) > 0));
+  // Tanpa satu pun tinggi terisi, tabel hanya akan berisi tanda "—": tidak ada
+  // informasi yang dibawa, jadi tidak dicetak sama sekali.
+  if (!baris.length || totalFloorToFloor(s.lantai) <= 0) return '';
+  const total = totalFloorToFloor(s.lantai);
+  // Kolom "No" tidak dicetak (permintaan klien 6 Nov 2026).
+  const isi = baris.map(l => '<tr><td>' + esc(l.lantai || '')
+    + '</td><td>' + (angkaMm(l.tinggi) > 0 ? esc(String(l.tinggi).trim()) : '—') + '</td></tr>').join('');
+  return '<table class="doc spec" style="margin-top:3mm"><tr><th class="head" colspan="2">Tabel Lantai (Floor to Floor)</th></tr>' +
+    '<tr><td style="width:46%"><strong>Lantai</strong></td><td><strong>Tinggi (mm)</strong></td></tr>' +
+    isi +
+    '<tr><td style="text-align:right"><strong>Total Floor to Floor</strong></td><td><strong>' +
+    (total > 0 ? total.toLocaleString('id-ID') + ' mm' : 'After Survey') + '</strong></td></tr></table>';
 }
 
 function tabelHargaDoc(items: KatalogItem[], modeH: ModeHarga): string {
@@ -283,7 +363,8 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
     desainDoc(s, pilihDesain, liveDesain, st.ada) +
 
     '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator ' + esc(s.tipeKabin) +
-    ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain, st.ada) + '</table><div class="pgnum">·</div></div>' +
+    ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain, st.ada) + '</table>' +
+    tabelLantaiUnit(s) + catatanUnitBlok(s) + '<div class="pgnum">·</div></div>' +
 
     '<div class="page cont"><p style="font-weight:700;text-decoration:underline;margin-bottom:5mm">Syarat dan Kondisi Penawaran :</p>' +
     '<ol class="ol">' +
@@ -497,6 +578,8 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
 
     '<div class="page cont"><table class="doc spec"><tr><th class="head" colspan="3">Elevator ' + esc(s.tipeKabin) +
     ' With Traction Description</th></tr>' + specRows(s, pilihDesain, liveDesain, st.ada) + '</table>' +
+    tabelLantaiUnit(s) +
+    catatanUnitBlok(s) +
     '<p style="font-weight:700;margin-top:4mm">NOTES: Spesifikasi FINAL SETELAH SURVEY FINAL</p>' +
     '<div class="pgnum">·</div><div class="paraf">_______ Paraf _______</div></div>';
   return injectDeco(raw);

@@ -31,6 +31,18 @@ export default function PoPreview() {
   const [galat, setGalat] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const [siap, setSiap] = useState(false);
+  // Sama seperti pratinjau Survey: tinggi iframe mengikuti isi dokumen yang
+  // sebenarnya, bukan `jumlah halaman × 1123` — dokumen lebih panjang dari
+  // satu halaman A4 dulu terpotong di layar walau tercetak utuh.
+  const [tinggiIsi, setTinggiIsi] = useState(TINGGI_A4);
+
+  const ukurTinggi = useCallback(() => {
+    const frame = document.getElementById('po-preview-frame') as HTMLIFrameElement | null;
+    const isi = frame?.contentDocument;
+    if (!isi) return;
+    const h = Math.max(isi.documentElement?.scrollHeight || 0, isi.body?.scrollHeight || 0);
+    if (h > 0) setTinggiIsi(h);
+  }, []);
 
   const muat = useCallback(async () => {
     if (!id) return;
@@ -57,8 +69,7 @@ export default function PoPreview() {
 
   const po = d.data;
   const html = htmlPo(po, d.revisi);
-  const jmlHalaman = (html.match(/class="page/g) || []).length || 1;
-  const tinggiAsli = jmlHalaman * TINGGI_A4;
+  const tinggiAsli = tinggiIsi;
 
   const cetak = () => {
     const frame = document.getElementById('po-preview-frame') as HTMLIFrameElement | null;
@@ -106,7 +117,14 @@ export default function PoPreview() {
             id="po-preview-frame"
             title="Pratinjau PO Pabrik"
             srcDoc={html}
-            onLoad={() => setSiap(true)}
+            onLoad={() => {
+              ukurTinggi();
+              setSiap(true);
+              const isi = (document.getElementById('po-preview-frame') as HTMLIFrameElement | null)?.contentDocument;
+              isi?.querySelectorAll('img').forEach(img => {
+                if (!img.complete) img.addEventListener('load', ukurTinggi, { once: true });
+              });
+            }}
             style={{
               width: LEBAR_A4,
               height: tinggiAsli,

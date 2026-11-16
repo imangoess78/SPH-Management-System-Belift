@@ -38,6 +38,24 @@ export default function SurveyPreview({ jenis }: { jenis: 'sales' | 'final' }) {
   const [galat, setGalat] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const [siap, setSiap] = useState(false);
+  // Tinggi iframe pratinjau diukur dari isi dokumen yang sebenarnya.
+  //
+  // Dulu tinggi dipatok `jumlah <div class="page"> × 1123`, sehingga dokumen
+  // yang isinya lebih panjang dari satu halaman A4 terpotong di layar:
+  // bagian Dokumentasi Foto, Video, dan tanda tangan tidak terlihat walau
+  // ikut tercetak. Sekarang tingginya mengikuti scrollHeight isi iframe.
+  const [tinggiIsi, setTinggiIsi] = useState(TINGGI_A4);
+
+  const ukurTinggi = useCallback(() => {
+    const frame = document.getElementById('survey-preview-frame') as HTMLIFrameElement | null;
+    const isi = frame?.contentDocument;
+    if (!isi) return;
+    const h = Math.max(
+      isi.documentElement?.scrollHeight || 0,
+      isi.body?.scrollHeight || 0,
+    );
+    if (h > 0) setTinggiIsi(h);
+  }, []);
 
   const final = jenis === 'final';
 
@@ -88,8 +106,7 @@ export default function SurveyPreview({ jenis }: { jenis: 'sales' | 'final' }) {
   if (galat || !bahan) return <div className="p-8 text-center text-muted-foreground">{galat || 'Survey tidak ditemukan.'}</div>;
 
   const html = htmlSurvey(bahan);
-  const jmlHalaman = (html.match(/class="page/g) || []).length || 1;
-  const tinggiAsli = jmlHalaman * TINGGI_A4;
+  const tinggiAsli = tinggiIsi;
 
   const cetak = () => {
     const frame = document.getElementById('survey-preview-frame') as HTMLIFrameElement | null;
@@ -138,7 +155,16 @@ export default function SurveyPreview({ jenis }: { jenis: 'sales' | 'final' }) {
             id="survey-preview-frame"
             title={`Pratinjau ${bahan.judul}`}
             srcDoc={html}
-            onLoad={() => setSiap(true)}
+            onLoad={() => {
+              ukurTinggi();
+              setSiap(true);
+              // Foto dimuat belakangan — ukur ulang supaya tinggi iframe
+              // tidak berhenti di perkiraan awal.
+              const isi = (document.getElementById('survey-preview-frame') as HTMLIFrameElement | null)?.contentDocument;
+              isi?.querySelectorAll('img').forEach(img => {
+                if (!img.complete) img.addEventListener('load', ukurTinggi, { once: true });
+              });
+            }}
             style={{
               width: LEBAR_A4,
               height: tinggiAsli,

@@ -45,6 +45,31 @@ function sebagaiArray<T>(nilai: unknown, kosong: () => T[]): T[] {
   return kosong();
 }
 
+/**
+ * Lengkapi dokumentasi tersimpan dengan 24 slot baku.
+ *
+ * Dokumen yang dibuat sebelum fitur foto ada menyimpan `dokumentasi: []` —
+ * `sebagaiArray` menganggapnya sah, sehingga tab Dokumentasi terbuka KOSONG
+ * tanpa satu slot pun dan tidak ada cara menambah foto. Di sini slot baku
+ * selalu dipakai sebagai kerangka, lalu isian lama ditempelkan berdasarkan
+ * nomor (atau judul, untuk data yang nomornya bergeser).
+ */
+export function lengkapiDokumentasi(nilai: unknown): BarisDokumentasi[] {
+  const tersimpan = sebagaiArray<BarisDokumentasi>(nilai, () => []);
+  const templat = dokumentasiKosong();
+  if (!tersimpan.length) return templat;
+  return templat.map(t => {
+    const lama = tersimpan.find(x => x && (x.no === t.no || (x.judul && x.judul === t.judul)));
+    if (!lama) return t;
+    return {
+      ...t,
+      ada: !!lama.ada,
+      foto: Array.isArray(lama.foto) ? lama.foto.filter(f => f && f.key) : [],
+    };
+  });
+}
+
+
 export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
   const { id } = useParams<{ id: string }>();
   const [sp] = useSearchParams();
@@ -117,7 +142,7 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
           // Server sudah mengirim bentuk kosong yang benar, tapi kita tetap
           // berjaga: kolom JSON lama bisa saja berisi teks biasa, dan satu
           // nilai bukan-array saja cukup untuk mematikan seluruh halaman.
-          setDokumentasi(sebagaiArray<BarisDokumentasi>(d.dokumentasi, dokumentasiKosong));
+          setDokumentasi(lengkapiDokumentasi(d.dokumentasi));
           setVideoLink(String(d.video_link || ''));
           setPekerjaan(sebagaiArray<PekerjaanTambahan>(d.pekerjaan_tambahan, pekerjaanKosong));
           setCatatanLapangan(String(d.catatan_lapangan || ''));
@@ -397,8 +422,8 @@ export default function SurveyForm({ jenis }: { jenis: 'sales' | 'final' }) {
           <div className="space-y-4">
             <DokumentasiPanel baris={dokumentasi} ubah={setDokumentasi} bacaSaja={bacaSaja} />
             <div className="space-y-1 pt-2 border-t">
-              <label className="text-xs font-medium text-muted-foreground">Tautan Video Survey</label>
-              <Input value={videoLink} onChange={e => setVideoLink(e.target.value)} disabled={bacaSaja} placeholder="https://…" />
+              <label className="text-xs font-medium text-muted-foreground">URL Video Dokumentasi</label>
+              <Input value={videoLink} onChange={e => setVideoLink(e.target.value)} disabled={bacaSaja} placeholder="https://youtube.com/… atau youtu.be/…" />
             </div>
           </div>
         )}

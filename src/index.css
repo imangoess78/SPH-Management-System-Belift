@@ -464,6 +464,13 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .f-area { min-height: 54px; resize: vertical; }
 .f-hint { font-size: 11px; color: var(--muted-color); line-height: 1.45; }
 
+/* Tabel lantai (Floor to Floor) di form Unit lift & spesifikasi */
+.ftf-tbl { margin: 2px 0 4px; }
+.ftf-tbl th { text-align: left; }
+.ftf-tbl td { padding: 2px 3px; }
+.ftf-tbl .f-ctrl { padding: 4px 6px; font-size: 12px; }
+.ftf-tbl tfoot td { border-bottom: 0; padding-top: 5px; }
+
 .computed-box {
   font-family: 'Barlow Semi Condensed', sans-serif;
   font-size: 13px;

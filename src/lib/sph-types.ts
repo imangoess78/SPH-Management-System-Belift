@@ -36,6 +36,52 @@ export interface DesainPilihan {
 // Hanya dicetak bila diisi (opsional).
 export type DesainCatatan = { [k: string]: string };
 
+/**
+ * Satu baris Tabel Lantai pada bagian Unit lift & spesifikasi.
+ *
+ * Tinggi diisi MANUAL dalam mm — inilah yang dimaksud klien dengan
+ * "Floor to Floor": bukan satu angka untuk seluruh gedung, melainkan tinggi
+ * tiap lantai yang diukur/diketik sendiri (mis. 6 lantai).
+ */
+export interface LantaiUnit {
+  no: number;
+  lantai: string;
+  tinggi: string;
+}
+
+/** Enam baris awal — jumlah lantai tersering pada penawaran home lift. */
+export function lantaiAwal(n = 6): LantaiUnit[] {
+  return Array.from({ length: n }, (_, i) => ({ no: i + 1, lantai: String(i + 1), tinggi: '' }));
+}
+
+/** Angka dari teks bebas: "3.500 mm" → 3500, "3,5" → 3.5. */
+export const angkaMm = (v: unknown): number => {
+  const s = String(v ?? '').replace(/\./g, '').replace(',', '.');
+  const m = s.match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+};
+
+/** Total Floor to Floor = jumlah tinggi seluruh lantai yang terisi. */
+export function totalFloorToFloor(lantai: LantaiUnit[] | undefined): number {
+  return Math.round((Array.isArray(lantai) ? lantai : [])
+    .map(l => angkaMm(l?.tinggi))
+    .filter(v => v > 0)
+    .reduce((a, b) => a + b, 0));
+}
+
+/**
+ * Pastikan tabel lantai selalu berbentuk sah: nomor urut benar, nilai teks.
+ * Dokumen lama bisa tidak punya kolom ini sama sekali atau berisi bentuk lain —
+ * keduanya jatuh ke 6 baris awal supaya editor tidak tampil kosong.
+ */
+export function normalLantaiUnit(nilai: unknown): LantaiUnit[] {
+  if (!Array.isArray(nilai) || !nilai.length) return lantaiAwal(6);
+  return nilai.map((r, i) => {
+    const o = (r || {}) as Partial<LantaiUnit>;
+    return { no: i + 1, lantai: String(o.lantai ?? i + 1), tinggi: String(o.tinggi ?? '') };
+  });
+}
+
 // Full document state — saved to Supabase
 export interface DocState {
   id: string;
@@ -76,6 +122,12 @@ export interface DocState {
   pitDepth: string;
   namaLantai: string;
   baseFloor: string;
+  // Tabel lantai: tinggi tiap lantai diisi manual (mm).
+  lantai?: LantaiUnit[];
+  // Lama: satu angka Floor to Floor. Masih dibaca sebagai cadangan.
+  floorToFloor?: string;
+  // Catatan manual bebas untuk unit & spesifikasi. Hanya dicetak bila diisi.
+  catatanUnit?: string;
 
   // Harga
   modeHarga: 'satuan' | 'lumpsum';

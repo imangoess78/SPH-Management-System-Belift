@@ -17,7 +17,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { DataTeknisPanel, dtKosong } from '@/components/survey/SurveyPanels';
-import { hitungTravelling, hitungTotalHeight, type DataTeknis, type Lantai } from '@/lib/survey-types';
+import { hitungTravelling, hitungOverhead, hitungTotalHeight, type DataTeknis, type Lantai } from '@/lib/survey-types';
 import { htmlSurvey } from '@/lib/survey-cetak';
 
 // Database Desain tidak tersedia di lingkungan uji — panel wajib tetap tampil.
@@ -63,30 +63,62 @@ describe('field Data Teknis setelah revisi klien', () => {
     expect(notes.length).toBeGreaterThan(20);
   });
 
-  it('Travelling & Total Height dihitung otomatis lalu ditulis ke dt', async () => {
+  it('Travelling, Overhead & Total Height dihitung otomatis lalu ditulis ke dt', async () => {
     const dt: DataTeknis = { ...dtKosong(), pitDepth: '1500', overhead: '4200', lantai };
     const ubah = vi.fn();
     render(<DataTeknisPanel dt={dt} ubah={ubah} />);
 
     await waitFor(() => {
-      expect(ubah).toHaveBeenCalledWith('travelling', '7000');
-      expect(ubah).toHaveBeenCalledWith('totalHeight', '12700');
+      // 4000+3500+3500 = 11.000 − 3.500 (lantai terakhir) = 7.500
+      expect(ubah).toHaveBeenCalledWith('travelling', '7500');
+      // Overhead = tinggi lantai terakhir, menimpa isian manual 4200
+      expect(ubah).toHaveBeenCalledWith('overhead', '3500');
+      // 1500 + 7500 + 3500
+      expect(ubah).toHaveBeenCalledWith('totalHeight', '12500');
     });
   });
 });
 
 describe('hitungan otomatis', () => {
-  it('travelling = jumlah tinggi antar-lantai, lantai dasar & pit tidak dihitung', () => {
-    expect(hitungTravelling(lantai)).toBe(7000);
-    expect(hitungTotalHeight({ ...dtKosong(), pitDepth: '1500', overhead: '4200', lantai })).toBe(12700);
+  it('travelling = jumlah semua lantai − lantai terakhir; pit tidak dihitung', () => {
+    // 4000+3500+3500 = 11.000, dikurangi lantai terakhir 3.500 → 7.500
+    expect(hitungTravelling(lantai)).toBe(7500);
+    expect(hitungOverhead(lantai)).toBe(3500);
+    expect(hitungTotalHeight({ ...dtKosong(), pitDepth: '1500', overhead: '4200', lantai })).toBe(12500);
   });
 
-  it('satu lantai saja → travelling 0 (belum ada perjalanan)', () => {
+  it('contoh klien 6 lantai: 4300/3300/3100/3000/3000/3000', () => {
+    const enam: Lantai[] = [
+      { no: 1, lantai: '1', tinggi: '4300', door: '', finishing: '' },
+      { no: 2, lantai: '2', tinggi: '3300', door: '', finishing: '' },
+      { no: 3, lantai: '3', tinggi: '3100', door: '', finishing: '' },
+      { no: 4, lantai: '4', tinggi: '3000', door: '', finishing: '' },
+      { no: 5, lantai: '5', tinggi: '3000', door: '', finishing: '' },
+      { no: 6, lantai: '6', tinggi: '3000', door: '', finishing: '' },
+    ];
+    // total 19.700 − lantai terakhir 3.000
+    expect(hitungTravelling(enam)).toBe(16700);
+    expect(hitungOverhead(enam)).toBe(3000);
+  });
+
+  it('baris lantai kosong diabaikan, bukan dihitung nol di tengah', () => {
+    const berongga: Lantai[] = [
+      { no: 1, lantai: '1', tinggi: '4000', door: '', finishing: '' },
+      { no: 2, lantai: '2', tinggi: '', door: '', finishing: '' },
+      { no: 3, lantai: '3', tinggi: '3500', door: '', finishing: '' },
+    ];
+    expect(hitungTravelling(berongga)).toBe(4000);
+    expect(hitungOverhead(berongga)).toBe(3500);
+  });
+
+  it('satu lantai saja → travelling 0, overhead tetap terisi', () => {
     expect(hitungTravelling([lantai[0]])).toBe(0);
+    expect(hitungOverhead([lantai[0]])).toBe(4000);
   });
 
   it('tahan data kosong / bukan array', () => {
     expect(hitungTravelling(undefined)).toBe(0);
+    expect(hitungOverhead(undefined)).toBe(0);
     expect(hitungTotalHeight({ ...dtKosong() })).toBe(0);
   });
 });
@@ -151,9 +183,20 @@ describe('dokumen cetak gaya spec sheet', () => {
     const dt: DataTeknis = { ...dtKosong(), kapasitas: '1000', pitDepth: '1500', overhead: '4000', lantai };
     const h = htmlSurvey({ ...bahan, dt });
     expect(h).toMatch(/Travelling Height/);
-    expect(h).toMatch(/7000 mm/);
+    expect(h).toMatch(/7500 mm/);          // 11.000 − 3.500 (lantai terakhir)
     expect(h).toMatch(/Total Height \(Pit to Overhead\)/);
-    expect(h).toMatch(/12500 mm/);
+    expect(h).toMatch(/12500 mm/);         // 1500 + 7500 + 3500
+  });
+
+  it('overhead dari tabel lantai menang atas isian manual lama', () => {
+    // Dokumen lama menyimpan overhead 4000 manual; tabel lantai sekarang
+    // menentukan overhead = tinggi lantai terakhir (3500).
+    const dt: DataTeknis = { ...dtKosong(), pitDepth: '1500', overhead: '4000', lantai };
+    const h = htmlSurvey({ ...bahan, dt });
+    expect(h).toMatch(/Otomatis: tinggi lantai terakhir/);
+    expect(h).toMatch(/<td class="nilai">3500 mm<\/td>/);   // overhead = lantai terakhir
+    expect(h).toMatch(/Total Height \(Pit to Overhead\)/);
+    expect(h).toMatch(/12500 mm/);                          // 1500 + 7500 + 3500
   });
 });
 

@@ -7,7 +7,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   KatalogItem, TerminItem, DesainPilihan, DesainOption,
   OPT, KEL_LABEL, SYARAT, TERMIN_AWAL, DESAIN, DESAIN_LABEL, KET_LABEL, ASET, HARI_ID,
-  makeDefaultItems, normalizeStrukturItems,
+  makeDefaultItems, normalizeStrukturItems, LantaiUnit, lantaiAwal, totalFloorToFloor, normalLantaiUnit,
 } from '@/lib/sph-types';
 import {
   num, rupiah, ribu, terbilangRp, terbilang, capWords, fmtID,
@@ -26,6 +26,7 @@ import {
   pageSPH, pageSPK, esc as escGen, injectDeco as injectDecoGen,
 } from '@/lib/sph-generator';
 import { cetakHtml } from '@/lib/cetak';
+import TabelLantai from '@/components/sph/TabelLantai';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -39,6 +40,8 @@ interface S {
   jenisLift: string; tipeKabin: string; kapasitas: string; penumpang: string; kecepatan: string; mpm: string; sfd: string;
   tipeMesin: string; traksi: string; dayaMesin: string; power: string; pintu: string; bukaanPintu: string;
   tinggiKabin: string; shaftSize: string; cabinSize: string; pitDepth: string; namaLantai: string; baseFloor: string;
+  // Isian manual di bagian Unit lift & spesifikasi.
+  lantai: LantaiUnit[]; floorToFloor: string; catatanUnit: string;
   ppn: 'exclude' | 'include'; masaBerlaku: string; freeMtn: string; garSpare: string; garMesin: string;
   waktuPengadaan: string; waktuInstalasi: string;
   tampilTtd: boolean; tampilDesain: boolean;
@@ -57,6 +60,7 @@ const DEFAULT_S: S = {
   kecepatan:'0,4 m/s', mpm:'24 mpm', sfd:'4/4/4', tipeMesin:'MRL Lift', traksi:'2:1', dayaMesin:'1,2 kw',
   power:'380V 50HZ (3 phase)', pintu:'Center Opening', bukaanPintu:'750 mm', tinggiKabin:'2200 mm',
   shaftSize:'2000 * 2000', cabinSize:'1200*1300 (Custom)', pitDepth:'(Custom)', namaLantai:'1.2.3.4', baseFloor:'1',
+  floorToFloor:'', catatanUnit:'', lantai: lantaiAwal(6),
   ppn:'exclude', masaBerlaku:'3 Minggu', freeMtn:OPT.freeMtn[1], garSpare:OPT.garSpare[1], garMesin:OPT.garMesin[1],
   waktuPengadaan:'2 Bulan', waktuInstalasi:'1,5 Bulan',
   tampilTtd:true, tampilDesain:true,
@@ -64,6 +68,13 @@ const DEFAULT_S: S = {
   sales:'Imam Solikhin', jabatanTtd:'Sales', direktur:'Adhie Kurnia',
   rekening:'BANK BCA : 1662996330 - KCP Cimanggis, Depok',
 };
+
+/**
+ * Pastikan tabel lantai selalu berbentuk sah: array baris dengan nomor urut
+ * yang benar dan nilai teks. Data lama bisa saja tidak punya kolom ini sama
+ * sekali, atau berisi bentuk lain — keduanya jatuh ke 6 baris awal.
+ */
+export const normalLantai = normalLantaiUnit;
 
 // ── Helper: nomor surat ─────────────────────────────────────
 function noSurat(mode: Mode, s: S): string {
@@ -133,6 +144,7 @@ body{font-family:'Barlow',system-ui,sans-serif;background:#fff;color:#2B1B10;fon
 .ind{margin-left:8mm}
 .secttl{font-family:'Barlow Condensed',sans-serif;font-size:17pt;font-weight:500;margin:0 0 4mm}
 table.doc{width:100%;border-collapse:collapse;font-size:9pt;margin:3mm 0}
+.cat-unit{border:.6pt solid #4A3A2E;border-left:2.5pt solid #D95103;background:#FBF7F3;padding:2.5mm 3mm;margin-top:3mm;font-size:9pt;line-height:1.5;page-break-inside:avoid}
 table.doc th,table.doc td{border:.6pt solid #4A3A2E;padding:1.8mm 2.2mm;vertical-align:middle}
 table.doc th{font-weight:600;text-align:center}
 table.doc td.n{text-align:right;white-space:nowrap}
@@ -257,12 +269,15 @@ function applyDocState(
     'sapaan','namaCustomer','namaPerusahaan','nikCustomer','alamatCustomer','kotaProyek',
     'jenisLift','tipeKabin','kapasitas','penumpang','kecepatan','mpm','sfd',
     'tipeMesin','traksi','dayaMesin','power','pintu','bukaanPintu',
-    'tinggiKabin','shaftSize','cabinSize','pitDepth','namaLantai','baseFloor',
+    'tinggiKabin','shaftSize','cabinSize','pitDepth','namaLantai','baseFloor','lantai','floorToFloor','catatanUnit',
     'ppn','masaBerlaku','freeMtn','garSpare','garMesin','waktuPengadaan','waktuInstalasi',
     'tampilTtd','tampilDesain','finishingStruktur','catatanDesain','sales','jabatanTtd','direktur','rekening',
   ];
   const merged: S = { ...DEFAULT_S };
   keys.forEach(k => { if (st[k] !== undefined) (merged as any)[k] = st[k]; });
+  // Tabel lantai bisa hilang/rusak pada dokumen lama — selalu kembalikan ke
+  // bentuk 6 baris yang sah supaya editor tidak kosong tanpa penjelasan.
+  merged.lantai = normalLantai(merged.lantai);
   setS(merged);
 
   if (doc.modeHarga || doc.state?.modeHarga) setModeHarga((doc.modeHarga || doc.state?.modeHarga) as ModeHarga);
@@ -720,6 +735,18 @@ function FormPanel(props: FormPanelProps) {
         <div className="row2">
           <Ftxt label="Nama lantai" value={s.namaLantai} onChange={v => upd('namaLantai', v)} />
           <Ftxt label="Base floor" value={s.baseFloor} onChange={v => upd('baseFloor', v)} />
+        </div>
+        {/* Floor to Floor = Tabel Lantai. Tinggi tiap lantai diketik manual
+            dalam mm; total dihitung otomatis dan tercetak di dokumen. */}
+        <TabelLantai lantai={s.lantai} onChange={l => upd('lantai', l)} />
+        <div className="f-item">
+          <label className="f-label">Catatan unit &amp; spesifikasi</label>
+          <textarea className="f-ctrl f-area" rows={3}
+            placeholder="Catatan manual, mis. mesin di sisi kanan shaft; pintu lantai 1 dibuka keluar; warna handle menyesuaikan interior."
+            value={s.catatanUnit} onChange={e => upd('catatanUnit', e.target.value)} />
+          <div className="f-hint">
+            Ditulis bebas dan ikut tercetak di bawah tabel spesifikasi. Kosongkan bila tidak ada catatan.
+          </div>
         </div>
       </Grp>
 
