@@ -21,6 +21,7 @@ import EmergencyBackup from "./pages/EmergencyBackup";
 import AdminUsers from "./pages/AdminUsers";
 import Reports from "./pages/Reports";
 import Kalkulator from "./pages/Kalkulator";
+import KalkulatorDinamis from "./pages/KalkulatorDinamis";
 import LeadsList from "./pages/crm/LeadsList";
 import LeadInput from "./pages/crm/LeadInput";
 import Kanban from "./pages/crm/Kanban";
@@ -110,6 +111,9 @@ function AppRoutes() {
               <Route path="/spk" element={<SPKList />} />
               <Route path="/reports" element={<Boleh izin="laporan"><Reports /></Boleh>} />
               <Route path="/master" element={<Boleh izin="master"><MasterData /></Boleh>} />
+              {/* Kalkulator dinamis: harga & kurs diatur admin lewat tab "Atur harga".
+                  Kalkulator lama di /kalkulator tetap dipakai dan tidak diubah. */}
+              <Route path="/kalkulator-dinamis" element={<Boleh izin="kalkulator"><KalkulatorDinamis /></Boleh>} />
               <Route path="/crm/leads" element={<LeadsList />} />
               <Route path="/crm/leads/baru" element={<LeadInput />} />
               <Route path="/crm/leads/:id" element={<LeadInput />} />

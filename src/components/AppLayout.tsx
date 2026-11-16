@@ -50,7 +50,8 @@ const NAV_GROUPS: { judul: string | null; item: { to: string; icon: typeof Layou
     item: [
       { to: '/reports', icon: BarChart3, label: 'Laporan', izin: 'laporan' },
       { to: '/master', icon: Database, label: 'Master Data', izin: 'master' },
-      { to: '/kalkulator', icon: Calculator, label: 'Kalkulator' },
+      { to: '/kalkulator-dinamis', icon: Calculator, label: 'Kalkulator Dinamis', izin: 'kalkulator' },
+      { to: '/kalkulator', icon: Calculator, label: 'Kalkulator (lama)' },
       { to: '/settings', icon: Settings, label: 'Pengaturan' },
       { to: '/admin/emergency-backup', icon: ShieldCheck, label: 'Emergency Backup', izin: 'backup' },
       { to: '/admin/users', icon: ShieldCheck, label: 'Manajemen Akun', izin: 'akun' },
