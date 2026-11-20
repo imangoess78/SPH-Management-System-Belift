@@ -26,7 +26,7 @@ import {
   pageSPH, pageSPK, esc as escGen, injectDeco as injectDecoGen,
 } from '@/lib/sph-generator';
 import EditorSpk from '@/components/EditorSpk';
-import { CETAK_AWAL, type ManualSpk, type PengaturanCetak, normalCetak, cssCetak, cssPratinjau, labelPratinjau } from '@/lib/spk-susun';
+import { CETAK_AWAL, type ManualSpk, type PengaturanCetak, normalCetak, cssCetak, cssPratinjau, labelPratinjau, CSS_PASAL } from '@/lib/spk-susun';
 import { cetakHtml } from '@/lib/cetak';
 import TabelLantai from '@/components/sph/TabelLantai';
 import { useAuth } from '@/hooks/useAuth';
@@ -198,6 +198,7 @@ h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 .page-desain .dgrid{page-break-inside:avoid;break-inside:avoid}
 .page-desain .dcard{page-break-inside:avoid;break-inside:avoid}
 .pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
+${CSS_PASAL}
 ${cssTambahan}
 </style>
 </head>

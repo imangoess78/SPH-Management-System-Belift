@@ -301,6 +301,20 @@
 .page.spk-body { min-height: 0; height: auto; overflow: visible; }
 /* Individual pasal block: avoid breaking mid-pasal when possible */
 .pasal-blk { page-break-inside: avoid; break-inside: avoid; margin-bottom: 7mm; }
+/* ── Judul pasal ────────────────────────────────────────────────────────────
+   `.pasal-no` dan `.pasal-judul` sebelumnya TIDAK punya aturan apa pun, jadi
+   tampil sebagai <p> biasa: tidak tebal, tidak rata tengah. Sekarang keduanya
+   tebal dan rata tengah, seperti dokumen legal pada umumnya.
+   Jarak antar paragraf juga hilang karena Tailwind preflight menghapus margin
+   bawaan <p> — di bawah ini dikembalikan. */
+.pasal-blk > p { margin: 0 0 3mm; }
+.pasal-blk > p:last-child { margin-bottom: 0; }
+.pasal-blk .pasal-no {
+  text-align: center; font-weight: 700; letter-spacing: .06em; margin: 0 0 1.5mm;
+}
+.pasal-blk .pasal-judul {
+  text-align: center; font-weight: 700; margin: 0 0 3.5mm;
+}
 .page .hex-bg {
   position: absolute;
   right: 0;
@@ -706,7 +720,7 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 }
 .edspk-ed .ProseMirror > *:first-child { margin-top: 0; }
 .edspk-ed .ProseMirror > *:last-child { margin-bottom: 0; }
-.edspk-ed .ProseMirror p { margin: 0 0 6px; }
+.edspk-ed .ProseMirror p { margin: 0 0 9px; }
 .edspk-ed .ProseMirror strong { font-weight: 700; }
 .edspk-ed .ProseMirror ul { margin: 0 0 6px; padding-left: 18px; list-style-type: disc; }
 .edspk-ed .ProseMirror ol { margin: 0 0 6px; padding-left: 18px; list-style-type: decimal; }
@@ -714,20 +728,31 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 .edspk-ed .ProseMirror li > p { margin: 0; }
 .edspk-ed .ProseMirror:focus-visible { outline: 2px solid #F3CBAA; outline-offset: -2px; }
 
-/* Blok tabel: hanya dilihat, tidak disunting (isinya dari data form). */
-.edspk-tabel { border: 1px solid #E2D9D1; border-radius: 7px; overflow: hidden; margin: 8px 0; background: #FDFBF9; }
-.edspk-tabel-kepala {
+/* Blok terkunci (tabel & tanda tangan): hanya dilihat, tidak disunting. */
+.edspk-blok { border: 1px solid #E2D9D1; border-radius: 7px; overflow: hidden; margin: 8px 0; background: #FDFBF9; }
+.edspk-blok-kepala {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 5px 9px; font-size: 10.5px; color: #592203; background: #FBF1E8;
   border-bottom: 1px solid #EDE0D4; font-weight: 600;
 }
-.edspk-tabel-not { font-weight: 400; color: #8A7A6E; }
-.edspk-tabel-isi { padding: 8px; overflow-x: auto; }
-.edspk-tabel-isi table { border-collapse: collapse; width: 100%; font-size: 11px; }
-.edspk-tabel-isi th, .edspk-tabel-isi td {
+.edspk-blok-not { font-weight: 400; color: #8A7A6E; }
+.edspk-blok-isi { padding: 8px; overflow-x: auto; }
+.edspk-blok-isi table { border-collapse: collapse; width: 100%; font-size: 11px; }
+.edspk-blok-isi th, .edspk-blok-isi td {
   border: 1px solid #E2D9D1; padding: 4px 6px; text-align: left; vertical-align: top;
 }
-.edspk-tabel-isi th { background: #FBF7F3; font-weight: 600; }
+.edspk-blok-isi th { background: #FBF7F3; font-weight: 600; }
+
+/* Blok tanda tangan: `.sign` aslinya 2 kolom @74mm (=148mm, lebih lebar dari
+   panel 429px). Di sini kolomnya dibuat lentur supaya tidak meluber, tanpa
+   mengubah bentuk aslinya saat dicetak. */
+.edspk-blok-tanda .edspk-blok-isi { padding: 8px 6px; }
+.edspk-blok-tanda .sign { margin-top: 4mm; font-size: 9pt; }
+.edspk-blok-tanda .sign > div { width: auto; flex: 1 1 0; min-width: 0; }
+.edspk-blok-tanda .sigbox { height: 16mm; }
+.edspk-blok-tanda .sigbox img.cap { height: 14mm; }
+.edspk-blok-tanda .sigbox img.ttd { height: 11mm; }
+.edspk-blok-tanda .sig-nm { min-width: 0; display: block; }
 .edspk-catatan { font-size: 10.5px; color: #8A7A6E; line-height: 1.45; margin: 6px 0 2px; }
 
 /* Print */

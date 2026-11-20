@@ -269,3 +269,82 @@ export function cssPratinjau(c: PengaturanCetak): string {
 export function labelPratinjau(c: PengaturanCetak): string {
   return c.kertas + ' · margin ' + c.marginAtas + '/' + c.marginBawah + '/' + c.marginKiri + '/' + c.marginKanan + ' mm';
 }
+
+/**
+ * Aturan tampilan pasal — dipakai TIGA tempat: pratinjau di aplikasi (index.css),
+ * jendela cetak (SPHForm.printDocument), dan pratinjau generator (SPHPreview).
+ *
+ * Disimpan di sini supaya ketiganya tidak melenceng. Dulu `.pasal-no` dan
+ * `.pasal-judul` tidak punya aturan sama sekali sehingga judul pasal tampil
+ * seperti paragraf biasa (tidak tebal, tidak rata tengah), dan jarak antar
+ * paragraf hilang karena Tailwind preflight menghapus margin bawaan <p>.
+ */
+export const CSS_PASAL = [
+  '.pasal-blk>p{margin:0 0 3mm}',
+  '.pasal-blk>p:last-child{margin-bottom:0}',
+  '.pasal-blk .pasal-no{text-align:center;font-weight:700;letter-spacing:.06em;margin:0 0 1.5mm}',
+  '.pasal-blk .pasal-judul{text-align:center;font-weight:700;margin:0 0 3.5mm}',
+].join('');
+
+// ── Membaca kembali dokumen menjadi per-pasal ────────────────────────────────
+/** Isi satu pasal sebagaimana terbaca dari HTML dokumen. */
+export interface IsiPasalDok { judul: string; badan: string }
+
+/**
+ * Posisi tepat SETELAH `</div>` yang menutup `<div>` pada indeks `mulai`.
+ *
+ * Wajib menghitung kedalaman: badan pasal bisa memuat `<div class="sign">`
+ * yang bersarang (`sign > div > sigbox`). Pencocokan `[\s\S]*?<\/div>` berhenti
+ * di `</div>` pertama dan MEMOTONG blok tanda tangan di tengah — akibatnya
+ * pasal 10 tampil separuh di editor, dan begitu disimpan, separuh tanda tangan
+ * (PIHAK KEDUA, cap, ttd) hilang dari dokumen.
+ */
+export function akhirDiv(html: string, mulai: number): number {
+  const re = /<div\b[^>]*>|<\/div>/gi;
+  re.lastIndex = mulai;
+  let kedalaman = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    if (m[0].charAt(1) === '/') {
+      kedalaman--;
+      if (kedalaman === 0) return m.index + m[0].length;
+    } else {
+      kedalaman++;
+    }
+  }
+  return html.length;
+}
+
+/**
+ * Urai dokumen SPK menjadi `{ noPasal: { judul, badan } }`.
+ *
+ * Dipakai panel Editor SPK untuk menampilkan teks default. Sumbernya dokumen
+ * yang SAMA dengan yang dicetak (`pageSPK`), jadi tidak ada salinan teks yang
+ * bisa melenceng dari hasil cetak.
+ */
+export function uraiPasal(html: string): Record<number, IsiPasalDok> {
+  const hasil: Record<number, IsiPasalDok> = {};
+  if (!html) return hasil;
+  const buka = '<div class="pasal-blk">';
+  let cari = 0;
+  for (;;) {
+    const mulai = html.indexOf(buka, cari);
+    if (mulai < 0) break;
+    const akhir = akhirDiv(html, mulai);
+    const blok = html.slice(mulai + buka.length, Math.max(mulai + buka.length, akhir - '</div>'.length));
+    cari = akhir;
+
+    const no = blok.match(/class="pasal-no"[^>]*>[\s\S]*?(\d+)/);
+    if (!no) continue;
+    const judul = (blok.match(/class="pasal-judul"[^>]*>([\s\S]*?)<\/p>/) || ['', ''])[1]
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+    const badan = blok
+      .replace(/<p class="pasal-no"[\s\S]*?<\/p>/, '')
+      .replace(/<p class="pasal-judul"[\s\S]*?<\/p>/, '')
+      .trim();
+    hasil[Number(no[1])] = { judul, badan };
+  }
+  return hasil;
+}

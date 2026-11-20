@@ -22,19 +22,76 @@ import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 
-// ── Pemecahan badan pasal: teks vs tabel ─────────────────────────────────────
-type Segmen = { jenis: 'teks' | 'tabel'; html: string };
+// ── Pemecahan badan pasal: teks vs blok terkunci ─────────────────────────────
+/**
+ * Blok yang TIDAK boleh masuk editor teks kaya.
+ *
+ * - `<table>` — editor teks kaya tidak mengenal tabel. Kalau dimuat mentah lalu
+ *   disimpan ulang, tabelnya HILANG. Ini yang dulu menghapus tabel termin.
+ * - `<div class="sign">` — blok tanda tangan PIHAK PERTAMA / PIHAK KEDUA,
+ *   lengkap dengan `.sigbox` (tempat gambar tanda tangan & cap) dan `.sig-nm`.
+ *   Tiptap hanya mengenal paragraf/daftar/heading, jadi div beserta class-nya
+ *   dilucuti: tanda tangan, cap, dan garis nama ikut lenyap begitu pasal
+ *   disimpan — termasuk saat pengguna sekadar menghapus satu kata di pasal 10.
+ *
+ * Keduanya dikeluarkan dari area sunting dan disimpan apa adanya.
+ */
+export type JenisSegmen = 'teks' | 'tabel' | 'tanda';
+
+export interface Segmen { jenis: JenisSegmen; html: string }
+
+/** Awal blok terkunci yang dikenali. */
+const AWAL_TERKUNCI = /<table\b|<div\b[^>]*\bclass="[^"]*\bsign\b/gi;
+
+/**
+ * Posisi akhir blok terkunci yang dimulai di `mulai`, atau -1 bila bukan blok
+ * terkunci. Untuk `<div class="sign">` dipakai penghitung kedalaman karena
+ * isinya bersarang (`sign > div > sigbox`, `sig-nm`, dst.) — regex `.*?` akan
+ * berhenti di `</div>` pertama dan memotong tanda tangan di tengah.
+ */
+function akhirBlok(html: string, mulai: number): number {
+  const sisa = html.slice(mulai);
+
+  if (/^<table\b/i.test(sisa)) {
+    const t = html.toLowerCase().indexOf('</table>', mulai);
+    return t < 0 ? html.length : t + '</table>'.length;
+  }
+
+  if (/^<div\b/i.test(sisa)) {
+    const re = /<div\b[^>]*>|<\/div>/gi;
+    re.lastIndex = mulai;
+    let kedalaman = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      if (m[0].charAt(1) === '/') {
+        kedalaman--;
+        if (kedalaman === 0) return m.index + m[0].length;
+      } else {
+        kedalaman++;
+      }
+    }
+    return html.length; // div tidak tertutup — ambil sampai habis
+  }
+
+  return -1;
+}
 
 export function pisahSegmen(html: string): Segmen[] {
   const hasil: Segmen[] = [];
-  const re = /<table[\s\S]*?<\/table>/gi;
+  const re = new RegExp(AWAL_TERKUNCI.source, 'gi');
   let akhir = 0;
   let m: RegExpExecArray | null;
+
   while ((m = re.exec(html)) !== null) {
+    const tutup = akhirBlok(html, m.index);
+    if (tutup < 0 || tutup <= m.index) continue;
     if (m.index > akhir) hasil.push({ jenis: 'teks', html: html.slice(akhir, m.index) });
-    hasil.push({ jenis: 'tabel', html: m[0] });
-    akhir = m.index + m[0].length;
+    const isi = html.slice(m.index, tutup);
+    hasil.push({ jenis: /^<table\b/i.test(isi) ? 'tabel' : 'tanda', html: isi });
+    akhir = tutup;
+    re.lastIndex = tutup; // lewati seluruh blok supaya <div> di dalamnya tak ikut terdeteksi
   }
+
   if (akhir < html.length) hasil.push({ jenis: 'teks', html: html.slice(akhir) });
   if (hasil.length === 0) hasil.push({ jenis: 'teks', html: '' });
   return hasil;
@@ -154,6 +211,7 @@ export default function PasalEditor({ html, onSimpan }: PasalEditorProps) {
   const kirim = () => cb.current(nilai.current.join(''));
 
   const adaTabel = segmen.some(s => s.jenis === 'tabel');
+  const adaTanda = segmen.some(s => s.jenis === 'tanda');
 
   return (
     <div className="edspk-isi">
@@ -164,18 +222,34 @@ export default function PasalEditor({ html, onSimpan }: PasalEditorProps) {
           onUbah={h => { nilai.current[i] = h; kirim(); }}
         />
       ) : (
-        <div key={'b' + i} className="edspk-tabel">
-          <div className="edspk-tabel-kepala">
-            <span>Tabel dari data form</span>
-            <span className="edspk-tabel-not">tidak disunting di sini</span>
+        <div
+          key={'b' + i}
+          className={'edspk-blok edspk-blok-' + s.jenis}
+          data-jenis={s.jenis}
+        >
+          <div className="edspk-blok-kepala">
+            <span>{s.jenis === 'tabel' ? 'Tabel dari data form' : 'Blok tanda tangan'}</span>
+            <span className="edspk-blok-not">tidak disunting di sini</span>
           </div>
-          <div className="edspk-tabel-isi" dangerouslySetInnerHTML={{ __html: s.html }} />
+          <div
+            className="edspk-blok-isi"
+            // Blok ini disimpan apa adanya: kalau dimuat ke editor teks kaya,
+            // div + class-nya dilucuti dan tanda tangan/cap ikut hilang.
+            dangerouslySetInnerHTML={{ __html: s.html }}
+          />
         </div>
       ))}
       {adaTabel && (
         <div className="edspk-catatan">
           Tabel di atas disusun otomatis dari termin dan nilai pada form. Untuk mengubah
           isinya, ubah data form — bukan teks pasal. Tabel tetap tersimpan utuh.
+        </div>
+      )}
+      {adaTanda && (
+        <div className="edspk-catatan">
+          Blok tanda tangan (PIHAK PERTAMA &amp; PIHAK KEDUA) diambil dari data customer,
+          direktur, dan gambar tanda tangan pada Pengaturan. Blok ini tidak ikut berubah
+          saat teks pasal disunting, jadi tanda tangan &amp; cap tidak akan hilang.
         </div>
       )}
     </div>

@@ -24,7 +24,7 @@
  */
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import {
-  normalCetak, BATAS_MARGIN, CETAK_AWAL,
+  normalCetak, BATAS_MARGIN, CETAK_AWAL, uraiPasal,
   type ManualPasal, type ManualSpk, type PengaturanCetak, type UkuranKertas,
 } from '@/lib/spk-susun';
 import { pageSPK, type GenState, type ModeHarga } from '@/lib/sph-generator';
@@ -65,29 +65,14 @@ interface IsiPasal { judul: string; badan: string }
  * Editor butuh teks default yang SAMA dengan dokumen cetak. Cara paling jujur:
  * render dokumennya sekali, lalu ambil judul dan badan tiap pasal dari HTML
  * yang dihasilkan. Tidak ada salinan teks yang bisa melenceng.
+ *
+ * Penguraiannya ada di `uraiPasal()` (lib/spk-susun.ts) dan WAJIB menghitung
+ * kedalaman <div>: versi lama memakai `[\s\S]*?<\/div>` yang berhenti di `</div>`
+ * pertama, sehingga badan pasal 10 terpotong tepat di tengah blok tanda tangan —
+ * editor menampilkan separuh, dan menyimpannya menghapus separuh sisanya.
  */
 function teksAsliDariDokumen(html: string): Record<number, IsiPasal> {
-  const hasil: Record<number, IsiPasal> = {};
-  if (!html) return hasil;
-  const re = /<div class="pasal-blk">([\s\S]*?)<\/div>/g;
-  let m: RegExpExecArray | null;
-  let gagal = 0;
-  while ((m = re.exec(html)) !== null) {
-    const blok = m[1];
-    const no = blok.match(/class="pasal-no"[^>]*>[\s\S]*?(\d+)/);
-    if (!no) { gagal++; continue; }
-    const judul = (blok.match(/class="pasal-judul"[^>]*>([\s\S]*?)<\/p>/) || ['', ''])[1]
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .trim();
-    const badan = blok
-      .replace(/<p class="pasal-no"[\s\S]*?<\/p>/, '')
-      .replace(/<p class="pasal-judul"[\s\S]*?<\/p>/, '')
-      .trim();
-    hasil[Number(no[1])] = { judul, badan };
-  }
-  if (gagal > 0) console.warn('[EditorSpk] pasal tak terbaca:', gagal);
-  return hasil;
+  return uraiPasal(html);
 }
 
 /** Bungkus teks polos jadi paragraf agar bisa dimuat editor. */

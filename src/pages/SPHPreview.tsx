@@ -6,6 +6,7 @@ import { SPH, DesainOption, DESAIN } from '@/lib/sph-types';
 import { cetakHtml } from '@/lib/cetak';
 import { useState, useEffect, Fragment } from 'react';
 import { pageSPH, pageSPK } from '@/lib/sph-generator';
+import { CSS_PASAL } from '@/lib/spk-susun';
 
 // Ensure every .page div has the hex-bg img (handles old saved HTML that lacks it)
 const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
@@ -83,6 +84,7 @@ h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 .page.page-desain{page-break-before:always;break-before:page;page-break-after:always;break-after:page}
 .page-desain .dgrid,.page-desain .dcard{page-break-inside:avoid;break-inside:avoid}
 .pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
+${CSS_PASAL}
 @media print{body{padding:0;background:#fff}.page{box-shadow:none;margin:0;page-break-after:always;break-after:page}.page.spk-body{min-height:0;height:auto;page-break-after:auto;break-after:auto}.page:last-child{page-break-after:auto;break-after:auto}}
 `;
 
