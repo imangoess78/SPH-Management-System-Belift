@@ -167,6 +167,13 @@ const LABEL: Record<string, string> = {
   bahanPintu: 'Bahan Pintu', finishPintu: 'Finishing Car Door', sillPintu: 'Sill Pintu',
   finishLandingDoor: 'Finishing Landing Door',
   cabinSize: 'Ukuran Cabin', tinggiCabin: 'Tinggi Cabin', bahanCabin: 'Bahan Cabin',
+  // Field warna (dipilih dari Master Data kategori Warna) — label dipakai di
+  // daftar selisih revisi PO supaya perubahan warna terbaca jelas.
+  warnaCabin: 'Pilih Color Cabin', warnaLantaiCabin: 'Pilih Color Lantai Cabin',
+  warnaHandrail: 'Pilih Color Handrail', warnaFinishLantai: 'Pilih Color Finishing Lantai',
+  warnaFinishDinding: 'Pilih Color Finishing Dinding', warnaFinishPlafon: 'Pilih Color Finishing Plafon',
+  warnaFinishPintuLantai: 'Pilih Color Finishing Pintu per Lantai',
+  warnaFinishingStruktur: 'Pilih Color Finishing Struktur',
   finishCabin: 'Finishing Cabin', plafonCabin: 'Plafon Cabin', lantaiCabin: 'Lantai Cabin',
   handrail: 'Handrail', finishLantai: 'Finishing Lantai', finishDinding: 'Finishing Dinding',
   finishPlafon: 'Finishing Plafon', finishPintuLantai: 'Finishing Pintu per Lantai',

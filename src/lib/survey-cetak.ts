@@ -481,7 +481,12 @@ export function teksRingkasSurvey(b: {
     'Tipe mesin: ' + f('tipeMesin'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
-    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
+    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Warna: ' + f('warnaCabin'),
+    'Lantai cabin: ' + f('lantaiCabin') + '   Warna: ' + f('warnaLantaiCabin')
+      + '   Handrail: ' + f('handrail') + '   Warna: ' + f('warnaHandrail'),
+    'Warna finishing: lantai ' + f('warnaFinishLantai') + '   dinding ' + f('warnaFinishDinding')
+      + '   plafon ' + f('warnaFinishPlafon') + '   pintu/lt ' + f('warnaFinishPintuLantai')
+      + '   struktur ' + f('warnaStruktur') + '   fin. struktur ' + f('warnaFinishingStruktur'),
     'Power: ' + f('power'),
     'Grounding: ' + f('grounding') + '   ARD: ' + f('ard'),
     'Akses jalan: ' + f('aksesJalan') + '   Ruang kerja: ' + f('ruangKerja'),
@@ -661,7 +666,12 @@ export function teksRingkasPo(po: BahanCetakPo, revisi: PoRevisiRow[]): string {
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
     'Finishing Car Door: ' + f('finishPintu') + '   Finishing Landing Door: ' + f('finishLandingDoor'),
-    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
+    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Warna: ' + f('warnaCabin'),
+    'Lantai cabin: ' + f('lantaiCabin') + '   Warna: ' + f('warnaLantaiCabin')
+      + '   Handrail: ' + f('handrail') + '   Warna: ' + f('warnaHandrail'),
+    'Warna finishing: lantai ' + f('warnaFinishLantai') + '   dinding ' + f('warnaFinishDinding')
+      + '   plafon ' + f('warnaFinishPlafon') + '   pintu/lt ' + f('warnaFinishPintuLantai')
+      + '   struktur ' + f('warnaStruktur') + '   fin. struktur ' + f('warnaFinishingStruktur'),
     'Power: ' + f('power'),
   ];
   const addonOn = ((dt.addon as unknown as AddOn[]) || []).filter(a => a.on);

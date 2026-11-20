@@ -92,10 +92,73 @@ export const MAKS_FOTO_DOKUMENTASI = 5;
 //  panel TIDAK boleh ikut mati — cukup tampilkan keterangan.
 interface OpsiDesain { id: string; nama: string; img: string; kategori: string }
 
-let cacheDesain: Record<string, OpsiDesain[]> | null = null;
+/**
+ * Katalog Master Data (tabel `design_items`) dalam dua bentuk:
+ *   peta  → gambar per kategori (Plafon / Lantai Cabin, lampiran spec)
+ *   warna → daftar NAMA warna (kategori 'Warna') untuk field 'warna'
+ *
+ * Warna sengaja dipisah: baris warna tidak punya `image_url`, sedangkan
+ * `peta` hanya menyimpan baris bergambar. Dulu baris tanpa gambar dibuang
+ * seluruhnya, jadi warna dari Master Data tidak akan pernah muncul.
+ */
+interface KatalogMaster { peta: Record<string, OpsiDesain[]>; warna: string[] }
 
-function useDesainKatalog(): { peta: Record<string, OpsiDesain[]>; galat: string } {
-  const [peta, setPeta] = useState<Record<string, OpsiDesain[]>>(cacheDesain || {});
+let cacheDesain: KatalogMaster | null = null;
+
+/** Kategori Master Data yang dipakai sebagai daftar pilihan warna. */
+export const KATEGORI_WARNA = 'Warna';
+
+/**
+ * Katalog warna yang SUDAH ADA di Master Data proyek ini ada di kategori
+ * 'Struktur' (Struktur Black, Struktur Rose Gold, … — 8 warna, semuanya
+ * bergambar, dipakai juga oleh generator SPH untuk "Struktur warna").
+ * Kategori 'Warna' disediakan sebagai tempat khusus warna bila staff ingin
+ * memisahkan; keduanya dibaca supaya dropdown langsung berisi, bukan kosong.
+ */
+export const KATEGORI_WARNA_STRUKTUR = 'Struktur';
+
+/** "Struktur Rose Gold" → "Rose Gold" (prefix kategori dibuang). */
+export const namaWarna = (nama: string): string => nama.replace(/^struktur\s+/i, '').trim();
+
+/**
+ * Susun katalog Master Data dari baris `design_items`.
+ *
+ * Fungsi murni supaya bisa diuji tanpa memasang komponen (dan tanpa Radix).
+ * Aturan penting: baris kategori 'Warna' TIDAK butuh `image_url`. Dulu semua
+ * baris tanpa gambar dibuang, sehingga warna tidak pernah muncul di dropdown
+ * walau sudah diisi di Master Data.
+ */
+export function susunKatalog(rows: Array<Record<string, unknown>>): KatalogMaster {
+  const peta: Record<string, OpsiDesain[]> = {};
+  const warna: string[] = [];
+  const tambahWarna = (n: string) => { if (n && !warna.includes(n)) warna.push(n); };
+
+  for (const row of rows || []) {
+    const kat = String(row.category || '').trim();
+    if (!kat) continue;
+    const nama = String(row.name || row.sku || '').trim();
+    if (!nama) continue;
+    const katKecil = kat.toLowerCase();
+
+    if (katKecil === KATEGORI_WARNA.toLowerCase()) {
+      tambahWarna(nama);
+      continue; // baris warna murni tidak dipakai sebagai gambar
+    }
+
+    const url = String(row.image_url || '').trim();
+    if (!url) continue;
+    (peta[kat] ||= []).push({ id: String(row.id ?? url), nama, img: url, kategori: kat });
+
+    // Warna dari katalog Struktur tetap jadi pilihan, dan tetap dipakai
+    // sebagai gambar (kategori ini bergambar).
+    if (katKecil === KATEGORI_WARNA_STRUKTUR.toLowerCase()) tambahWarna(namaWarna(nama));
+  }
+  warna.sort((a, b) => a.localeCompare(b, 'id'));
+  return { peta, warna };
+}
+
+function useKatalogMaster(): { peta: Record<string, OpsiDesain[]>; warna: string[]; galat: string } {
+  const [katalog, setKatalog] = useState<KatalogMaster>(cacheDesain || { peta: {}, warna: [] });
   const [galat, setGalat] = useState('');
 
   useEffect(() => {
@@ -109,27 +172,14 @@ function useDesainKatalog(): { peta: Record<string, OpsiDesain[]>; galat: string
       })
       .then(j => {
         if (!aktif) return;
-        const hasil: Record<string, OpsiDesain[]> = {};
-        for (const row of j.data || []) {
-          const kat = String(row.category || '').trim();
-          if (!kat) continue;
-          const url = String(row.image_url || '').trim();
-          if (!url) continue;
-          (hasil[kat] ||= []).push({
-            id: String(row.id ?? url),
-            nama: String(row.name || row.sku || 'Tanpa nama').trim(),
-            img: url,
-            kategori: kat,
-          });
-        }
-        cacheDesain = hasil;
-        setPeta(hasil);
+        cacheDesain = susunKatalog(j.data || []);
+        setKatalog(cacheDesain);
       })
       .catch(e => { if (aktif) setGalat(e instanceof Error ? e.message : 'Gagal memuat katalog desain'); });
     return () => { aktif = false; };
   }, []);
 
-  return { peta, galat };
+  return { peta: katalog.peta, warna: katalog.warna, galat };
 }
 
 /** Pemilih gambar dari Database Desain (Plafon / Lantai Cabin). */
@@ -309,7 +359,7 @@ export function DataTeknisPanel({
   wajibKosong?: string[];
 }) {
   const set = (k: string, v: string | FotoDok[]) => { if (!bacaSaja) ubah(k, v); };
-  const { peta, galat } = useDesainKatalog();
+  const { peta, warna, galat } = useKatalogMaster();
 
   // Seluruh gambar Master Data, apa pun kategorinya — dipakai tombol
   // "Master Data" pada lampiran tiap spec dan Remarks.
@@ -379,6 +429,39 @@ export function DataTeknisPanel({
                               <SelectItem value={KOSONG}>—</SelectItem>
                               {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
                               {opsi.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()
+                    ) : f.jenis === 'warna' ? (
+                      // Warna dipilih dari Master Data kategori 'Warna' — bukan
+                      // teks bebas, supaya ejaan warna sama antara Final Survey
+                      // dan PO pabrik.
+                      //
+                      // Placeholder TIDAK boleh bernilai KOSONG: komponen Select
+                      // mencocokkan `value` dengan placeholder, jadi placeholder
+                      // bernilai KOSONG tidak pernah tampil (yang muncul justru
+                      // label item "—") — akibatnya daftar warna yang masih
+                      // kosong terlihat seperti dropdown biasa. Saat Master Data
+                      // kosong, item "—" tidak dirender supaya placeholder
+                      // benar-benar muncul dan menjelaskan cara mengisinya.
+                      (() => {
+                        const asing = !!nilai && !warna.includes(nilai);
+                        const kosongWarna = warna.length === 0;
+                        return (
+                          <Select value={nilai || KOSONG} onValueChange={v => set(f.key, v === KOSONG ? '' : v)} disabled={bacaSaja}>
+                            <SelectTrigger className={kurang ? 'border-amber-400' : ''}>
+                              <SelectValue placeholder={kosongWarna ? 'Belum ada warna — isi di Master Data' : 'Pilih warna dari Master Data'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
+                              {!kosongWarna && <SelectItem value={KOSONG}>—</SelectItem>}
+                              {warna.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                              {kosongWarna && (
+                                <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                                  Daftar warna belum diisi. Staff mengisi lewat Master Data → kategori Warna.
+                                </p>
+                              )}
                             </SelectContent>
                           </Select>
                         );

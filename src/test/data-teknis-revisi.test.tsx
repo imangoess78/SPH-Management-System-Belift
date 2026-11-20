@@ -42,7 +42,9 @@ describe('field Data Teknis setelah revisi klien', () => {
       'Bahan Konstruksi Shaft', 'Posisi Hoistway', 'Tipe Bukaan Pintu',
       'Jenis Cabin', 'Bahan Cabin', 'Plafon Cabin', 'Lantai Cabin', 'Remarks',
     ]) {
-      expect(screen.getByText(new RegExp(label.replace(/[()/]/g, '.?')), { selector: 'label, h3' })).toBeTruthy();
+      // exact:true — sejak ada field "Pilih Color Lantai Cabin", pencarian
+      // longgar untuk "Lantai Cabin" ikut menangkap label warna tersebut.
+      expect(screen.getByText(label, { selector: 'label, h3', exact: true })).toBeTruthy();
     }
 
     for (const hilang of ['Tebal Dinding', 'Sill Pintu', 'Bahan Pintu', 'Jumlah Pintu per Lantai', 'Finishing Cabin']) {

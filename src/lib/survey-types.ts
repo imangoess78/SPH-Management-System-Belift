@@ -16,7 +16,10 @@
 //   · Jumlah Pintu per Lantai + Sill Pintu DIHAPUS
 //   · Bahan Pintu DIHAPUS, Finishing Pintu tetap
 //   · Finishing Pintu -> Finishing Car Door; ditambah Finishing Landing Door
-//   · + Jenis Cabin; Finishing Cabin → Bahan Cabin (Stainless/Aluminium)
+//   · Jenis Cabin; Finishing Cabin → Bahan Cabin (Stainless/Aluminium)
+//   · Pilih Color dari Master Data (kategori 'Warna'):
+//       Cabin → Bahan Cabin, Lantai Cabin, Handrail
+//       Finishing → seluruh field (warna jadi field terpisah di sampingnya)
 //   · Plafon & Lantai Cabin: pilih GAMBAR dari Database Desain
 //   · Finishing & Kebutuhan Kabel tidak wajib
 //   · Setiap spec punya Note + boleh lampirkan gambar
@@ -139,7 +142,7 @@ export interface FieldDef {
   label: string;
   en: string;
   kel: KelompokField;
-  jenis: 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung';
+  jenis: 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung' | 'warna';
   opsi?: string[];
   satuan?: string;
   hint?: string;
@@ -223,25 +226,52 @@ export const DT_FIELDS: FieldDef[] = [
     opsi: ['Full Stainless', 'Premium', 'Luxury', 'Full Panoramic', 'Semi Panoramic', 'SS Glass Door'] },
   { key: 'bahanCabin',  label: 'Bahan Cabin',   en: 'Cabin Material', kel: 'Cabin', jenis: 'pilih',
     opsi: ['Stainless', 'Aluminium'] },
+  // Klien (20 Nov 2026): warna jadi field PILIHAN SENDIRI di samping bahan —
+  // bahannya tetap berisi bahan, warnanya dipilih dari Master Data kategori
+  // 'Warna'. Bukan teks bebas, supaya ejaan warna seragam antara Final Survey
+  // dan PO pabrik. Kunci `warna*` sengaja BARU: tidak menumpang field lama.
+  { key: 'warnaCabin',  label: 'Pilih Color Cabin', en: 'Cabin Colour', kel: 'Cabin', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   { key: 'plafonCabin', label: 'Plafon Cabin',  en: 'Cabin Ceiling', kel: 'Cabin', jenis: 'desain',
     kategori: 'Ceiling', catatan: 'Sesuai gambar pilihan.' },
   { key: 'lantaiCabin', label: 'Lantai Cabin',  en: 'Cabin Floor',   kel: 'Cabin', jenis: 'desain',
     kategori: 'Floor', catatan: 'Sesuai gambar pilihan.' },
+  { key: 'warnaLantaiCabin', label: 'Pilih Color Lantai Cabin', en: 'Cabin Floor Colour', kel: 'Cabin', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   { key: 'handrail',    label: 'Handrail',      en: 'Handrail',     kel: 'Cabin', jenis: 'teks' },
+  { key: 'warnaHandrail', label: 'Pilih Color Handrail', en: 'Handrail Colour', kel: 'Cabin', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   // Diganti menjadi Bahan Cabin — tetap tercetak untuk dokumen lama
   { key: 'finishCabin', label: 'Finishing Cabin', en: 'Cabin Finishing', kel: 'Cabin', jenis: 'teks', sembunyi: true },
 
   // ── Finishing (tidak wajib diisi) ────────────────────────
+  //  Klien (20 Nov 2026): SETIAP field Finishing punya pilihan warna sendiri,
+  //  diambil dari Master Data kategori 'Warna'. Field finishing tetap berisi
+  //  jenis finishing (teks), warna jadi field terpisah di sebelahnya.
   { key: 'finishLantai',     label: 'Finishing Lantai',     en: 'Floor Finishing',     kel: 'Finishing', jenis: 'teks' },
+  { key: 'warnaFinishLantai', label: 'Pilih Color Finishing Lantai', en: 'Floor Finishing Colour', kel: 'Finishing', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   { key: 'finishDinding',    label: 'Finishing Dinding',    en: 'Wall Finishing',      kel: 'Finishing', jenis: 'teks' },
+  { key: 'warnaFinishDinding', label: 'Pilih Color Finishing Dinding', en: 'Wall Finishing Colour', kel: 'Finishing', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   { key: 'finishPlafon',     label: 'Finishing Plafon',     en: 'Ceiling Finishing',   kel: 'Finishing', jenis: 'teks' },
+  { key: 'warnaFinishPlafon', label: 'Pilih Color Finishing Plafon', en: 'Ceiling Finishing Colour', kel: 'Finishing', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   // Label Inggris field lama ini DULU 'Landing Door Finishing' — sama persis
   // dengan field baru `finishLandingDoor` di kelompok Pintu. Di dokumen cetak
   // keduanya akan tampil dengan nama identik padahal isinya beda, jadi label
   // lama dibedakan (data tidak diubah, hanya namanya).
   { key: 'finishPintuLantai',label: 'Finishing Pintu per Lantai', en: 'Landing Door Finishing (per Floor)', kel: 'Finishing', jenis: 'teks' },
-  { key: 'warnaStruktur',    label: 'Warna Struktur',       en: 'Structure Colour',    kel: 'Finishing', jenis: 'teks' },
+  { key: 'warnaFinishPintuLantai', label: 'Pilih Color Finishing Pintu per Lantai', en: 'Landing Door Finishing Colour', kel: 'Finishing', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
+  // Dulu teks bebas. Sekarang dipilih dari Master Data supaya ejaan warna
+  // seragam. Nilai lama yang tidak ada di daftar tetap tampil sebagai
+  // "(lama)" di form — datanya tidak diubah, hanya cara mengisinya.
+  { key: 'warnaStruktur',    label: 'Warna Struktur',       en: 'Structure Colour',    kel: 'Finishing', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
   { key: 'finishingStruktur',label: 'Finishing Struktur',   en: 'Structure Finishing', kel: 'Finishing', jenis: 'teks' },
+  { key: 'warnaFinishingStruktur', label: 'Pilih Color Finishing Struktur', en: 'Structure Finishing Colour', kel: 'Finishing', jenis: 'warna',
+    catatan: 'Warna dipilih dari Master Data.' },
 
   // ── Mesin & Kelistrikan ──────────────────────────────────
   // Daya Mesin, Merk Mesin, Posisi Mesin dihapus klien. Ditandai `sembunyi`

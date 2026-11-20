@@ -10,7 +10,10 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 // ── Design Items ─────────────────────────────────────────────
-const DESIGN_CATEGORIES = ['Cabin', 'Floor', 'Ceiling', 'Door', 'COP', 'LOP', 'Struktur', 'Add On'];
+// 'Warna' wajib ada di sini: Final Survey membaca daftar pilihan warna dari
+// Master Data kategori Warna. Tanpa kategori ini staff tidak bisa menambah
+// warna dari layar, sehingga semua field "Pilih Color" akan selalu kosong.
+const DESIGN_CATEGORIES = ['Cabin', 'Floor', 'Ceiling', 'Door', 'COP', 'LOP', 'Struktur', 'Add On', 'Warna'];
 
 interface DesignItem {
   id: string;
