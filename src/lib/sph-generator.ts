@@ -13,6 +13,13 @@ import {
   parseDate, fmtID, noSuratSPH, noSuratSPK,
   totalKel, grandTotal, kelAktif,
 } from './sph-utils';
+import {
+  BlokPasal, Pasal, ManualSpk,
+  susunPasal, renderPasal, ORDINAL, TerminCetak,
+  PengaturanCetak, normalCetak, cssCetak,
+} from './spk-susun';
+import { daftarPasal as pasalDariForm, bahanPasal } from './spk-pasal';
+export type { ManualSpk, ManualPasal, Pasal, BlokPasal } from './spk-susun';
 
 // ── Interface matching SPHForm S state ───────────────────────
 export interface GenState {
@@ -30,6 +37,17 @@ export interface GenState {
   // Keterangan modifikasi bebas per kategori desain (opsional, hanya dicetak bila diisi)
   catatanDesain?: Record<string, string>;
   sales: string; jabatanTtd: string; direktur: string; rekening: string;
+  /** Isian manual editor SPK (judul pasal, paragraf tambahan). Lihat spk-susun.ts. */
+  manualSpk?: ManualSpk;
+  /** Tanggal per termin per kategori: { PENGADAAN: ['2026-12-05', …] }. */
+  tanggalTermin?: Record<string, (string | null | undefined)[]>;
+  /** Pengaturan cetak SPK: ukuran kertas & margin (mm). */
+  cetak?: CetakSpk;
+}
+
+export interface CetakSpk {
+  kertas: 'A4' | 'A5' | 'Letter' | 'Legal';
+  marginAtas: number; marginBawah: number; marginKiri: number; marginKanan: number;
 }
 
 export type ModeHarga = 'satuan' | 'lumpsum';
@@ -44,6 +62,18 @@ export function esc(s: unknown): string {
 const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
 export function injectDeco(html: string): string {
   return html.replace(/(<div class="page(?:[^"]*)"[^>]*>)/g, '$1' + HEX_IMG);
+}
+
+/**
+ * Sisipkan CSS pengaturan halaman tepat sebelum </style> pertama.
+ * Diletakkan paling akhir supaya menimpa aturan `@page{size:A4}` bawaan —
+ * CSS memakai urutan sumber untuk aturan yang sama spesifisitasnya.
+ */
+export function sisipCssCetak(html: string, c: PengaturanCetak): string {
+  const css = cssCetak(c);
+  if (html.includes('</style>')) return html.replace('</style>', css + '</style>');
+  // Dokumen tanpa <style> (mis. dipanggil dari tes): buat sendiri.
+  return html.replace(/<head([^>]*)>/i, '<head$1><style>' + css + '</style>');
 }
 
 /**
@@ -121,7 +151,7 @@ function kop(t: string, alamatKantor: string): string {
 }
 
 // signatureUrl: bila diisi (dari DB sales), pakai itu; kalau tidak, fallback ke ASET.ttd
-function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean, signatureUrl?: string): string {
+export function ttdBlok(nama: string, jabatan: string, pakaiCap: boolean, tampilTtd: boolean, signatureUrl?: string): string {
   const img = signatureUrl || ASET.ttd[nama] || '';
   const cap = (pakaiCap && ASET.capPerusahaan) ? '<img class="cap" src="' + ASET.capPerusahaan + '" alt="">' : '';
   const sig = img ? '<img class="ttd" src="' + img + '" alt="">' : '';
@@ -383,7 +413,26 @@ export function pageSPH(s: GenState, items: KatalogItem[], termin: Record<string
   return injectDeco(raw);
 }
 
+/**
+ * Pengaturan cetak terakhir per dokumen. `pageSPK` mengembalikan potongan BODY
+ * (CSS disuntik pemanggil saat mencetak), jadi nilainya perlu dioper lewat sini.
+ * Kunci = id dokumen, supaya pratinjau satu dokumen tidak terbawa ke dokumen lain.
+ */
+const cetakTerakhir = new Map<string, PengaturanCetak>();
+
+/** Ambil pengaturan cetak yang terakhir dipakai untuk sebuah dokumen. */
+export function cetakUntuk(id: string | null | undefined): PengaturanCetak {
+  return normalCetak(id ? cetakTerakhir.get(id) : undefined);
+}
+
+/** CSS pengaturan halaman untuk sebuah dokumen ('' bila belum pernah disetel). */
+export function cssCetakUntuk(id: string | null | undefined): string {
+  return id && cetakTerakhir.has(id) ? cssCetak(cetakTerakhir.get(id)!) : '';
+}
+
 export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string, TerminItem[]>, modeH: ModeHarga, pilihDesain: DesainPilihan, liveDesain?: Record<string, DesainOption[]>): string {
+  // Catat pengaturan cetak dokumen ini (dipakai pemanggil saat mencetak).
+  if (s.cetak) cetakTerakhir.set(String(s.noUrut), normalCetak(s.cetak));
   // Sama seperti pageSPH: dokumen lama menyimpan Struktur Steel sebagai `I1c`
   // (INSTALASI). Tanpa normalisasi, klausul "Pemasangan Struktur" hilang dari SPK.
   items = normalizeStrukturItems(items);
@@ -391,35 +440,13 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
   const hari = HARI_ID[d.getDay()];
   const gt = grandTotal(items, modeH);
   const st = strukturStatus(items);
-  const stPasang = st.label
-    ? '<li>Pemasangan ' + esc(st.label) + (s.finishingStruktur ? ' dengan ' + esc(s.finishingStruktur) : '') + '</li>'
-    : (s.finishingStruktur ? '<li>' + esc(s.finishingStruktur) + '</li>' : '');
+  // Bahan pasal (tanda tangan, termin, nilai) disusun di spk-pasal.ts supaya
+  // panel Editor SPK memakai angka yang PERSIS SAMA dengan dokumen cetak.
+  // SELURUH teks pasal juga tinggal di sana — satu sumber, dua pemakai.
+  const daftarPasal = pasalDariForm(s, bahanPasal(s, st, items, termin, modeH));
 
-  // Build termin paragraphs matching the reference doc style (per-termin detailed paragraph)
-  function terminParagraphs(): string {
-    const allTermin: { kel: string; idx: number; pct: number; nominal: number; syarat: string }[] = [];
-    kelAktif(items).filter(k => totalKel(items, k, modeH) > 0).forEach(kel => {
-      const dasar = totalKel(items, kel, modeH);
-      (termin[kel] || []).forEach((t, i) => {
-        allTermin.push({ kel, idx: i, pct: num(t.p), nominal: dasar * num(t.p) / 100, syarat: t.s });
-      });
-    });
-    if (!allTermin.length) return '';
-    const ordinal = ['Pertama', 'Kedua', 'Ketiga', 'Keempat', 'Kelima', 'Keenam', 'Ketujuh', 'Kedelapan', 'Kesembilan', 'Kesepuluh'];
-    return allTermin.map((t, gi) =>
-      '<p>Pembayaran ' + (ordinal[gi] || 'ke-' + (gi + 1)) + ' sebesar <strong>' + rupiah(t.nominal) + '</strong> atau ' +
-      '<strong>' + t.pct + '% (' + capWords(terbilang(t.pct)) + ' Persen)</strong> dari nilai kontrak ' + esc(t.syarat) + '.</p>'
-    ).join('');
-  }
-
-  // Pasal block: flowing content, no forced page break per pasal
-  function P(n: number, t: string, b: string) {
-    return '<div class="pasal-blk">' +
-      '<p style="text-align:center;font-weight:700;text-decoration:underline;margin-bottom:1mm">PASAL&nbsp;&nbsp;' + n + '</p>' +
-      '<p style="text-align:center;font-weight:700;margin-bottom:5mm">' + t + '</p>' +
-      b +
-      '</div>';
-  }
+  // Isian manual pengguna digabung DI SINI — saat cetak, bukan saat simpan.
+  const pasalJadi = susunPasal(daftarPasal, s.manualSpk);
 
   const raw = '' +
     // ── Halaman 1: Pembukaan ──────────────────────────────────
@@ -444,132 +471,8 @@ export function pageSPK(s: GenState, items: KatalogItem[], termin: Record<string
     // ── Semua Pasal dalam satu halaman kontinu (mengalir, tanpa page-break per pasal) ──
     '<div class="page cont spk-body"><div class="paraf">_______ Paraf _______</div>' +
 
-    P(1, 'DEFINISI ISTILAH DAN KETENTUAN',
-      '<p><strong>1. SPK (Surat Perintah Kerja)</strong></p>' +
-      '<p>SPK adalah dokumen resmi yang menjadi dasar pelaksanaan pekerjaan antara Pemberi Kerja dan Pelaksana Pekerjaan yang memuat ruang lingkup pekerjaan, nilai kontrak, waktu pelaksanaan, serta syarat dan ketentuan pekerjaan.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>SPK menjadi dasar hukum pelaksanaan proyek.</li>' +
-      '<li>Semua pekerjaan yang dilakukan harus mengacu pada SPK beserta lampirannya.</li></ul>' +
-
-      '<p><strong>2. MOS (Material On Site)</strong></p>' +
-      '<p>MOS atau Material On Site adalah kondisi dimana material, komponen, atau peralatan yang akan digunakan dalam pekerjaan telah tiba dan tersimpan di lokasi proyek, namun belum dilakukan pemasangan.</p>' +
-      '<p>Material yang termasuk dalam kategori MOS antara lain dapat berupa komponen utama lift, rel guide rail, mesin, panel kontrol, pintu lantai, cabin, serta material pendukung lainnya yang telah dikirim ke lokasi proyek.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>Material yang dinyatakan sebagai MOS telah berada secara fisik di lokasi proyek dan dapat diverifikasi oleh Pemberi Kerja atau Pengawas Proyek.</li>' +
-      '<li>Material harus dalam kondisi baik, lengkap, dan sesuai dengan spesifikasi yang tercantum dalam dokumen kontrak.</li>' +
-      '<li>Material yang telah dinyatakan sebagai MOS dapat dijadikan dasar untuk perhitungan progres pekerjaan atau penagihan termin pembayaran sesuai ketentuan dalam kontrak.</li>' +
-      '<li>Risiko kehilangan atau kerusakan material sebelum proses instalasi menjadi tanggung jawab Pelaksana Pekerjaan, kecuali ditentukan lain dalam perjanjian.</li>' +
-      '<li>Pemberi Kerja berhak melakukan pemeriksaan terhadap material yang dinyatakan sebagai MOS untuk memastikan kesesuaian dengan spesifikasi proyek.</li></ul>' +
-
-      '<p><strong>3. BAST (Berita Acara Serah Terima)</strong></p>' +
-      '<p>BAST adalah dokumen resmi yang menyatakan bahwa pekerjaan telah selesai dilaksanakan dan diserahkan dari Pelaksana Pekerjaan kepada Pemberi Kerja.</p>' +
-      '<p>Menandakan pekerjaan telah selesai secara substansial dan unit dapat dioperasikan serta menandakan seluruh kewajiban terselesaikan dan dimulainya perbaikan selama masa pemeliharaan.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>BAST menjadi dasar dimulainya masa garansi.</li>' +
-      '<li>Penandatanganan BAST dilakukan oleh kedua belah pihak.</li></ul>' +
-
-      '<p><strong>4. Commissioning</strong></p>' +
-      '<p>Commissioning adalah proses pengujian dan verifikasi sistem lift setelah instalasi selesai untuk memastikan bahwa seluruh komponen berfungsi sesuai spesifikasi teknis.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>Commissioning meliputi pengujian fungsi, keselamatan, dan performa unit.</li>' +
-      '<li>Commissioning dilakukan sebelum unit dinyatakan siap digunakan.</li></ul>' +
-
-      '<p><strong>5. Handover</strong></p>' +
-      '<p>Handover adalah proses penyerahan unit lift dari Pelaksana Pekerjaan kepada Pemberi Kerja setelah pekerjaan instalasi dan pengujian selesai.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>Handover dilakukan setelah commissioning berhasil.</li>' +
-      '<li>Handover dibuktikan dengan dokumen BAST.</li></ul>' +
-
-      '<p><strong>6. Masa Garansi</strong></p>' +
-      '<p>Masa Garansi adalah periode waktu setelah serah terima dimana Pelaksana Pekerjaan bertanggung jawab memperbaiki kerusakan yang disebabkan oleh kesalahan instalasi atau cacat material.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>Masa garansi dimulai sejak tanggal BAST.</li>' +
-      '<li>Perbaikan selama masa garansi tidak dikenakan biaya tambahan kepada Pemberi Kerja, kecuali kerusakan akibat kelalaian penggunaan.</li></ul>' +
-      '<p><strong>Waktu Garansi:</strong></p>' +
-      '<ul class="ul"><li>Free Maintenance <strong>' + esc(s.freeMtn) + '</strong></li>' +
-      '<li>Garansi Spare Part <strong>' + esc(s.garSpare) + '</strong></li>' +
-      '<li>Garansi Mesin/Motor <strong>' + esc(s.garMesin) + '</strong></li></ul>' +
-
-      '<p><strong>7. Progress Pekerjaan</strong></p>' +
-      '<p>Progress pekerjaan adalah tingkat penyelesaian pekerjaan berdasarkan tahapan pekerjaan yang telah dilaksanakan.</p>' +
-      '<p><strong>Ketentuan:</strong></p>' +
-      '<ul class="ul"><li>Progress pekerjaan menjadi dasar penagihan termin pembayaran.</li>' +
-      '<li>Progress harus dapat diverifikasi oleh kedua belah pihak.</li></ul>') +
-
-    P(2, 'LINGKUP PEKERJAAN',
-      '<p>PIHAK PERTAMA memberi tugas kepada PIHAK KEDUA untuk mengerjakan pekerjaan sebagai berikut :</p>' +
-      '<p><strong>Pengadaan Lift</strong></p>' +
-      '<p>Pengadaan material ' + esc(s.tipeKabin) + ' ' + esc(s.kapasitas) + ' dan transportasi sampai di lokasi proyek ' +
-      '1&nbsp;(satu) unit ' + esc(s.jenisLift) + '-' + esc(s.kapasitas) + ', ' + esc(s.penumpang) + ' – ' + esc(s.mpm) + ' – Floors/Stops/Doors ' + esc(s.sfd) + '.</p>' +
-      '<p><strong>Lingkup Pekerjaan PIHAK PERTAMA</strong></p>' +
-      '<p>Merupakan pekerjaan yang dilakukan oleh PIHAK PERTAMA untuk mempersiapkan dan menyediakan media pemasangan Elevator yang akan dikerjakan oleh PIHAK KEDUA, dalam hal ini melingkupi:</p>' +
-      '<p><strong>A. Pekerjaan sipil ;</strong></p>' +
-      '<ul class="ul"><li>Pekerjaan Arsitektural estetika diluar area pintu lift termasuk finishing celah lantai dengan pintu lift</li>' +
-      '<li>Sirkulasi Udara Ruang Mesin (turbin/Heksos/lainnya) jika diinginkan.</li></ul>' +
-      '<p><strong>B. Pengadaan Elektrikal/Kelistrikan</strong></p>' +
-      '<ul class="ul"><li>Pengadaan Daya Listrik dan Instalasi Listrik Sub Panel di Dekat Control Panel Lift</li>' +
-      '<li>Pemasangan grounding listrik khusus lift, terpisah dari penangkal petir</li></ul>' +
-      '<p><strong>C. Pengadaan gudang peralatan Lift di Lokasi Proyek sesuai dengan Kapasitas Lift</strong></p>' +
-      '<p><strong>D. Pembuatan pit</strong></p>' +
-      '<p><strong>Lingkup Pekerjaan PIHAK KEDUA</strong></p>' +
-      '<p>Merupakan pekerjaan utama pengadaan hingga pemasangan Elevator melingkupi ;</p>' +
-      '<ul class="ul"><li>Produksi dan pengadaan elevator sesuai permintaan dan spesifikasi</li>' +
-      stPasang +
-      '<li>Pengiriman elevator hingga sampai di Lokasi,</li>' +
-      '<li>Instalasi dan pemasangan elevator sesuai standard dengan pekerjaan diluar lingkup pekerjaan PIHAK PERTAMA,</li>' +
-      '<li>Pemeriksaan dan uji kelayakan, commissioning penggunaan lift</li>' +
-      '<li>Serah terima pekerjaan melalui Berita Acara Serah Terima (BAST)</li>' +
-      '<li>Free Maintenance setelah BAST di tanda tangani sesuai ketentuan</li></ul>') +
-
-    P(3, 'LOKASI PEKERJAAN',
-      '<p>Lokasi pekerjaan berada di <strong>' + esc(s.alamatCustomer || '…') + '</strong> yang disebut lokasi proyek yang akan dikerjakan oleh PIHAK KEDUA.</p>') +
-
-    P(4, 'NILAI KONTRAK',
-      '<p>Nilai pekerjaan yang telah disepakati oleh kedua belah pihak adalah : <strong>' + rupiah(gt) + '</strong> ,-</p>' +
-      '<ul class="ul">' +
-      kelAktif(items).filter(k => totalKel(items, k, modeH) > 0).map(k =>
-        '<li>' + KEL_LABEL[k] + ' sebesar <strong>Rp. ' + ribu(totalKel(items, k, modeH)) + '</strong></li>'
-      ).join('') + '</ul>' +
-      '<p style="font-size:9.5pt">Harga ' + (s.ppn === 'exclude' ? 'belum' : 'sudah') + ' termasuk PPN 11%.</p>') +
-
-    P(5, 'WAKTU PELAKSANAAN PEKERJAAN',
-      '<p>Waktu pelaksanaan Pekerjaan :</p>' +
-      '<ul class="ul"><li>Maksimal <strong>' + esc(s.waktuPengadaan) + '</strong> sejak kontrak telah ditanda tangani dan pembayaran pertama (DP) diterima untuk Material On site.</li>' +
-      '<li>Maksimal <strong>' + esc(s.waktuInstalasi) + '</strong> sejak Material On Site dengan catatan tidak ada kendala bangunan dari PIHAK PERTAMA.</li></ul>') +
-
-    P(6, 'PINALTY',
-      '<p>Penalty akan dikenakan apabila keterlambatan terjadi karena kelalaian PIHAK KEDUA:</p>' +
-      '<ul class="ul"><li>Apabila PIHAK KEDUA terlambat dalam menyelesaikan proses produksi dan pengiriman material ke lokasi proyek melebihi waktu maksimal 2,5 (dua setengah) bulan sejak pembayaran DP diterima, maka dikenakan pinalty sebesar <strong>0,05% / hari kerja (maksimal 1%)</strong> dari nilai pekerjaan pengadaan material unit elevator.</li>' +
-      '<li>Apabila PIHAK KEDUA terlambat dalam menyelesaikan pekerjaan pemasangan lebih dari 30 hari sejak Material dinyatakan lengkap di lokasi dan lokasi dinyatakan siap oleh PIHAK PERTAMA akan dikenakan pinalty sebesar <strong>0,05% / hari kerja (maksimal 2%)</strong> dari nilai pekerjaan pemasangan unit elevator.</li>' +
-      '<li>Pinalty pemasangan dan pengadaan material <strong>tidak berlaku</strong> apabila keterlambatan disebabkan oleh: gangguan pekerjaan sipil, keterlambatan pelunasan termin, akses kerja yang belum lengkap dan gangguan listrik di lokasi proyek.</li></ul>') +
-
-    P(7, 'CARA PEMBAYARAN',
-      '<p>Pembayaran akan dilakukan dengan cara :</p>' +
-      terminParagraphs() +
-      '<p>Pembayaran dapat ditransfer ke rekening:</p>' +
-      '<p style="margin-left:8mm"><strong>PT. BELIFT AMANAH INDONESIA</strong><br>' +
-      '<strong>' + esc(s.rekening) + '</strong></p>') +
-
-    P(8, 'FORCE MAJURE',
-      '<p>Force Majeure adalah keadaan di luar kemampuan para pihak yang menyebabkan pekerjaan tidak dapat dilaksanakan, seperti Bencana Alam, Gempa Bumi, Kebakaran, Kerusuhan, Kebijakan Pemerintah, Gangguan Distribusi Material Global, atau Meninggal Dunia salah satu pihak.</p>' +
-      '<p>Pihak yang mengalami Force Majeure wajib memberitahukan secara tertulis kepada pihak lainnya paling lambat 7 (tujuh) hari kalender sejak terjadinya keadaan tersebut.</p>' +
-      '<p>Selama keadaan Force Majeure berlangsung, kewajiban para pihak ditangguhkan sementara, waktu pelaksanaan pekerjaan diperpanjang sesuai lamanya keadaan tersebut, dan PIHAK KEDUA tidak dikenakan penalty keterlambatan.</p>' +
-      '<p>Dalam hal salah satu pihak meninggal dunia, maka hak dan kewajiban berdasarkan SPK ini beralih kepada ahli waris yang sah sesuai ketentuan dalam SPK.</p>' +
-      '<p>Apabila keadaan Force Majeure berlangsung lebih dari 90 (sembilan puluh) hari kalender dan pekerjaan tidak dapat dilanjutkan, maka para pihak atau ahli waris yang sah sepakat menyelesaikannya secara musyawarah.</p>') +
-
-    P(9, 'PENYELESAIAN',
-      '<p>Apabila terjadi sengketa, PIHAK PERTAMA dan PIHAK KEDUA sepakat menyelesaikan secara musyawarah. Apabila tidak tercapai kesepakatan, maka diselesaikan melalui Pengadilan NEGERI sesuai domisili hukum PIHAK KEDUA.</p>') +
-
-    P(10, 'PENUTUP',
-      '<p>Hal-hal yang belum tercantum dalam surat Perjanjian Kerja ini apabila diperlukan akan dibicarakan kemudian dan dituangkan dalam bentuk tertulis serta menjadi addendum yang tak terpisahkan dari perjanjian ini.</p>' +
-      '<p>Demikian, Surat Perjanjian Kerja ini ditanda tangani oleh kedua belah pihak untuk dapat dilaksanakan dengan baik sebagaimana mestinya. Perjanjian ini dibuat dalam rangkap dua. Masing-masing dibubuhi materai secukupnya serta mempunyai kekuatan hukum yang sama.</p>' +
-      '<div class="sign">' +
-        '<div>PIHAK PERTAMA<div class="sigbox"></div>' +
-        '<div class="sig-nm">' + esc(s.namaCustomer || '…') + '</div>' +
-        '<div>' + esc(s.namaPerusahaan ? 'Pemilik / Penanggung Jawab' : 'Pemilik Bangunan') + '</div></div>' +
-        '<div>PIHAK KEDUA<br><strong>PT BELIFT AMANAH INDONESIA</strong>' +
-        ttdBlok(s.direktur, 'Direktur', true, s.tampilTtd) + '</div>' +
-      '</div>') +
+    // Semua pasal dirender dari daftar terstruktur (isian manual sudah digabung).
+    pasalJadi.map(renderPasal).join('') +
 
     '</div>' + // tutup .spk-body
 

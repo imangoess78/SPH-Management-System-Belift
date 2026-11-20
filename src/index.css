@@ -610,6 +610,83 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
   }
 }
 
+
+/* ── Editor SPK (panel di form SPK) ─────────────────────────── */
+.edspk {
+  margin-top: 14px; border: 1px solid #E2D9D1; border-radius: 10px;
+  background: #fff; overflow: hidden;
+}
+.edspk-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; background: #FBF7F3; border-bottom: 1px solid #E2D9D1;
+  font-size: 13px; color: #2B1B10;
+}
+.edspk-sub { font-size: 11px; color: #7A6E66; }
+.edspk-badge {
+  margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 20px;
+  background: #FCE7D6; color: #A63F04; border: 1px solid #F3CBAA;
+}
+.edspk-sec { padding: 12px; border-bottom: 1px solid #F0EDE9; }
+.edspk-sec:last-child { border-bottom: 0; }
+.edspk-ttl { font-size: 12px; font-weight: 600; color: #592203; margin-bottom: 8px; }
+.edspk-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.edspk-row label { font-size: 12px; color: #7A6E66; min-width: 52px; }
+.edspk-row select {
+  flex: 1; padding: 6px 8px; font-size: 12px; border: 1px solid #E2D9D1;
+  border-radius: 6px; background: #fff; color: #2B1B10;
+}
+.edspk-margin { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.edspk-margin label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #7A6E66; }
+.edspk-margin label span:first-child { min-width: 40px; }
+.edspk-margin input {
+  width: 58px; padding: 5px 6px; font-size: 12px; border: 1px solid #E2D9D1;
+  border-radius: 6px; text-align: right;
+}
+.edspk-mm { font-size: 10px; color: #A99C92; }
+.edspk-note { font-size: 11px; color: #8A7A6E; line-height: 1.45; margin-top: 6px; }
+
+.edspk-pasal { border: 1px solid #EDE6DF; border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+.edspk-pasal.on { border-color: #F3CBAA; box-shadow: 0 1px 3px rgba(166,63,4,.07); }
+.edspk-ph {
+  display: flex; align-items: center; gap: 7px; width: 100%; padding: 8px 10px;
+  background: #FDFBF9; border: 0; cursor: pointer; text-align: left; font-size: 12px;
+}
+.edspk-ph:hover { background: #FBF7F3; }
+.edspk-no { font-weight: 600; color: #A63F04; white-space: nowrap; }
+.edspk-pj { flex: 1; color: #2B1B10; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edspk-dot { color: #D95103; font-weight: 700; }
+.edspk-hidden { font-size: 10px; color: #9C0006; background: #FDECEA; padding: 1px 6px; border-radius: 10px; }
+.edspk-ar { color: #A99C92; font-size: 10px; }
+.edspk-body { padding: 10px; background: #fff; border-top: 1px solid #F0EDE9; }
+.edspk-lbl { display: block; font-size: 11px; color: #7A6E66; margin: 8px 0 4px; }
+.edspk-lbl:first-child { margin-top: 0; }
+.edspk-input {
+  width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid #E2D9D1;
+  border-radius: 6px; color: #2B1B10;
+}
+.edspk-cek { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #7A6E66; margin-top: 8px; }
+
+/* Editor teks ringan (Tiptap) */
+.ed { border: 1px solid #E2D9D1; border-radius: 6px; overflow: hidden; }
+.ed-tb {
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+  padding: 4px; background: #FBF7F3; border-bottom: 1px solid #E2D9D1;
+}
+.tb {
+  min-width: 26px; height: 24px; padding: 0 6px; font-size: 11px; line-height: 1;
+  background: #fff; border: 1px solid #E2D9D1; border-radius: 4px;
+  color: #2B1B10; cursor: pointer;
+}
+.tb:hover { background: #FCE7D6; border-color: #F3CBAA; }
+.tb-on { background: #D95103; border-color: #D95103; color: #fff; }
+.ed-pisah { width: 1px; height: 16px; background: #E2D9D1; margin: 0 3px; }
+.ed-isi { padding: 8px; min-height: 64px; max-height: 220px; overflow-y: auto; font-size: 12px; }
+.ed-isi .ProseMirror { outline: none; min-height: 48px; }
+.ed-isi .ProseMirror p { margin: 0 0 6px; }
+.ed-isi .ProseMirror ul, .ed-isi .ProseMirror ol { margin: 0 0 6px; padding-left: 20px; }
+.ed-isi .ProseMirror ul { list-style: disc; }
+.ed-isi .ProseMirror ol { list-style: decimal; }
+
 /* Print */
 @page { size: A4; margin: 0; }
 @media print {
@@ -655,6 +732,28 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
   .page-desain .dgrid, .page-desain .dcard { page-break-inside: avoid; break-inside: avoid; }
   .page:last-child { page-break-after: auto; break-after: auto; }
   .plabel { display: none !important; }
+
+  /* ── Anti-menggantung untuk SPK ────────────────────────────────────
+     Client mengeluh judul pasal tertinggal sendirian di bawah halaman,
+     isinya pindah ke halaman berikutnya. Aturan di bawah memaksa judul
+     selalu menempel pada isi yang mengikutinya. */
+  .pasal-blk { orphans: 3; widows: 3; }
+  .pasal-no, .pasal-judul {
+    /* Judul + minimal 2 baris isi harus muat, kalau tidak pindah halaman utuh */
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  /* Pembungkus judul (nomor + judul) tidak boleh terpisah satu sama lain */
+  .pasal-no { break-inside: avoid; page-break-inside: avoid; }
+  .pasal-judul { break-inside: avoid; page-break-inside: avoid; }
+  /* Paragraf & butir tidak boleh terbelah di tengah kalimat */
+  .pasal-blk > p, .pasal-blk > ul, .pasal-blk > ol { break-inside: avoid; page-break-inside: avoid; }
+  .pasal-blk > ul > li, .pasal-blk > ol > li { break-inside: avoid; page-break-inside: avoid; orphans: 2; widows: 2; }
+  /* Baris tabel termin jangan terpotong antar halaman, dan kepala tabel diulang */
+  .termin-tbl { break-inside: auto; page-break-inside: auto; }
+  .termin-tbl thead { display: table-header-group; }
+  .termin-tbl tfoot { display: table-row-group; }
+  .termin-tbl tr { break-inside: avoid; page-break-inside: avoid; }
 }
 
 @media (prefers-reduced-motion: reduce) {

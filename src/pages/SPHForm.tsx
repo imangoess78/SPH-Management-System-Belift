@@ -25,6 +25,8 @@ import {
 import {
   pageSPH, pageSPK, esc as escGen, injectDeco as injectDecoGen,
 } from '@/lib/sph-generator';
+import EditorSpk from '@/components/EditorSpk';
+import { CETAK_AWAL, type ManualSpk, type PengaturanCetak, normalCetak, cssCetak, cssPratinjau, labelPratinjau } from '@/lib/spk-susun';
 import { cetakHtml } from '@/lib/cetak';
 import TabelLantai from '@/components/sph/TabelLantai';
 import { useAuth } from '@/hooks/useAuth';
@@ -50,6 +52,13 @@ interface S {
   // Hanya dicetak di halaman Opsi Desain bila diisi.
   catatanDesain: Record<string, string>;
   sales: string; jabatanTtd: string; direktur: string; rekening: string;
+  // ── Editor SPK ──
+  // Isian manual per pasal (judul, paragraf tambahan, sembunyi). Kunci = nomor pasal.
+  manualSpk: ManualSpk;
+  // Tanggal per termin, sejajar indeks dengan termin[kategori].
+  tanggalTermin: Record<string, (string | null | undefined)[]>;
+  // Pengaturan cetak SPK: ukuran kertas & margin (mm).
+  cetak: PengaturanCetak;
 }
 
 const DEFAULT_S: S = {
@@ -66,6 +75,7 @@ const DEFAULT_S: S = {
   tampilTtd:true, tampilDesain:true,
   finishingStruktur:'', catatanDesain:{},
   sales:'Imam Solikhin', jabatanTtd:'Sales', direktur:'Adhie Kurnia',
+  manualSpk:{}, tanggalTermin:{}, cetak:CETAK_AWAL,
   rekening:'BANK BCA : 1662996330 - KCP Cimanggis, Depok',
 };
 
@@ -108,7 +118,7 @@ function ketDesain(k: string, pilihDesain: DesainPilihan, desain?: Record<string
 // Memakai mesin cetak bersama (src/lib/cetak.ts). Gambar desain & tanda tangan
 // diambil dari jendela ini dulu — di situ sesinya pasti ada — lalu diubah jadi
 // alamat blob, supaya tidak bolong di jendela cetak.
-async function printDocument(html: string, tipeKabin: string) {
+async function printDocument(html: string, tipeKabin: string, cssTambahan = '') {
   await cetakHtml(`<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -188,6 +198,7 @@ h4{font-size:10.5pt;margin:5mm 0 1.6mm;font-weight:700}
 .page-desain .dgrid{page-break-inside:avoid;break-inside:avoid}
 .page-desain .dcard{page-break-inside:avoid;break-inside:avoid}
 .pasal-blk{page-break-inside:avoid;break-inside:avoid;margin-bottom:7mm}
+${cssTambahan}
 </style>
 </head>
 <body>${html}</body>
@@ -431,6 +442,17 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
   }
   function addT(kel: string) { setTermin(prev => { const n = JSON.parse(JSON.stringify(prev)); n[kel].push({p:0,s:SYARAT[kel][0]}); return n; }); }
   function delT(kel: string, i: number) { setTermin(prev => { const n = JSON.parse(JSON.stringify(prev)); if(n[kel].length>1) n[kel].splice(i,1); return n; }); }
+  /** Tanggal termin (opsional). Disimpan per kategori + indeks, sejajar dengan termin[kel]. */
+  function setTanggalTermin(kel: string, i: number, v: string) {
+    setS(prev => {
+      const t = { ...(prev.tanggalTermin || {}) };
+      const arr = [...(t[kel] || [])];
+      while (arr.length <= i) arr.push('');
+      arr[i] = v || null;
+      t[kel] = arr;
+      return { ...prev, tanggalTermin: t };
+    });
+  }
 
   function isiCepat() {
     const v = window.prompt('Nilai kontrak pengadaan + pemasangan (Rp):', '425000000');
@@ -506,7 +528,9 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     const html = mode === 'SPH'
       ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain)
       : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
-    await printDocument(html, s.tipeKabin);
+    // Ukuran kertas & margin SPK ikut ke dokumen cetak. SPH tetap A4.
+    const cssCetakSpk = mode === 'SPK' ? cssCetak(normalCetak(s.cetak)) : '';
+    await printDocument(html, s.tipeKabin, cssCetakSpk);
   }
 
   return (
@@ -524,13 +548,14 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
           mode={mode} s={s} upd={upd} items={items} setItemField={setItemField}
           modeHarga={modeHarga} setModeHarga={setModeHarga} isiCepat={isiCepat}
           termin={termin} tabTermin={safeTab} setTabTermin={setTabTermin}
-          addT={addT} delT={delT} setT={setT}
+          addT={addT} delT={delT} setT={setT} setTanggalTermin={setTanggalTermin}
           pilihDesain={pilihDesain} setPilihDesain={setPilihDesain}
           noSuratStr={noSurat(mode,s)} namaFileStr={namaFile(mode,s)}
           totalKelFn={(k) => totalKel(items,k,modeHarga)} gt={gt}
           liveDesain={liveDesain}
           salesList={salesList}
           mobileVisible={mobileTab === 'form'}
+          setS={setS}
         />
         <PreviewPanel mode={mode} s={s} items={items} termin={termin}
           modeHarga={modeHarga} pilihDesain={pilihDesain} liveDesain={liveDesain}
@@ -550,11 +575,14 @@ interface FormPanelProps {
   modeHarga: ModeHarga; setModeHarga: (m: ModeHarga) => void; isiCepat: () => void;
   termin: Record<string, TerminItem[]>; tabTermin: string; setTabTermin: (t: string) => void;
   addT: (k: string) => void; delT: (k: string, i: number) => void; setT: (k: string, i: number, f: 'p'|'s', v: unknown) => void;
+  setTanggalTermin: (k: string, i: number, v: string) => void;
   pilihDesain: DesainPilihan; setPilihDesain: (d: DesainPilihan) => void;
   noSuratStr: string; namaFileStr: string; totalKelFn: (k: string) => number; gt: number;
   liveDesain: Record<string, DesainOption[]>;
   salesList: SalesListItem[];
   mobileVisible: boolean;
+  /** Penulis state penuh — dipakai panel Editor SPK (manualSpk & cetak). */
+  setS: React.Dispatch<React.SetStateAction<S>>;
 }
 
 function Grp({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
@@ -590,8 +618,9 @@ function Ftxt({ label, value, type, onChange, hint }: { label: string; value: st
 
 function FormPanel(props: FormPanelProps) {
   const { mode, s, upd, items, setItemField, modeHarga, setModeHarga, isiCepat,
-    termin, tabTermin, setTabTermin, addT, delT, setT,
+    termin, tabTermin, setTabTermin, addT, delT, setT, setTanggalTermin, setS,
     pilihDesain, setPilihDesain, noSuratStr, namaFileStr, totalKelFn, gt, mobileVisible } = props;
+
   const isSPK = mode === 'SPK';
   const aktif = kelAktif(items);
   const safeTab = aktif.includes(tabTermin) ? tabTermin : (aktif[0] || 'PENGADAAN');
@@ -655,9 +684,16 @@ function FormPanel(props: FormPanelProps) {
 
       <Grp title="Termin pembayaran" open>
         <TerminPanel items={items} termin={termin} tabTermin={safeTab} setTabTermin={setTabTermin}
-          modeHarga={modeHarga} addT={addT} delT={delT} setT={setT} />
-        <div className="flag-box">Tiap SPK punya termin sendiri. Termin pengadaan menempel pada milestone barang (BL, MOS), termin instalasi pada milestone pekerjaan lapangan.</div>
+          modeHarga={modeHarga} addT={addT} delT={delT} setT={setT}
+          tanggalTermin={s.tanggalTermin || {}} setTanggalTermin={setTanggalTermin}
+        />
+      {/* Editor SPK ditaruh SETELAH grup, bukan di dalam grup termin: panel ini
+          bisa panjang (10 pasal) sehingga isi grup termin terdorong jauh ke bawah.
+          Hanya untuk SPK, dan tidak menyentuh data form (lihat spk-susun.ts). */}
       </Grp>
+
+      {isSPK && <EditorSpk s={s as unknown as Parameters<typeof EditorSpk>[0]['s']} setS={setS} />}
+
 
       <Grp title="Opsi desain">
         <Fsel label="Cetak halaman desain" value={String(s.tampilDesain)} options={['true','false']} onChange={v => upd('tampilDesain', v === 'true')} />
@@ -904,9 +940,10 @@ function PriceTable({ items, setItemField, modeHarga, pilihDesain, setPilihDesai
 }
 
 // ── Termin Panel ─────────────────────────────────────────────
-function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, delT, setT }:
+function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, delT, setT, tanggalTermin, setTanggalTermin }:
   { items: KatalogItem[]; termin: Record<string,TerminItem[]>; tabTermin: string; setTabTermin: (t:string)=>void;
-    modeHarga: ModeHarga; addT: (k:string)=>void; delT: (k:string,i:number)=>void; setT: (k:string,i:number,f:'p'|'s',v:unknown)=>void }) {
+    modeHarga: ModeHarga; addT: (k:string)=>void; delT: (k:string,i:number)=>void; setT: (k:string,i:number,f:'p'|'s',v:unknown)=>void;
+    tanggalTermin: Record<string, (string|null|undefined)[]>; setTanggalTermin: (k:string,i:number,v:string)=>void }) {
   const aktif = kelAktif(items);
   const kel = tabTermin;
   const dasar = totalKel(items, kel, modeHarga);
@@ -929,6 +966,10 @@ function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, 
               {(SYARAT[kel]||[]).map(o => <option key={o}>{o}</option>)}
             </select>
             <input type="text" value={ribu(dasar*num(t.p)/100)} readOnly tabIndex={-1} />
+            {/* Tanggal termin opsional — kosong berarti tidak dicetak di SPK. */}
+            <input type="date" value={(tanggalTermin[kel]||[])[i] || ''}
+              onChange={e => setTanggalTermin(kel, i, e.target.value)}
+              title="Tanggal termin (opsional)" />
             <button className="del-btn" onClick={() => delT(kel,i)}>×</button>
           </div>
         ))}
@@ -949,6 +990,10 @@ function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesa
   const html = mode === 'SPH'
     ? pageSPH(s, items, termin, modeHarga, pilihDesain, liveDesain, selectedSales?.signature_url ?? undefined)
     : pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
+
+  // Pengaturan kertas hanya untuk SPK. SPH tetap A4 seperti semula.
+  const cetak = normalCetak(mode === 'SPK' ? s.cetak : undefined);
+  const cssPratinjauSpk = mode === 'SPK' ? cssPratinjau(cetak) : '';
 
   // Compute scale so 794px-wide A4 page fits within the mobile viewport
   const [scale, setScale] = useState(1);
@@ -975,7 +1020,11 @@ function PreviewPanel({ mode, s, items, termin, modeHarga, pilihDesain, liveDesa
 
   return (
     <div className="preview-panel" style={{display: mobileVisible ? undefined : 'none'}} data-mobile-visible={mobileVisible}>
-      <div className="plabel no-print">Pratinjau {mode} — A4</div>
+      <div className="plabel no-print">
+        Pratinjau {mode} — {mode === 'SPK' ? labelPratinjau(cetak) : 'A4'}
+      </div>
+      {/* CSS kertas/margin SPK — membuat pratinjau sama dengan hasil cetak. */}
+      {cssPratinjauSpk && <style>{cssPratinjauSpk}</style>}
       <div
         className="preview-scaler"
         style={scale < 1 ? {
