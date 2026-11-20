@@ -440,7 +440,26 @@ export default function SPHForm({ defaultMode }: { defaultMode?: Mode }) {
     });
   }
   function addT(kel: string) { setTermin(prev => { const n = JSON.parse(JSON.stringify(prev)); n[kel].push({p:0,s:SYARAT[kel][0]}); return n; }); }
-  function delT(kel: string, i: number) { setTermin(prev => { const n = JSON.parse(JSON.stringify(prev)); if(n[kel].length>1) n[kel].splice(i,1); return n; }); }
+  /**
+   * Hapus satu termin. Tanggal ikut dihapus pada indeks yang sama — kalau tidak,
+   * array tanggal tetap panjang lama dan tanggal milik termin di bawahnya
+   * bergeser naik, sehingga termin yang salah mendapat tanggal yang salah.
+   * Tanggal adalah data dokumen kontrak, jadi pergeseran ini tidak boleh terjadi.
+   */
+  function delT(kel: string, i: number) {
+    setTermin(prev => {
+      const n = JSON.parse(JSON.stringify(prev));
+      if (n[kel].length > 1) n[kel].splice(i, 1);
+      return n;
+    });
+    setS(prev => {
+      const semua = { ...(prev.tanggalTermin || {}) };
+      const arr = [...(semua[kel] || [])];
+      if (i < arr.length) arr.splice(i, 1);
+      semua[kel] = arr;
+      return { ...prev, tanggalTermin: semua };
+    });
+  }
   /** Tanggal termin (opsional). Disimpan per kategori + indeks, sejajar dengan termin[kel]. */
   function setTanggalTermin(kel: string, i: number, v: string) {
     setS(prev => {
@@ -971,17 +990,26 @@ function TerminPanel({ items, termin, tabTermin, setTabTermin, modeHarga, addT, 
       <div className="tblk">
         <div className="tblk-title" dangerouslySetInnerHTML={{__html: KEL_LABEL[kel]+' — dasar '+rupiah(dasar)}} />
         {(termin[kel]||[]).map((t, i) => (
-          <div key={i} className="trow">
-            <input type="number" min={0} value={t.p} onChange={e => setT(kel,i,'p',e.target.value)} />
-            <select value={t.s} onChange={e => setT(kel,i,'s',e.target.value)}>
-              {(SYARAT[kel]||[]).map(o => <option key={o}>{o}</option>)}
-            </select>
-            <input type="text" value={ribu(dasar*num(t.p)/100)} readOnly tabIndex={-1} />
-            {/* Tanggal termin opsional — kosong berarti tidak dicetak di SPK. */}
-            <input type="date" value={(tanggalTermin[kel]||[])[i] || ''}
-              onChange={e => setTanggalTermin(kel, i, e.target.value)}
-              title="Tanggal termin (opsional)" />
-            <button className="del-btn" onClick={() => delT(kel,i)}>×</button>
+          <div key={i} className="trow-grp">
+            <div className="trow">
+              <input type="number" min={0} value={t.p} onChange={e => setT(kel,i,'p',e.target.value)} />
+              <select value={t.s} onChange={e => setT(kel,i,'s',e.target.value)}>
+                {(SYARAT[kel]||[]).map(o => <option key={o}>{o}</option>)}
+              </select>
+              <input type="text" value={ribu(dasar*num(t.p)/100)} readOnly tabIndex={-1} />
+              <button className="del-btn" onClick={() => delT(kel,i)}>×</button>
+            </div>
+            {/* Tanggal termin opsional — kosong berarti tidak dicetak di SPK.
+                Dulu kolom ini ikut di baris yang sama dengan 4 kontrol lain
+                sementara grid-nya hanya 4 kolom: input tanggal terjepit 26px
+                (tak terbaca, tak bisa diklik) dan tombol hapus terdorong ke
+                baris kedua. Sekarang ia punya barisnya sendiri. */}
+            <label className="trow-tgl">
+              <span>Tanggal</span>
+              <input type="date" value={(tanggalTermin[kel]||[])[i] || ''}
+                onChange={e => setTanggalTermin(kel, i, e.target.value)}
+                title="Tanggal termin (opsional)" />
+            </label>
           </div>
         ))}
         <button className="mini-btn" onClick={() => addT(kel)}>+ Tambah termin</button>

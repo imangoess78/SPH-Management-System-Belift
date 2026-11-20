@@ -147,8 +147,13 @@ function renderBlok(b: BlokPasal): string {
 function tabelTermin(items: TerminCetak[]): string {
   const adaLangkah = items.some(t => bersih(t.tanggal));
   const rp = (n: number) => 'Rp. ' + ribuan(n);
-  const th = '<thead><tr><th style="width:8mm">No</th><th>Termin</th>' +
-    '<th style="width:26mm">Syarat</th>' +
+  // Lebar kolom: "Termin" hanya berisi kata urutan (Pertama … Kedua belas) jadi
+  // dipatok sempit, sedangkan "Syarat" dibiarkan tanpa lebar supaya mengambil
+  // SELURUH sisa ruang tabel. Sebelumnya terbalik — Termin melar ±60mm dan
+  // Syarat hanya 26mm, sehingga tiap baris jadi 3–5 lapis dan tabel memakan
+  // hampir satu halaman penuh.
+  const th = '<thead><tr><th style="width:8mm">No</th><th style="width:22mm">Termin</th>' +
+    '<th>Syarat</th>' +
     (adaLangkah ? '<th style="width:26mm">Tanggal</th>' : '') +
     '<th style="width:16mm">%</th><th style="width:34mm">Nominal</th></tr></thead>';
   const tb = items.map((t, i) =>
