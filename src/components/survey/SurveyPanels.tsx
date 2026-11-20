@@ -12,6 +12,17 @@ import {
 
 export const KOSONG = '__kosong__';
 
+//  Placeholder khusus field warna ketika Master Data kategori 'Warna' masih
+//  kosong.
+//
+//  TIDAK boleh memakai KOSONG: komponen Select mencocokkan `value` dengan
+//  placeholder, jadi placeholder bernilai KOSONG tidak pernah tampil
+//  (yang tampil justru label item "—"). Akibatnya field kosong terlihat
+//  sama saja dengan dropdown biasa dan tidak ada tanda bahwa daftar warnanya
+//  belum diisi. Label ini sengaja berbahasa Indonesia — Final Survey tetap
+//  berbahasa Indonesia walau PO berbahasa Inggris.
+const EMPTY_WARNA = 'Belum ada warna — isi di Master Data';
+
 export const bacaTeks = (dt: DataTeknis, k: string): string => {
   const v = dt[k];
   return v === null || v === undefined || Array.isArray(v) ? '' : String(v);
@@ -449,12 +460,26 @@ export function DataTeknisPanel({
                         return (
                           <Select value={nilai || KOSONG} onValueChange={v => set(f.key, v === KOSONG ? '' : v)} disabled={bacaSaja}>
                             <SelectTrigger className={kurang ? 'border-amber-400' : ''}>
-                              <SelectValue placeholder={warna.length ? '—' : 'Master Data kosong'} />
+                              {/* Select Radix mencocokkan `value` ('' saat kosong) dengan
+                                  placeholder. Placeholder bernilai KOSONG tidak pernah
+                                  tampil — yang muncul label item "—", sehingga tidak
+                                  terlihat bahwa daftar warnanya belum diisi.
+                                  Saat Master Data kosong, `value` juga dibuat ''
+                                  supaya placeholder benar-benar tampil — bukan
+                                  label item "—" yang terlihat seperti dropdown
+                                  rusak. Opsi "—" sudah tidak dirender kalau
+                                  daftar warnanya masih kosong. */}
+                              <SelectValue placeholder={warna.length ? 'Pilih warna dari Master Data' : EMPTY_WARNA} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={KOSONG}>—</SelectItem>
                               {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
+                              {warna.length > 0 && <SelectItem value={KOSONG}>—</SelectItem>}
                               {warna.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                              {warna.length === 0 && (
+                                <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                                  Daftar warna belum diisi. Staff mengisi lewat Master Data → kategori Warna.
+                                </p>
+                              )}
                             </SelectContent>
                           </Select>
                         );
