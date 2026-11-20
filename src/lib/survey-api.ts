@@ -153,12 +153,10 @@ export const poApi = {
 //  Server tetap menghitung ulang saat PO terbit; ini hanya untuk tampilan.
 
 const LABEL_SISI: Record<string, string> = {
-  jenisLift: 'Jenis Lift', kapasitas: 'Kapasitas', kecepatan: 'Kecepatan', sfd: 'Floors/Stops/Doors',
+  jenisLift: 'Jenis Lift', kapasitas: 'Kapasitas', kecepatan: 'Kecepatan', sfd: 'Stops/Floors/Doors',
   shaftSize: 'Ukuran Shaft', pitDepth: 'Kedalaman Pit', overhead: 'Overhead', travelling: 'Travelling Height',
   tipePintu: 'Tipe Pintu', bukaanPintu: 'Bukaan Pintu', cabinSize: 'Ukuran Cabin',
-  bahanCabin: 'Bahan Cabin', warnaCabin: 'Warna Cabin', handrail: 'Handrail', warnaHandrail: 'Warna Handrail',
-  lantaiCabin: 'Lantai Cabin', warnaLantaiCabin: 'Warna Lantai Cabin',
-  bahanShaft: 'Bahan Konstruksi Shaft', warnaShaft: 'Warna Konstruksi Shaft',
+  bahanCabin: 'Bahan Cabin', finishCabin: 'Finishing Cabin', dayaMesin: 'Daya Mesin',
   power: 'Power Supply', grounding: 'Grounding', ard: 'ARD / MCB', intercom: 'Intercom',
   aksesJalan: 'Akses Jalan ke Lokasi', listrikLokasi: 'Listrik di Lokasi', ruangKerja: 'Ruang Kerja',
 };

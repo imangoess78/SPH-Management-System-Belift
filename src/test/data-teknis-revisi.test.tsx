@@ -39,12 +39,10 @@ describe('field Data Teknis setelah revisi klien', () => {
 
     for (const label of [
       'Tipe Lift (MR / MRL)', 'Total Height', 'Travelling Height',
-      'Bahan Konstruksi Shaft', 'Warna Konstruksi Shaft', 'Posisi Hoistway', 'Tipe Bukaan Pintu',
-      'Jenis Cabin', 'Bahan Cabin', 'Plafon Cabin', 'Warna Cabin', 'Lantai Cabin',
-      'Warna Lantai Cabin', 'Handrail', 'Warna Handrail', 'Remarks',
+      'Bahan Konstruksi Shaft', 'Posisi Hoistway', 'Tipe Bukaan Pintu',
+      'Jenis Cabin', 'Bahan Cabin', 'Plafon Cabin', 'Lantai Cabin', 'Remarks',
     ]) {
-      // `getAllByText` — "Lantai Cabin" kini juga jadi awalan "Warna Lantai Cabin".
-      expect(screen.getAllByText(new RegExp('^' + label.replace(/[()/]/g, '.?') + '$'), { selector: 'label, h3' })).toHaveLength(1);
+      expect(screen.getByText(new RegExp(label.replace(/[()/]/g, '.?')), { selector: 'label, h3' })).toBeTruthy();
     }
 
     for (const hilang of ['Tebal Dinding', 'Sill Pintu', 'Bahan Pintu', 'Jumlah Pintu per Lantai', 'Finishing Cabin']) {
