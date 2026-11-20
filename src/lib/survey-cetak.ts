@@ -492,7 +492,7 @@ export function teksRingkasSurvey(b: {
     'Tipe mesin: ' + f('tipeMesin'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
-    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin'),
+    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Warna: ' + f('warnaCabin'),
     'Power Supply: ' + f('power'),
     'Grounding: ' + f('grounding') + '   ARD: ' + f('ard'),
     'Akses jalan: ' + f('aksesJalan') + '   Ruang kerja: ' + f('ruangKerja'),
@@ -671,7 +671,7 @@ export function teksRingkasPo(po: BahanCetakPo, revisi: PoRevisiRow[]): string {
     'Kecepatan: ' + f('kecepatan') + '   Floors/Stops/Doors: ' + f('sfd'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
-    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin'),
+    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Warna: ' + f('warnaCabin'),
     'Power Supply: ' + f('power'),
   ];
   const addonOn = ((dt.addon as unknown as AddOn[]) || []).filter(a => a.on);

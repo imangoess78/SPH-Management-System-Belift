@@ -41,9 +41,24 @@ describe('Final Survey — revisi 20 Nov 2026', () => {
     expect(tampil('finishPintu')).toBeUndefined();
   });
 
-  it('Bahan Konstruksi Shaft, Bahan Cabin, Lantai Cabin, Handrail → warna', () => {
-    for (const k of ['bahanShaft', 'bahanCabin', 'lantaiCabin', 'handrail']) {
-      expect(tampil(k)?.jenis, `${k} harus dropdown warna`).toBe('warna');
+  // Klien (21 Nov 2026): field MATERIAL tetap material (dropdown pilihan), dan
+  // warna jadi field TERPISAH di sebelahnya. Sebelumnya bahan/Handrail dipaksa
+  // jadi dropdown warna, sehingga materialnya hilang dari form.
+  it('Bahan/Lantai/Handrail tetap material, warna jadi field terpisah', () => {
+    const pasangan: [string, string][] = [
+      ['bahanShaft', 'warnaShaft'],
+      ['bahanCabin', 'warnaCabin'],
+      ['lantaiCabin', 'warnaLantaiCabin'],
+      ['handrail', 'warnaHandrail'],
+    ];
+    for (const [material, warna] of pasangan) {
+      expect(tampil(material)?.jenis, `${material} harus dropdown material`).toBe('pilih');
+      expect(tampil(material)?.opsi?.length, `${material} harus punya daftar material`).toBeGreaterThan(0);
+      expect(tampil(warna)?.jenis, `${warna} harus dropdown warna`).toBe('warna');
+      // Urutan form: field warna tepat setelah field material-nya.
+      const urut = DT_FIELDS_TAMPIL.map(f => f.key);
+      expect(urut.indexOf(warna), `${warna} harus tepat setelah ${material}`)
+        .toBe(urut.indexOf(material) + 1);
     }
   });
 
