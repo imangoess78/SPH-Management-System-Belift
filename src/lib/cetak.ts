@@ -18,11 +18,32 @@
  * semua jenis dokumen bisa memakai jalur yang sama.
  */
 
+import { CSS_KOP } from './spk-susun';
+
 /** Alamat media di dalam HTML dokumen (foto survey, desain, tanda tangan). */
 const POLA_MEDIA = /\/api\/media\?key=[^"'\s\\]+/g;
 
-/** Berkas gambar yang masih memakai alamat relatif ke aplikasi. */
-const POLA_ASET_LOKAL = /(['"(])(\/(?!\/|api\/)[^'"()\s]+\.(?:png|jpe?g|svg|gif|webp))(["')])/gi;
+/**
+ * Berkas gambar kotak judul. Dipakai untuk mengganti penanda KOSONG `url('')`
+ * — lihat `CSS_KOP` di `spk-susun.ts`.
+ */
+const ALAMAT_KOP = '/corner-shape-bg.png';
+
+/**
+ * Berkas gambar yang masih memakai alamat relatif ke aplikasi.
+ *
+ * Polanya sengaja TIDAK menebak akhiran berkas. Sebelumnya hanya `\.png` dsb
+ * yang dikenali, sehingga `url('')` — bentuk yang dipakai `CSS_KOP` di
+ * `spk-susun.ts` (lihat alasan di sana) — lolos tanpa diganti. Di jendela
+ * `about:blank` alamat kosong TIDAK bisa diselesaikan, jadi latar kotak judul
+ * hilang di PDF padahal terlihat benar di pratinjau.
+ *
+ * Aturan: penanda pembuka/penutup yang cocok (`'…'`, `"…"`, `(…)`) dengan isi
+ * kosong ATAU diawali satu `/` tapi bukan `//` atau `/api/`. Penanda pembuka dan
+ * penutup WAJIB sama jenisnya — backreference `\1` — supaya `url('')` tidak
+ * tertukar dengan pasangan tanda kutip lain di deklarasi yang sama.
+ */
+const POLA_ASET_LOKAL = /(['"()])(\/(?!\/|api\/)[^'"()\s]*)?\1/g;
 
 /** Pengambil berkas. Dipisah begini supaya bisa diganti di uji. */
 export type PengambilMedia = (alamat: string) => Promise<{ ok: boolean; blob: () => Promise<Blob> }>;
@@ -72,8 +93,10 @@ export async function gantiAsetLokal(
   html: string,
   ambil: PengambilMedia = ambilBawaan,
 ): Promise<{ html: string; blobUrls: string[] }> {
+  // Alamat kosong (`url('')`) berarti "latar yang sudah ditentukan CSS_KOP",
+  // jadi yang diambil adalah berkas kotak judulnya.
   const alamat = Array.from(new Set(
-    Array.from(html.matchAll(POLA_ASET_LOKAL)).map(m => m[2]),
+    Array.from(html.matchAll(POLA_ASET_LOKAL)).map(m => m[2] || ALAMAT_KOP),
   ));
   const blobUrls: string[] = [];
   let hasil = html;
@@ -86,11 +109,65 @@ export async function gantiAsetLokal(
       hasil = hasil.split(`"${a}"`).join(`"${url}"`)
                   .split(`'${a}'`).join(`'${url}'`)
                   .split(`(${a})`).join(`(${url})`);
+      if (a === ALAMAT_KOP) {
+        // Penanda kosong tidak punya isi untuk dicari, jadi diganti apa adanya.
+        hasil = hasil.split(`''`).join(`'${url}'`).split('()').join(`(${url})`);
+      }
     } catch {
       // biarkan alamat aslinya
     }
   }
   return { html: hasil, blobUrls };
+}
+
+/**
+ * Pastikan kotak judul (kiri atas) memakai gambar yang BENAR.
+ *
+ * Kenapa perlu, padahal `gantiAsetLokal()` sudah mengganti alamatnya?
+ *
+ * CSS dokumen cetak menyusun kotak judul dari `.page`:
+ *   `.page` punya `background:#fff url('…') no-repeat left top` — inilah
+ *   `corner-shape-bg.png` (sudut oranye) yang dipakai pratinjau, dan gambar itu
+ *   sudah lengkap bentuknya. TIDAK ada kotak penutup di atasnya.
+ *
+ * Dokumen cetak lama masih membawa `.page::before` (kotak oranye) dan
+ * `.page::after` (kotak bergaris putih). Dua lapisan itu membuat kop PDF
+ * berbeda dari pratinjau, jadi `CSS_KOP` mematikannya.
+ *
+ * `gantiAsetLokal()` MENULIS ULANG seluruh deklarasi `background` (bukan hanya
+ * alamatnya). Begitu bentuknya berbeda sedikit — urutan, ada tidaknya
+ * `background-size`, blob vs alamat biasa — hasil di jendela cetak tidak lagi
+ * sama dengan yang dilihat pengguna di pratinjau. Inilah sebab kop kiri atas
+ * PDF terlihat berbeda dari `/preview`.
+ *
+ * Fungsi ini menyisipkan aturan PENIMPA di akhir `<head>` supaya kotak judul
+ * selalu identik dengan pratinjau, apa pun yang dilakukan penggantian gambar
+ * sebelumnya. Diagonal jendela melewati `.page` yang sama, jadi latarnya sama.
+ *
+ * ATURAN: `CSS_KOP` sengaja memakai penanda kosong `url('')`. Di sini penanda
+ * itu diganti alamat berkas yang sebenarnya. Dengan begitu bentuk deklarasinya
+ * persis sama dengan pratinjau, dan saat dicetak, `gantiAsetLokal()` (yang
+ * jalan SESUDAH ini) mengubahnya jadi blob.
+ */
+const INLINE_KOP = CSS_KOP.replace("url('')", "url('" + ALAMAT_KOP + "')");
+
+export function jagaKopJudul(html: string): string {
+  // Cukup untuk dokumen ber-.page (SPK/SPH/Survey). Dokumen lain dibiarkan.
+  if (!html.includes('.page{')) return html;
+  // Pakai alamat asli, bukan blob: aturan ini disisipkan SETELAH blob dipasang,
+  // jadi kalau blob diminta di sini jendela cetak akan memintanya lagi ke
+  // jendela utama — dan permintaan itu balapan dengan pelepasan blob.
+  //
+  // `gantiAsetLokal()` tidak lagi melihat aturan ini (disisipkan setelahnya),
+  // jadi penanda kosong di `CSS_KOP` diganti DI SINI. Hasil akhirnya sama:
+  // satu blob untuk corner-shape-bg.png, dipakai aturan penimpa.
+  const aturan = '<style id="kop-judul">' + INLINE_KOP + '</style>';
+  const akhirKepala = html.lastIndexOf('</head>');
+  if (akhirKepala >= 0) return html.slice(0, akhirKepala) + aturan + html.slice(akhirKepala);
+  // Tidak ada <head>: taruh sebelum <body> supaya tetap menang urutan.
+  const badan = html.indexOf('<body');
+  if (badan >= 0) return html.slice(0, badan) + aturan + html.slice(badan);
+  return aturan + html;
 }
 
 /** Tunggu gambar di jendela selesai dimuat (paling lama 4 detik) sebelum cetak. */
@@ -142,7 +219,12 @@ export async function cetakHtml(html: string, judul: string) {
   try {
     // Aset lokal dulu, lalu media — supaya keduanya sudah jadi blob sebelum
     // jendela baru menggambar apa pun.
-    const a = await gantiAsetLokal(html);
+    // Urutan ini DISENGAJA: sisipkan aturan kop DULU, baru ganti gambar.
+    // Kalau dibalik, aturan kop dimasukkan setelah penggantian selesai — dan
+    // latar kotak judul di dalamnya tidak pernah jadi blob, sehingga di jendela
+    // `about:blank` latar itu gagal dimuat. Itulah sebabnya kop hasil PDF
+    // berbeda dari pratinjau.
+    const a = await gantiAsetLokal(jagaKopJudul(html));
     const b = await gantiAlamatMedia(a.html);
     siap = b.html;
     blobUrls = [...a.blobUrls, ...b.blobUrls];

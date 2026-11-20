@@ -286,6 +286,34 @@ export const CSS_PASAL = [
   '.pasal-blk .pasal-judul{text-align:center;font-weight:700;margin:0 0 3.5mm}',
 ].join('');
 
+/**
+ * Kotak judul (kiri atas) setiap halaman — SATU sumber untuk pratinjau, jendela
+ * cetak, dan pratinjau generator.
+ *
+ * `corner-shape-bg.png` = sudut oranye yang dipakai pratinjau. Gambar itu
+ * SENDIRI sudah menggambar bentuk kop lengkap (sudut oranye dengan lengkungan
+ * bawah-kanan). Tidak ada lapisan tambahan di atasnya — pratinjau `/preview`
+ * dan panel pratinjau di `/edit` memang hanya memakai gambar ini.
+ *
+ * Dulu dokumen cetak menambahkan `.page::before` (kotak oranye 34×24mm) dan
+ * `.page::after` (kotak bergaris putih) di atas gambar itu. Hasilnya kop PDF
+ * punya kotak penutup yang tidak ada di pratinjau — Mas menyebutnya "hanya
+ * corner-shape-bg.png tanpa kotak penutup" untuk tampilan yang BENAR. Karena
+ * itu aturan di bawah bukan cuma memasang latar, tapi juga MEMATIKAN kedua
+ * lapisan itu kalau masih tertinggal di dokumen mana pun.
+ *
+ * Alamatnya sengaja KOSONG (`url('')`), bukan `/corner-shape-bg.png`:
+ * `gantiAsetLokal()` di `cetak.ts` hanya mengganti alamat yang masih relatif.
+ * Dengan alamat kosong, aturan ini selalu ikut dijadikan blob saat dicetak —
+ * jadi latar kop pasti ada di PDF, tidak bergantung pada apakah dokumen
+ * aslinya masih memakai alamat relatif atau tidak.
+ */
+export const CSS_KOP =
+  '.page,.page.spk-body,.page.cont{' +
+  "background:#fff url('') no-repeat left top!important;" +
+  'background-size:33.8mm auto!important}' +
+  '.page::before,.page::after{content:none!important;display:none!important}';
+
 // ── Membaca kembali dokumen menjadi per-pasal ────────────────────────────────
 /** Isi satu pasal sebagaimana terbaca dari HTML dokumen. */
 export interface IsiPasalDok { judul: string; badan: string }
