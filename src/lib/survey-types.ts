@@ -15,6 +15,7 @@
 //   · Tipe Pintu → "Tipe Bukaan Pintu" (4 opsi)
 //   · Jumlah Pintu per Lantai + Sill Pintu DIHAPUS
 //   · Bahan Pintu DIHAPUS, Finishing Pintu tetap
+//   · Finishing Pintu -> Finishing Car Door; ditambah Finishing Landing Door
 //   · + Jenis Cabin; Finishing Cabin → Bahan Cabin (Stainless/Aluminium)
 //   · Plafon & Lantai Cabin: pilih GAMBAR dari Database Desain
 //   · Finishing & Kebutuhan Kabel tidak wajib
@@ -201,7 +202,14 @@ export const DT_FIELDS: FieldDef[] = [
   { key: 'bukaanPintu', label: 'Bukaan Pintu',  en: 'Door Opening Size', kel: 'Pintu', jenis: 'teks', satuan: 'mm' },
   { key: 'tinggiPintu', label: 'Tinggi Pintu',  en: 'Door Height',   kel: 'Pintu', jenis: 'teks', satuan: 'mm' },
   { key: 'lebarPintu',  label: 'Lebar Pintu',   en: 'Door Width',    kel: 'Pintu', jenis: 'teks', satuan: 'mm' },
-  { key: 'finishPintu', label: 'Finishing Pintu', en: 'Door Finishing', kel: 'Pintu', jenis: 'pilih',
+  { key: 'finishPintu', label: 'Finishing Car Door', en: 'Car Door Finishing', kel: 'Pintu', jenis: 'pilih',
+    opsi: ['Hairline SS', 'Mirror SS', 'Titanium', 'Powder Coating', 'Kayu'] },
+  // Pintu lantai (landing) — klien minta field sendiri, opsi sama dengan pintu
+  // car. Disimpan di kunci BARU `finishLandingDoor`, BUKAN menumpang
+  // `finishPintuLantai` (field lama di kelompok Finishing) — itu data lain yang
+  // sudah terisi dan tidak boleh tertimpa.
+  { key: 'finishLandingDoor', label: 'Finishing Landing Door', en: 'Landing Door Finishing', kel: 'Pintu',
+    jenis: 'pilih',
     opsi: ['Hairline SS', 'Mirror SS', 'Titanium', 'Powder Coating', 'Kayu'] },
   // Dihapus klien (Bahan Pintu ditukar dengan Finishing Pintu; jumlah & sill dibuang)
   { key: 'bahanPintu',  label: 'Bahan Pintu',   en: 'Door Material',  kel: 'Pintu', jenis: 'teks', sembunyi: true },
@@ -227,7 +235,11 @@ export const DT_FIELDS: FieldDef[] = [
   { key: 'finishLantai',     label: 'Finishing Lantai',     en: 'Floor Finishing',     kel: 'Finishing', jenis: 'teks' },
   { key: 'finishDinding',    label: 'Finishing Dinding',    en: 'Wall Finishing',      kel: 'Finishing', jenis: 'teks' },
   { key: 'finishPlafon',     label: 'Finishing Plafon',     en: 'Ceiling Finishing',   kel: 'Finishing', jenis: 'teks' },
-  { key: 'finishPintuLantai',label: 'Finishing Pintu per Lantai', en: 'Landing Door Finishing', kel: 'Finishing', jenis: 'teks' },
+  // Label Inggris field lama ini DULU 'Landing Door Finishing' — sama persis
+  // dengan field baru `finishLandingDoor` di kelompok Pintu. Di dokumen cetak
+  // keduanya akan tampil dengan nama identik padahal isinya beda, jadi label
+  // lama dibedakan (data tidak diubah, hanya namanya).
+  { key: 'finishPintuLantai',label: 'Finishing Pintu per Lantai', en: 'Landing Door Finishing (per Floor)', kel: 'Finishing', jenis: 'teks' },
   { key: 'warnaStruktur',    label: 'Warna Struktur',       en: 'Structure Colour',    kel: 'Finishing', jenis: 'teks' },
   { key: 'finishingStruktur',label: 'Finishing Struktur',   en: 'Structure Finishing', kel: 'Finishing', jenis: 'teks' },
 

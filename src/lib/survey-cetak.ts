@@ -660,6 +660,7 @@ export function teksRingkasPo(po: BahanCetakPo, revisi: PoRevisiRow[]): string {
     'Kecepatan: ' + f('kecepatan') + '   Floors/Stops/Doors: ' + f('sfd'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
+    'Finishing Car Door: ' + f('finishPintu') + '   Finishing Landing Door: ' + f('finishLandingDoor'),
     'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
     'Power: ' + f('power'),
   ];
