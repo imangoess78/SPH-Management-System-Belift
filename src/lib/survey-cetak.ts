@@ -34,6 +34,13 @@ const fmtTgl = (s?: string | null) => {
   return isNaN(d.getTime()) ? esc(s) : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 };
 
+/** Tanggal versi Inggris ("16 November 2026") untuk dokumen PO. */
+const fmtTglEn = (s?: string | null) => {
+  if (!s) return '—';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? esc(s) : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+};
+
 const ALAMAT_KANTOR = 'Jl. Raya Kalimalang No. 12, Jakarta Timur, DKI Jakarta 13450';
 
 // ── Gaya bersama untuk semua dokumen cetak ──────────────────
@@ -78,6 +85,7 @@ th,td{min-width:0;border:.6pt solid #DFD8D1;padding:1.6mm 2.2mm;text-align:left;
   white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto;line-height:1.32}
 th{background:#F7F4F1;font-weight:600;line-height:1.25}
 .kosong{color:#B9AFA6}
+.lihatgbr{color:#7A6E66;font-size:8.5pt}
 .kolom2{display:flex;gap:6mm}.kolom2>div{flex:1}
 .sigbox{height:20mm;position:relative;margin-top:2mm}
 .sig-nm{font-weight:700;border-top:.6pt solid #2B1B10;padding-top:1.5mm;display:inline-block;min-width:52mm}
@@ -126,23 +134,35 @@ tr{page-break-inside:avoid;break-inside:avoid}
 /** Dekorasi sudut kanan-bawah, sama seperti dokumen SPH/SPK. */
 const HEX_IMG = '<img class="hex-bg" src="/hexagon-outline-bg.png" alt="" aria-hidden="true">';
 
-/** Bingkai halaman + kop, sama untuk semua jenis dokumen. */
-export function bingkai(judulTab: string, jenisDok: string, nomor: string, sub: string, isiHtml: string): string {
-  return '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">'
+/**
+ * Bingkai halaman + kop, sama untuk semua jenis dokumen.
+ *
+ * `opsi.bahasa` mengganti kaki halaman & atribut `lang` saja (PO sepenuhnya
+ * berbahasa Inggris). `opsi.ukuranJudul` dipakai PO: judul "Purchase Order"
+ * diminta 24pt — jauh lebih kecil dari gaya bawaan 52pt yang hanya memuat
+ * singkatan pendek seperti "SPH"/"PO".
+ */
+export function bingkai(
+  judulTab: string, jenisDok: string, nomor: string, sub: string, isiHtml: string,
+  opsi: { bahasa?: 'id' | 'en'; ukuranJudul?: string } = {},
+): string {
+  const en = opsi.bahasa === 'en';
+  const gayaJudul = opsi.ukuranJudul ? ' style="font-size:' + opsi.ukuranJudul + '"' : '';
+  return '<!DOCTYPE html><html lang="' + (en ? 'en' : 'id') + '"><head><meta charset="utf-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(judulTab) + '</title>'
     + '<link rel="preconnect" href="https://fonts.googleapis.com">'
     + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
     + '<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">'
     + '<style>' + GAYA + '</style></head><body>'
     + '<div class="page">' + HEX_IMG
-    + '<div class="lethead"><div class="doctype">' + esc(jenisDok) + '</div>'
+    + '<div class="lethead"><div class="doctype"' + gayaJudul + '>' + esc(jenisDok) + '</div>'
     + '<div class="co"><img class="mark-logo" src="/logo.png" alt="Belift" style="height:10mm;width:auto;display:block;margin-left:auto">'
     + '<div class="ent">PT. BELIFT AMANAH INDONESIA</div>' + esc(ALAMAT_KANTOR) + '<br>info@belift.co.id</div></div>'
     + '<div class="docno">' + esc(nomor) + '</div>'
     + (sub ? '<div class="subdocno">' + esc(sub) + '</div>' : '')
     + isiHtml
-    + '<div class="pgnum">Dokumen ini dicetak dari sistem Belift</div>'
-    + '<div class="paraf">Halaman 1</div>'
+    + '<div class="pgnum">' + (en ? 'This document is printed from the Belift system' : 'Dokumen ini dicetak dari sistem Belift') + '</div>'
+    + '<div class="paraf">' + (en ? 'Page 1' : 'Halaman 1') + '</div>'
     + '</div></body></html>';
 }
 
@@ -191,6 +211,41 @@ function nilaiCetak(dt: DataTeknis, key: string, satuan?: string): string {
   return teks ? esc(teks) : '<span class="kosong">—</span>';
 }
 
+/** True bila nilai berisi gambar (URL atau key penyimpanan), bukan teks. */
+const berisiGambar = (v: unknown): boolean => {
+  const t = String(v ?? '').trim();
+  if (!t) return false;
+  return /^https?:\/\//i.test(t) || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(t) || t.includes('/');
+};
+
+/**
+ * Gambar untuk sebuah field warna.
+ *
+ * Nilai field warna hanya menyimpan NAMA warna ("Rose Gold"), tidak gambarnya.
+ * Gambar diambil dari Master Data lewat `imgdesain:<key>` — diisi PemilihDesain
+ * saat warna dipilih dari katalog. Dokumen lama belum punya kunci itu, jadi
+ * dicari cadangan di seluruh `imgdesain:*` (dulu hanya ada satu field warna,
+ * sehingga kunci itu pasti milik field tersebut).
+ */
+function gambarWarna(dt: DataTeknis, key: string): string {
+  const langsung = String(dt['imgdesain:' + key] ?? '').trim();
+  if (langsung) return langsung;
+  const semua = Object.keys(dt).filter(k => k.startsWith('imgdesain:'));
+  if (semua.length === 1) return String(dt[semua[0]] ?? '').trim();
+  return '';
+}
+
+/** Apakah sebuah field warna punya gambar yang bisa dicetak. */
+export function warnaPunyaGambar(dt: DataTeknis, key: string): boolean {
+  return !!gambarWarna(dt, key);
+}
+
+/** Label kolom yang dipakai bersama tabel Survey & PO, per bahasa. */
+const KOLOM = {
+  id: { no: 'No', par: 'Parameter', val: 'Value', note: 'Note' },
+  en: { no: 'No', par: 'Parameter', val: 'Value', note: 'Note' },
+} as const;
+
 /**
  * Data Teknis — format spec sheet pabrik: No | Parameter | Value | Note.
  * Judul parameter & kelompok memakai bahasa Inggris (permintaan klien),
@@ -199,8 +254,11 @@ function nilaiCetak(dt: DataTeknis, key: string, satuan?: string): string {
  * Baris yang dicetak = field yang ADA isinya (nilai / Note / gambar pilihan).
  * Mencetak seluruh 50+ parameter hanya akan menghasilkan dokumen penuh tanda
  * "—" dan menyulitkan pembaca pabrik; kelengkapan sudah tampil di Berkas.
+ *
+ * `bahasa` mengatur label tabel saja ('id' untuk Survey, 'en' untuk PO).
+ * Isi teknisnya memang sudah berbahasa Inggris.
  */
-function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
+function tabelDt(dt: DataTeknis, hanyaWajib = false, bahasa: 'id' | 'en' = 'id'): string {
   // Dasar = SELURUH field, termasuk yang disembunyikan dari form. Baris hanya
   // dicetak bila ada isinya, jadi field lama (Sill Pintu, Finishing Cabin, …)
   // tetap muncul di dokumen yang sudah terlanjur menyimpannya — sedangkan
@@ -254,13 +312,28 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
     const baris = barisField.map(f => {
       nomor += 1;
       const note = String(dtEf['note:' + f.key] ?? '').trim() || f.catatan || '';
-      const imgDesain = String(dtEf['imgdesain:' + f.key] ?? '').trim();
+      // Field warna: gambar diambil dari Master Data (lihat gambarWarna).
+      const imgWarna = f.jenis === 'warna' ? gambarWarna(dtEf, f.key) : '';
+      // Nilai sebuah field warna TIDAK boleh berupa gambar: kalau berisi URL/key
+      // (data lama), jangan dicetak sebagai teks sampah — cukup tandai gambarnya.
+      const nilaiTeks = f.jenis === 'warna' && berisiGambar(dtEf[f.key]) ? '' : null;
+      // Warna yang gambarnya tersedia ditandai "lihat gambar". Sebelumnya baris
+      // warna tanpa didukung gambar sama sekali hanya menampilkan nama.
+      const nilaiHtml = (f.jenis === 'warna' && imgWarna && !nilaiTeks)
+        ? esc(String(dtEf[f.key] ?? '').trim()) + ' <span class="lihatgbr">(' + (bahasa === 'en' ? 'see image' : 'lihat gambar') + ')</span>'
+        : (nilaiTeks !== null ? '<span class="kosong">—</span>' : nilaiCetak(dtEf, f.key, f.satuan));
+      const imgDesain = imgWarna || (f.jenis === 'warna' ? '' : String(dtEf['imgdesain:' + f.key] ?? '').trim());
       if (imgDesain) {
         // Wajib lewat urlGambar(): nilai dari Database Desain bisa berupa key
         // penyimpanan mentah ("recovery/.../x.png"), bukan URL siap pakai.
         // Tanpa ini, gambarnya dicetak sebagai alamat rusak alias tidak tampil.
-        gambarKel.push('<figure><img src="' + esc(urlGambar(imgDesain)) + '" alt="' + esc(f.en) + '">'
-          + '<figcaption>' + esc(f.en) + '</figcaption></figure>');
+        // Keterangan gambar memakai NAMA WARNA untuk field warna, supaya pabrik
+        // tahu gambar mana milik warna mana saat ada beberapa warna sekaligus.
+        const ketGbr = f.jenis === 'warna'
+          ? f.en + (String(dtEf[f.key] ?? '').trim() ? ' — ' + String(dtEf[f.key]).trim() : '')
+          : f.en;
+        gambarKel.push('<figure><img src="' + esc(urlGambar(imgDesain)) + '" alt="' + esc(ketGbr) + '">'
+          + '<figcaption>' + esc(ketGbr) + '</figcaption></figure>');
       }
       const lampiran = Array.isArray(dtEf['gambar:' + f.key]) ? (dtEf['gambar:' + f.key] as FotoDok[]) : [];
       lampiran.forEach((g, i) => {
@@ -270,13 +343,14 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
       });
       return '<tr><td class="no">' + String(nomor).padStart(3, '0') + '</td>'
         + '<td>' + esc(f.en) + '</td>'
-        + '<td class="nilai">' + nilaiCetak(dtEf, f.key, f.satuan) + '</td>'
+        + '<td class="nilai">' + nilaiHtml + '</td>'
         + '<td class="note">' + (note ? esc(note) : '<span class="kosong">—</span>') + '</td></tr>';
     }).join('');
 
     html += '<h2>' + esc(KELOMPOK_EN[kel]) + '</h2>'
       + '<table class="spek">' + kolom(LEBAR_NO, '28%', '29%', '38%') + '<tr>'
-      + '<th class="no">No</th><th class="par">Parameter</th><th class="val">Value</th><th class="note">Note</th>'
+      + '<th class="no">' + KOLOM[bahasa].no + '</th><th class="par">' + KOLOM[bahasa].par
+      + '</th><th class="val">' + KOLOM[bahasa].val + '</th><th class="note">' + KOLOM[bahasa].note + '</th>'
       + '</tr>' + baris + '</table>';
     if (gambarKel.length) html += '<div class="spekgbr">' + gambarKel.join('') + '</div>';
   }
@@ -298,28 +372,31 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
   return html;
 }
 
-function tabelLantai(lantai: Lantai[] | undefined): string {
+function tabelLantai(lantai: Lantai[] | undefined, bahasa: 'id' | 'en' = 'id'): string {
   if (!lantai?.length) return '';
   // Kolom "No" sengaja tidak dicetak (permintaan klien 6 Nov 2026) — urutan
   // baris sudah menunjukkan nomor lantai.
   const baris = lantai.map(l => '<tr><td>' + isi(l.lantai) + '</td><td>'
     + isi(l.tinggi) + '</td><td>' + isi(l.door) + '</td><td>' + isi(l.finishing) + '</td></tr>').join('');
-  return '<h2>Tabel Lantai</h2><table>' + kolom('20%', '24%', '28%', '28%')
-    + '<tr><td><strong>Lantai</strong></td><td><strong>Tinggi (mm)</strong></td>'
-    + '<td><strong>Bukaan Pintu</strong></td><td><strong>Finishing</strong></td></tr>'
+  const en = bahasa === 'en';
+  return '<h2>' + (en ? 'Floor Table' : 'Tabel Lantai') + '</h2><table>' + kolom('20%', '24%', '28%', '28%')
+    + '<tr><td><strong>' + (en ? 'Floor' : 'Lantai') + '</strong></td><td><strong>' + (en ? 'Height (mm)' : 'Tinggi (mm)') + '</strong></td>'
+    + '<td><strong>' + (en ? 'Door Opening' : 'Bukaan Pintu') + '</strong></td><td><strong>Finishing</strong></td></tr>'
     + baris + '</table>';
 }
 
-function tabelAddon(addon: AddOn[] | undefined): string {
+function tabelAddon(addon: AddOn[] | undefined, bahasa: 'id' | 'en' = 'id'): string {
   const ada = (addon || []).filter(a => a.on || a.ada);
   if (!ada.length) return '';
+  const en = bahasa === 'en';
+  const ya = en ? 'Yes' : 'Ya';
   const baris = ada.map(a => '<tr><td>' + isi(a.kode) + '</td><td>' + esc(a.nama) + '</td>'
-    + '<td>' + (a.on ? 'Ya' : '—') + '</td><td>' + (a.ada ? 'Ya' : '—') + '</td><td>'
+    + '<td>' + (a.on ? ya : '—') + '</td><td>' + (a.ada ? ya : '—') + '</td><td>'
     + (a.fotoLink ? esc(a.fotoLink) : '<span class="kosong">—</span>') + '</td></tr>').join('');
   return '<h2>Add-on</h2><table>' + kolom('12%', '28%', '11%', '11%', '38%')
-    + '<tr><td><strong>Kode</strong></td><td><strong>Nama</strong></td>'
-    + '<td><strong>Dipesan</strong></td><td><strong>Sudah Ada</strong></td>'
-    + '<td><strong>Foto</strong></td></tr>' + baris + '</table>';
+    + '<tr><td><strong>' + (en ? 'Code' : 'Kode') + '</strong></td><td><strong>' + (en ? 'Name' : 'Nama') + '</strong></td>'
+    + '<td><strong>' + (en ? 'Ordered' : 'Dipesan') + '</strong></td><td><strong>' + (en ? 'Already Available' : 'Sudah Ada') + '</strong></td>'
+    + '<td><strong>' + (en ? 'Photo' : 'Foto') + '</strong></td></tr>' + baris + '</table>';
 }
 
 function isiGaleri(dok: BarisDokumentasi[]): string {
@@ -604,46 +681,52 @@ export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string,
   const dt = (rev?.dt || null) as DataTeknis | null;
   const pakaiPabrik = pabrik || po.pabrik;
 
-  const kepala = '<h2>Data Pesanan</h2><table>' + kolom('36%', '64%')
-    + '<tr><th>Nomor PO</th><td class="nilai"><strong>' + isi(po.no_po) + '</strong></td></tr>'
-    + '<tr><th>Tanggal PO</th><td class="nilai">' + fmtTgl(po.tgl_po) + '</td></tr>'
-    + '<tr><th>Kode Proyek</th><td class="nilai">' + isi(po.kode_proyek) + '</td></tr>'
-    + '<tr><th>Nama Proyek / Customer</th><td class="nilai">' + isi(po.nama_prospek) + '</td></tr>'
-    + '<tr><th>Pabrik Tujuan</th><td class="nilai">' + isi(pakaiPabrik) + '</td></tr>'
-    + '<tr><th>PIC Pabrik</th><td class="nilai">' + isi(pic || po.pic) + '</td></tr>'
-    + '<tr><th>Revisi Ke</th><td class="nilai">' + (po.rev_terakhir || 0) + (rev?.alasan ? ' — ' + esc(rev.alasan) : '') + '</td></tr>'
-    + (po.catatan ? '<tr><th>Catatan</th><td class="nilai">' + esc(po.catatan) + '</td></tr>' : '')
+  // PO Pabrik sepenuhnya berbahasa Inggris (permintaan klien): pabrik penerima
+  // tidak berbahasa Indonesia. Label teknis memang sudah Inggris sejak awal;
+  // yang diterjemahkan di sini adalah bingkai, kepala, kaki, dan pengesahan.
+  const kepala = '<h2>Order Details</h2><table>' + kolom('36%', '64%')
+    + '<tr><th>PO Number</th><td class="nilai"><strong>' + isi(po.no_po) + '</strong></td></tr>'
+    + '<tr><th>PO Date</th><td class="nilai">' + fmtTglEn(po.tgl_po) + '</td></tr>'
+    + '<tr><th>Project Code</th><td class="nilai">' + isi(po.kode_proyek) + '</td></tr>'
+    + '<tr><th>Project / Customer Name</th><td class="nilai">' + isi(po.nama_prospek) + '</td></tr>'
+    + '<tr><th>Destination Factory</th><td class="nilai">' + isi(pakaiPabrik) + '</td></tr>'
+    + '<tr><th>Factory PIC</th><td class="nilai">' + isi(pic || po.pic) + '</td></tr>'
+    + '<tr><th>Revision</th><td class="nilai">' + (po.rev_terakhir || 0) + (rev?.alasan ? ' — ' + esc(rev.alasan) : '') + '</td></tr>'
+    + (po.catatan ? '<tr><th>Remarks</th><td class="nilai">' + esc(po.catatan) + '</td></tr>' : '')
     + '</table>';
 
   const isiHtml = kepala
-    + '<h2>Data Teknis Acuan Pabrik</h2>'
+    + '<h2>Factory Technical Reference</h2>'
     + (dt
-      ? '<p style="font-size:9.5pt;margin:0 0 2mm">Data ini adalah salinan <strong>Final Survey terkunci</strong>'
-        + (rev && rev.rev > 1 ? ' pada revisi ke-' + rev.rev : '') + '.</p>'
-        + tabelDt(dt)
-        + tabelLantai(dt.lantai as unknown as Lantai[])
-        + tabelAddon(dt.addon as unknown as AddOn[])
-      : '<div class="kotak">PO belum diterbitkan — data teknis acuan belum terkunci.</div>')
+      ? '<p style="font-size:9.5pt;margin:0 0 2mm">This data is a copy of the <strong>locked Final Survey</strong>'
+        + (rev && rev.rev > 1 ? ' at revision ' + rev.rev : '') + '.</p>'
+        + tabelDt(dt, false, 'en')
+        + tabelLantai(dt.lantai as unknown as Lantai[], 'en')
+        + tabelAddon(dt.addon as unknown as AddOn[], 'en')
+      : '<div class="kotak">This PO has not been issued yet — the technical reference data is not locked.</div>')
     + (revisi.length > 1
-      ? '<h2>Catatan Revisi</h2><table>' + kolom('10%', '20%', '18%', '52%')
+      ? '<h2>Revision History</h2><table>' + kolom('10%', '20%', '18%', '52%')
         + '<tr><td><strong>Rev</strong></td>'
-        + '<td><strong>Tanggal</strong></td><td><strong>Oleh</strong></td>'
-        + '<td><strong>Alasan / Perubahan</strong></td></tr>'
-        + revisi.map(r => '<tr><td>' + r.rev + '</td><td>' + fmtTgl(r.tgl_revisi) + '</td><td>' + isi(r.oleh)
-          + '</td><td>' + isi(r.alasan) + (r.jml_perubahan ? ' · ' + r.jml_perubahan + ' perubahan' : '') + '</td></tr>').join('')
+        + '<td><strong>Date</strong></td><td><strong>By</strong></td>'
+        + '<td><strong>Reason / Changes</strong></td></tr>'
+        + revisi.map(r => '<tr><td>' + r.rev + '</td><td>' + fmtTglEn(r.tgl_revisi) + '</td><td>' + isi(r.oleh)
+          + '</td><td>' + isi(r.alasan) + (r.jml_perubahan ? ' · ' + r.jml_perubahan + ' changes' : '') + '</td></tr>').join('')
         + '</table>'
       : '')
-    + '<h2>Pengesahan</h2><div class="kolom2" style="margin-top:6mm">'
-    + ['Dibuat — Operasional', 'Diperiksa — Manager', 'Disetujui — Direktur'].map(j =>
+    + '<h2>Authorisation</h2><div class="kolom2" style="margin-top:6mm">'
+    + ['Prepared — Operations', 'Checked — Manager', 'Approved — Director'].map(j =>
       '<div><div class="sigbox"></div><span class="sig-nm"> </span><div class="sig-jab">' + esc(j) + '</div></div>').join('')
     + '</div>';
 
-  return bingkai('PO Pabrik', 'PO', po.no_po || '—', 'Pesanan ke Pabrik — ' + (po.nama_prospek || ''), isiHtml);
+  // Subjudul "Pesanan ke Pabrik — <nama>" dihapus (permintaan klien): nama
+  // proyek sudah tercetak di baris "Project / Customer Name".
+  return bingkai('Purchase Order', 'Purchase Order', po.no_po || '—', '', isiHtml,
+    { bahasa: 'en', ukuranJudul: '24pt' });
 }
 
 /** Cetak PO lewat pop-up (perilaku lama dipertahankan). */
 export async function cetakPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string, pic?: string) {
-  await cetakHtml(htmlPo(po, revisi, pabrik, pic), 'PO Pabrik');
+  await cetakHtml(htmlPo(po, revisi, pabrik, pic), 'Purchase Order');
 }
 
 /** Ringkasan teks PO untuk ditempel ke surel / aplikasi lain. */
