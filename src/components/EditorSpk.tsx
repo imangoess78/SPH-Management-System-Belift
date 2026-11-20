@@ -6,16 +6,16 @@
  * ada catatan khusus. Dulu semua itu hanya bisa diubah developer. Panel ini
  * memberi sales tiga hal yang tidak mengubah data form:
  *
- *   1. Identitas pasal — judul pasal bisa diganti.
- *   2. Isi pasal — teks asli hasil susunan form bisa disunting langsung;
- *      hasil suntingan MENGGANTIKAN isi pasal itu (bukan ditambahkan).
- *   3. Tambahan — paragraf bebas ditambahkan di akhir pasal.
+ *   1. Kertas & margin — A4/A5/Letter/Legal dan margin 5–60 mm.
+ *   2. Identitas pasal — judul pasal bisa diganti.
+ *   3. Isi pasal — teks asli hasil susunan form disunting WYSIWYG; hasil
+ *      suntingan MENGGANTIKAN isi pasal itu (bukan ditambahkan).
  *
  * Semua isian disimpan di `GenState.manualSpk` (lihat `lib/spk-susun.ts`).
  * Data form tidak pernah ditimpa: begitu isian manual dikosongkan, teks dari
- * form kembali dipakai. Sumber teks default adalah `lib/spk-pasal.ts`, fungsi
- * yang SAMA dengan yang dipakai dokumen cetak — jadi yang terlihat di panel
- * ini identik dengan yang akan tercetak.
+ * form kembali dipakai. Sumber teks default adalah `pageSPK()` — fungsi yang
+ * SAMA dengan yang dipakai dokumen cetak — jadi yang terlihat di panel ini
+ * identik dengan yang akan tercetak.
  *
  * CATATAN PENTING
  * File ini pernah rusak berat (ter-duplikasi ribuan kali sehingga gagal
@@ -24,30 +24,34 @@
  */
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import {
-  susunPasal, normalCetak, BATAS_MARGIN, CETAK_AWAL,
+  normalCetak, BATAS_MARGIN, CETAK_AWAL,
   type ManualPasal, type ManualSpk, type PengaturanCetak, type UkuranKertas,
 } from '@/lib/spk-susun';
-import { daftarPasal } from '@/lib/spk-pasal';
 import { pageSPK, type GenState, type ModeHarga } from '@/lib/sph-generator';
 import type { KatalogItem, TerminItem, DesainPilihan, DesainOption } from '@/lib/sph-types';
+import PasalEditor from '@/components/PasalEditor';
 
-// ── Judul pasal (dipakai juga oleh dokumen cetak) ────────────────────────────
+/**
+ * Judul pasal — HARUS sama dengan `daftarPasal()` di `lib/spk-pasal.ts`.
+ * Dipakai hanya sebagai cadangan bila judul tidak terbaca dari dokumen;
+ * sumber utamanya tetap dokumen itu sendiri (lihat `teksAsliDariDokumen`).
+ */
 export const JUDUL_PASAL: { no: number; judul: string }[] = [
-  { no: 1, judul: 'PARA PIHAK' },
-  { no: 2, judul: 'DEFINISI' },
-  { no: 3, judul: 'LINGKUP PEKERJAAN' },
-  { no: 4, judul: 'NILAI PEKERJAAN DAN CARA PEMBAYARAN' },
-  { no: 5, judul: 'WAKTU PELAKSANAAN' },
-  { no: 6, judul: 'HAK DAN KEWAJIBAN PARA PIHAK' },
-  { no: 7, judul: 'PENGAWASAN DAN PEMERIKSAAN' },
-  { no: 8, judul: 'SERAH TERIMA PEKERJAAN' },
-  { no: 9, judul: 'KEADAAN MEMAKSA (FORCE MAJEURE)' },
-  { no: 10, judul: 'PENYELESAIAN PERSELISIHAN' },
+  { no: 1, judul: 'DEFINISI ISTILAH DAN KETENTUAN' },
+  { no: 2, judul: 'LINGKUP PEKERJAAN' },
+  { no: 3, judul: 'LOKASI PEKERJAAN' },
+  { no: 4, judul: 'NILAI KONTRAK' },
+  { no: 5, judul: 'WAKTU PELAKSANAAN PEKERJAAN' },
+  { no: 6, judul: 'PINALTY' },
+  { no: 7, judul: 'CARA PEMBAYARAN' },
+  { no: 8, judul: 'FORCE MAJURE' },
+  { no: 9, judul: 'PENYELESAIAN' },
+  { no: 10, judul: 'PENUTUP' },
 ];
 
 const UKURAN: UkuranKertas[] = ['A4', 'A5', 'Letter', 'Legal'];
 
-const LABEL_MARGIN: { kunci: keyof PengaturanCetak; label: string }[] = [
+const LABEL_MARGIN: { kunci: 'marginAtas' | 'marginBawah' | 'marginKiri' | 'marginKanan'; label: string }[] = [
   { kunci: 'marginAtas', label: 'Atas' },
   { kunci: 'marginBawah', label: 'Bawah' },
   { kunci: 'marginKiri', label: 'Kiri' },
@@ -55,37 +59,38 @@ const LABEL_MARGIN: { kunci: keyof PengaturanCetak; label: string }[] = [
 ];
 
 // ── Bahan untuk menyusun teks default ────────────────────────────────────────
+interface IsiPasal { judul: string; badan: string }
+
 /**
- * Editor butuh teks default yang SAMA dengan dokumen cetak. Cara termurah dan
- * paling jujur: render dokumennya sekali, lalu ambil isi tiap pasal dari HTML
- * yang dihasilkan. Dengan begitu tidak ada salinan teks yang bisa melenceng.
+ * Editor butuh teks default yang SAMA dengan dokumen cetak. Cara paling jujur:
+ * render dokumennya sekali, lalu ambil judul dan badan tiap pasal dari HTML
+ * yang dihasilkan. Tidak ada salinan teks yang bisa melenceng.
  */
-function teksAsliDariDokumen(html: string): Record<number, string> {
-  const hasil: Record<number, string> = {};
+function teksAsliDariDokumen(html: string): Record<number, IsiPasal> {
+  const hasil: Record<number, IsiPasal> = {};
   if (!html) return hasil;
   const re = /<div class="pasal-blk">([\s\S]*?)<\/div>/g;
   let m: RegExpExecArray | null;
-  let jatuh = 0;
+  let gagal = 0;
   while ((m = re.exec(html)) !== null) {
     const blok = m[1];
-    // Ambil nomor pasal dari <p class="pasal-no">PASAL&nbsp;&nbsp;N</p>
     const no = blok.match(/class="pasal-no"[^>]*>[\s\S]*?(\d+)/);
-    if (!no) { jatuh++; continue; }
-    // Buang baris nomor & judul; sisakan badan pasal.
+    if (!no) { gagal++; continue; }
+    const judul = (blok.match(/class="pasal-judul"[^>]*>([\s\S]*?)<\/p>/) || ['', ''])[1]
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
     const badan = blok
       .replace(/<p class="pasal-no"[\s\S]*?<\/p>/, '')
       .replace(/<p class="pasal-judul"[\s\S]*?<\/p>/, '')
       .trim();
-    hasil[Number(no[1])] = badan;
+    hasil[Number(no[1])] = { judul, badan };
   }
-  if (jatuh > 0) {
-    // Tidak fatal: pasal yang tak terbaca akan tampil sebagai "belum lengkap".
-    console.warn('[EditorSpk] pasal tak terbaca:', jatuh);
-  }
+  if (gagal > 0) console.warn('[EditorSpk] pasal tak terbaca:', gagal);
   return hasil;
 }
 
-/** Bungkus teks asli dalam paragraf agar bisa disunting sebagai satu kotak. */
+/** Bungkus teks polos jadi paragraf agar bisa dimuat editor. */
 function jadiHtml(teks: string): string {
   const t = String(teks ?? '').trim();
   if (!t) return '';
@@ -110,20 +115,26 @@ export default function EditorSpk({
   pilihDesain = {} as DesainPilihan, liveDesain = {},
 }: EditorSpkProps) {
   const [buka, setBuka] = useState<number | null>(null);
+  /** Dinaikkan saat "Kembalikan ke teks form" — memaksa editor dimuat ulang. */
+  const [segarkan, setSegarkan] = useState<Record<number, number>>({});
 
   const manual: ManualSpk = (s.manualSpk || {}) as ManualSpk;
   const cetak = normalCetak(s.cetak);
 
-  // Teks default: dari dokumen SPK yang dibangun fungsi cetak yang sama.
-  const teksDefault = useMemo(() => {
+  // Teks default hanya dibangun saat ada pasal terbuka — menghemat kerja pada
+  // setiap ketikan ketika panel sedang tertutup semua.
+  const isi = useMemo<Record<number, IsiPasal>>(() => {
+    if (buka === null) return {};
     try {
-      const html = pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain);
-      return teksAsliDariDokumen(html);
+      return teksAsliDariDokumen(pageSPK(s, items, termin, modeHarga, pilihDesain, liveDesain));
     } catch (e) {
       console.warn('[EditorSpk] gagal menyusun teks default:', e);
-      return {} as Record<number, string>;
+      return {};
     }
-  }, [s, items, termin, modeHarga, pilihDesain, liveDesain]);
+    // `s` sengaja tidak dijadikan dependensi: isi pasal hanya dibaca saat panel
+    // dibuka, bukan dihitung ulang tiap ketikan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buka, items, termin, modeHarga, pilihDesain, liveDesain]);
 
   const ubahManual = (no: number, ubah: Partial<ManualPasal>) => {
     setS(prev => {
@@ -146,15 +157,18 @@ export default function EditorSpk({
     setS(prev => ({ ...prev, cetak: normalCetak({ ...normalCetak(prev.cetak), ...ubah }) }));
   };
 
+  const kembalikan = (no: number) => {
+    ubahManual(no, { ganti: undefined });
+    setSegarkan(p => ({ ...p, [no]: (p[no] || 0) + 1 }));
+  };
+
   const jmlDiubah = Object.keys(manual || {}).length;
 
   return (
     <div className="edspk">
       <div className="edspk-head">
         <div className="edspk-title">Editor SPK</div>
-        {jmlDiubah > 0 && (
-          <span className="edspk-badge">{jmlDiubah} pasal diubah manual</span>
-        )}
+        {jmlDiubah > 0 && <span className="edspk-badge">{jmlDiubah} pasal diubah manual</span>}
       </div>
 
       {/* ── Kertas & margin ── */}
@@ -168,14 +182,12 @@ export default function EditorSpk({
             value={cetak.kertas}
             onChange={e => ubahCetak({ kertas: e.target.value as UkuranKertas })}
           >
-            {UKURAN.map(u => (
-              <option key={u} value={u}>{u}</option>
-            ))}
+            {UKURAN.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
         <div className="edspk-margin">
           {LABEL_MARGIN.map(({ kunci, label }) => (
-            <label key={String(kunci)} className="edspk-margin-cell">
+            <label key={kunci} className="edspk-margin-cell">
               <span className="edspk-lbl">{label} (mm)</span>
               <input
                 type="number"
@@ -198,14 +210,17 @@ export default function EditorSpk({
       <div className="edspk-sec">
         <div className="edspk-ttl">Pasal — isi bisa disunting</div>
         <div className="edspk-note">
-          Kotak di bawah berisi <b>teks asli pasal</b> hasil susunan data form. Hasil suntingan{' '}
-          <b>menggantikan</b> isi pasal itu; data form tidak ikut berubah, dan tombol{' '}
+          Teks di bawah tampil <b>seperti hasil cetak</b> dan bisa langsung disunting. Suntingan{' '}
+          <b>menggantikan</b> isi pasal itu; data form tidak berubah, dan tombol{' '}
           <b>Kembalikan ke teks form</b> memulihkannya.
         </div>
+
         {JUDUL_PASAL.map(({ no, judul }) => {
           const m = manual[String(no)] || {};
           const terbuka = buka === no;
-          const asli = jadiHtml(teksDefault[no] || '');
+          const data = isi[no];
+          const judulTampil = m.judul || data?.judul || judul;
+          const badan = jadiHtml(data?.badan || '');
           const disunting = !!m.ganti;
           return (
             <div key={no} className={'edspk-pasal' + (terbuka ? ' on' : '')}>
@@ -216,7 +231,7 @@ export default function EditorSpk({
                 aria-expanded={terbuka}
               >
                 <span className="edspk-no">Pasal {no}</span>
-                <span className="edspk-pj">{m.judul || judul}</span>
+                <span className="edspk-pj">{judulTampil}</span>
                 {disunting && <span className="edspk-dot" title="Isi pasal disunting">•</span>}
                 {m.sembunyi && <span className="edspk-hidden">disembunyikan</span>}
                 <span className="edspk-ar">{terbuka ? '▾' : '▸'}</span>
@@ -224,28 +239,28 @@ export default function EditorSpk({
 
               {terbuka && (
                 <div className="edspk-body">
-                  <label className="edspk-lbl">Judul pasal</label>
+                  <label className="edspk-lbl" htmlFor={'edspk-judul-' + no}>Judul pasal</label>
                   <input
+                    id={'edspk-judul-' + no}
                     type="text"
                     className="edspk-input"
                     value={m.judul ?? ''}
-                    placeholder={judul}
+                    placeholder={data?.judul || judul}
                     onChange={e => ubahManual(no, { judul: e.target.value })}
                   />
 
                   <div className="edspk-lbl-row">
-                    <label className="edspk-lbl">Isi pasal</label>
+                    <span className="edspk-lbl">Isi pasal</span>
                     {disunting
                       ? <span className="edspk-flag">disunting</span>
                       : <span className="edspk-flag edspk-flag-asli">teks form</span>}
                   </div>
-                  {asli || disunting ? (
-                    <textarea
-                      className="edspk-area"
-                      value={m.ganti ?? asli}
-                      onChange={e => ubahManual(no, { ganti: e.target.value })}
-                      rows={10}
-                      spellCheck={false}
+
+                  {disunting || badan ? (
+                    <PasalEditor
+                      key={no + ':' + (segarkan[no] || 0)}
+                      html={disunting ? m.ganti! : badan}
+                      onSimpan={html => ubahManual(no, { ganti: html })}
                     />
                   ) : (
                     <div className="edspk-note">
@@ -253,12 +268,9 @@ export default function EditorSpk({
                       Isi form terlebih dahulu, lalu buka pasal ini lagi.
                     </div>
                   )}
+
                   {disunting && (
-                    <button
-                      type="button"
-                      className="mini-btn"
-                      onClick={() => ubahManual(no, { ganti: undefined })}
-                    >
+                    <button type="button" className="mini-btn" onClick={() => kembalikan(no)}>
                       Kembalikan ke teks form
                     </button>
                   )}
@@ -279,12 +291,4 @@ export default function EditorSpk({
       </div>
     </div>
   );
-}
-
-/** Teks pasal yang akan tercetak setelah isian manual diterapkan. */
-export function teksPasalCetak(s: GenState): { no: number; judul: string; html: string }[] {
-  return susunPasal(
-    JUDUL_PASAL.map(({ no, judul }) => ({ no, judul, blok: [] })),
-    s.manualSpk as ManualSpk | undefined,
-  ).map(p => ({ no: p.no, judul: p.judul, html: '' }));
 }

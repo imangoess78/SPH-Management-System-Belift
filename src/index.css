@@ -666,26 +666,69 @@ tr.subrow td:nth-child(2)::before { content: "\21B3 "; }
 }
 .edspk-cek { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #7A6E66; margin-top: 8px; }
 
-/* Editor teks ringan (Tiptap) */
-.ed { border: 1px solid #E2D9D1; border-radius: 6px; overflow: hidden; }
-.ed-tb {
-  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
-  padding: 4px; background: #FBF7F3; border-bottom: 1px solid #E2D9D1;
+/* Baris label + penanda status (mis. "Isi pasal" · "teks form") */
+.edspk-lbl-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.edspk-lbl-row .edspk-lbl { margin: 0; }
+.edspk-flag {
+  font-size: 9.5px; padding: 1px 7px; border-radius: 20px; letter-spacing: .02em;
+  background: #FCE7D6; color: #A63F04; border: 1px solid #F3CBAA;
 }
-.tb {
-  min-width: 26px; height: 24px; padding: 0 6px; font-size: 11px; line-height: 1;
-  background: #fff; border: 1px solid #E2D9D1; border-radius: 4px;
-  color: #2B1B10; cursor: pointer;
+.edspk-flag-asli { background: #F2F0EE; color: #7A6E66; border-color: #E2D9D1; }
+.edspk-margin-cell { display: flex; align-items: center; gap: 5px; }
+/* Label di dalam baris margin tidak boleh membawa margin bawaan .edspk-lbl,
+   kalau tidak tiap baris jadi tidak sejajar. */
+.edspk-margin-cell .edspk-lbl { margin: 0; }
+
+/* ── Penyunting pasal (WYSIWYG) ──────────────────────────────────────────────
+   Tampilan sengaja meniru dokumen cetak: Barlow, 10.5pt, line-height 1.5,
+   supaya yang terlihat di panel = yang tercetak. */
+.edspk-isi { margin-top: 2px; }
+.edspk-ed { border: 1px solid #E2D9D1; border-radius: 7px; overflow: hidden; background: #fff; }
+.edspk-ed + .edspk-ed { margin-top: 8px; }
+.edspk-tb {
+  display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+  padding: 4px 5px; background: #FBF7F3; border-bottom: 1px solid #E2D9D1;
 }
-.tb:hover { background: #FCE7D6; border-color: #F3CBAA; }
-.tb-on { background: #D95103; border-color: #D95103; color: #fff; }
-.ed-pisah { width: 1px; height: 16px; background: #E2D9D1; margin: 0 3px; }
-.ed-isi { padding: 8px; min-height: 64px; max-height: 220px; overflow-y: auto; font-size: 12px; }
-.ed-isi .ProseMirror { outline: none; min-height: 48px; }
-.ed-isi .ProseMirror p { margin: 0 0 6px; }
-.ed-isi .ProseMirror ul, .ed-isi .ProseMirror ol { margin: 0 0 6px; padding-left: 20px; }
-.ed-isi .ProseMirror ul { list-style: disc; }
-.ed-isi .ProseMirror ol { list-style: decimal; }
+.edspk-tb .tb {
+  min-width: 26px; height: 25px; padding: 0 7px; font-size: 11.5px; line-height: 1;
+  background: #fff; border: 1px solid #E2D9D1; border-radius: 5px;
+  color: #2B1B10; cursor: pointer; font-family: inherit;
+}
+.edspk-tb .tb:hover:not(:disabled) { background: #FCE7D6; border-color: #F3CBAA; }
+.edspk-tb .tb:disabled { opacity: .4; cursor: default; }
+.edspk-tb .tb-on { background: #D95103; border-color: #D95103; color: #fff; }
+.edspk-tb-pisah { width: 1px; height: 16px; background: #E2D9D1; margin: 0 3px; }
+.edspk-muat { padding: 10px; font-size: 11.5px; color: #8A7A6E; }
+
+.edspk-ed .ProseMirror {
+  outline: none; padding: 10px 12px; min-height: 90px; max-height: 320px; overflow-y: auto;
+  font-family: 'Barlow', sans-serif; font-size: 13.5px; line-height: 1.55; color: #2B1B10;
+}
+.edspk-ed .ProseMirror > *:first-child { margin-top: 0; }
+.edspk-ed .ProseMirror > *:last-child { margin-bottom: 0; }
+.edspk-ed .ProseMirror p { margin: 0 0 6px; }
+.edspk-ed .ProseMirror strong { font-weight: 700; }
+.edspk-ed .ProseMirror ul { margin: 0 0 6px; padding-left: 18px; list-style-type: disc; }
+.edspk-ed .ProseMirror ol { margin: 0 0 6px; padding-left: 18px; list-style-type: decimal; }
+.edspk-ed .ProseMirror li { margin-bottom: 3px; }
+.edspk-ed .ProseMirror li > p { margin: 0; }
+.edspk-ed .ProseMirror:focus-visible { outline: 2px solid #F3CBAA; outline-offset: -2px; }
+
+/* Blok tabel: hanya dilihat, tidak disunting (isinya dari data form). */
+.edspk-tabel { border: 1px solid #E2D9D1; border-radius: 7px; overflow: hidden; margin: 8px 0; background: #FDFBF9; }
+.edspk-tabel-kepala {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 5px 9px; font-size: 10.5px; color: #592203; background: #FBF1E8;
+  border-bottom: 1px solid #EDE0D4; font-weight: 600;
+}
+.edspk-tabel-not { font-weight: 400; color: #8A7A6E; }
+.edspk-tabel-isi { padding: 8px; overflow-x: auto; }
+.edspk-tabel-isi table { border-collapse: collapse; width: 100%; font-size: 11px; }
+.edspk-tabel-isi th, .edspk-tabel-isi td {
+  border: 1px solid #E2D9D1; padding: 4px 6px; text-align: left; vertical-align: top;
+}
+.edspk-tabel-isi th { background: #FBF7F3; font-weight: 600; }
+.edspk-catatan { font-size: 10.5px; color: #8A7A6E; line-height: 1.45; margin: 6px 0 2px; }
 
 /* Print */
 @page { size: A4; margin: 0; }

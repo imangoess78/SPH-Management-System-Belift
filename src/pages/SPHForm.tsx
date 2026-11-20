@@ -692,7 +692,19 @@ function FormPanel(props: FormPanelProps) {
           Hanya untuk SPK, dan tidak menyentuh data form (lihat spk-susun.ts). */}
       </Grp>
 
-      {isSPK && <EditorSpk s={s as unknown as Parameters<typeof EditorSpk>[0]['s']} setS={setS} />}
+      {isSPK && (
+        <EditorSpk
+          s={s as unknown as Parameters<typeof EditorSpk>[0]['s']}
+          setS={setS}
+          // Tanpa data ini, teks default pasal akan disusun dari katalog kosong —
+          // editor menampilkan isi yang berbeda dari dokumen sungguhan.
+          items={items}
+          termin={termin}
+          modeHarga={modeHarga}
+          pilihDesain={pilihDesain}
+          liveDesain={props.liveDesain}
+        />
+      )}
 
 
       <Grp title="Opsi desain">
