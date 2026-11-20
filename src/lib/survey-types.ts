@@ -128,13 +128,15 @@ export interface DataTeknis {
 //  kel      : kelompok pada form
 //  jenis    : 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung'
 //  catatan  : Note baku yang tercetak bila pengisi tidak menulis Note
-//  sembunyi : tidak tampil di form, tetapi tetap tercetak bila ada nilainya
+//  jenis    : 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung' | 'warna'
+//             'warna' = dropdown yang opsinya diambil dari Master Data
+//             (design_items.category = 'Warna'), bukan daftar tetap di kode.
 export interface FieldDef {
   key: string;
   label: string;
   en: string;
   kel: KelompokField;
-  jenis: 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung';
+  jenis: 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung' | 'warna';
   opsi?: string[];
   satuan?: string;
   hint?: string;
@@ -160,13 +162,14 @@ export const DT_FIELDS: FieldDef[] = [
     opsi: OPSI_KAPASITAS, satuan: 'kg', catatan: 'Rated load.' },
   { key: 'penumpang',  label: 'Penumpang',    en: 'Passengers',     kel: 'Spesifikasi Utama', jenis: 'angka', satuan: 'orang' },
   { key: 'kecepatan',  label: 'Kecepatan',    en: 'Speed',          kel: 'Spesifikasi Utama', jenis: 'teks', satuan: 'm/min' },
-  { key: 'sfd',        label: 'Stops / Floors / Doors', en: 'Stops / Floors / Doors', kel: 'Spesifikasi Utama', jenis: 'teks',
+  { key: 'sfd',        label: 'Floors / Stops / Doors', en: 'Floors / Stops / Doors', kel: 'Spesifikasi Utama', jenis: 'teks',
     hint: 'mis. 4 / 4 / 4' },
   { key: 'tipeMesin',  label: 'Tipe Lift (MR / MRL)', en: 'Machine Type', kel: 'Spesifikasi Utama', jenis: 'pilih',
     opsi: ['MR', 'MRL'],
     catatan: 'MR = Machine Room; MRL = Machine Room Less.' },
+  // Dihapus klien (20 Nov 2026). Tetap tercetak bila dokumen lama menyimpan nilainya.
   { key: 'drive',      label: 'Sistem Penggerak', en: 'Drive System', kel: 'Spesifikasi Utama', jenis: 'pilih',
-    opsi: ['VVVF', 'AC-2', 'Hydraulic'] },
+    opsi: ['VVVF', 'AC-2', 'Hydraulic'], sembunyi: true },
 
   // ── Shaft ────────────────────────────────────────────────
   { key: 'shaftSize',    label: 'Ukuran Shaft',  en: 'Shaft Size',   kel: 'Shaft', jenis: 'teks', satuan: 'mm', hint: 'P × L',
@@ -178,8 +181,8 @@ export const DT_FIELDS: FieldDef[] = [
     catatan: 'Otomatis: jumlah seluruh tinggi lantai dikurangi lantai terakhir, tanpa pit.' },
   { key: 'totalHeight',  label: 'Total Height',  en: 'Total Height (Pit to Overhead)', kel: 'Shaft', jenis: 'hitung', satuan: 'mm',
     catatan: 'Otomatis: Pit + Travelling Height + Overhead.' },
-  { key: 'bahanShaft',   label: 'Bahan Konstruksi Shaft', en: 'Shaft Construction', kel: 'Shaft', jenis: 'pilih',
-    opsi: ['Beton Bertulang', 'Baja WF', 'Baja H Beam', 'Steel Alloy', 'Aluminium Alloy'] },
+  { key: 'bahanShaft',   label: 'Bahan Konstruksi Shaft', en: 'Shaft Construction', kel: 'Shaft', jenis: 'warna',
+    catatan: 'Sesuai warna pilihan.' },
   { key: 'posisiHoistway', label: 'Posisi Hoistway', en: 'Hoistway Position', kel: 'Shaft', jenis: 'pilih',
     opsi: ['Indoor', 'Outdoor'] },
   { key: 'dindingFinish',  label: 'Finishing Dinding Shaft', en: 'Shaft Wall Finishing', kel: 'Shaft', jenis: 'teks' },
@@ -193,8 +196,14 @@ export const DT_FIELDS: FieldDef[] = [
   { key: 'bukaanPintu', label: 'Bukaan Pintu',  en: 'Door Opening Size', kel: 'Pintu', jenis: 'teks', satuan: 'mm' },
   { key: 'tinggiPintu', label: 'Tinggi Pintu',  en: 'Door Height',   kel: 'Pintu', jenis: 'teks', satuan: 'mm' },
   { key: 'lebarPintu',  label: 'Lebar Pintu',   en: 'Door Width',    kel: 'Pintu', jenis: 'teks', satuan: 'mm' },
+  { key: 'finishCarDoor',    label: 'Finishing Car Door',     en: 'Car Door Finishing',     kel: 'Pintu', jenis: 'warna',
+    catatan: 'Sesuai warna pilihan.' },
+  { key: 'finishLandingDoor', label: 'Finishing Landing Door', en: 'Landing Door Finishing', kel: 'Pintu', jenis: 'warna',
+    catatan: 'Sesuai warna pilihan.' },
+  // Field lama — digantikan dua field di atas (20 Nov 2026). Tetap tercetak
+  // bila dokumen lama menyimpan nilainya.
   { key: 'finishPintu', label: 'Finishing Pintu', en: 'Door Finishing', kel: 'Pintu', jenis: 'pilih',
-    opsi: ['Hairline SS', 'Mirror SS', 'Titanium', 'Powder Coating', 'Kayu'] },
+    opsi: ['Hairline SS', 'Mirror SS', 'Titanium', 'Powder Coating', 'Kayu'], sembunyi: true },
   // Dihapus klien (Bahan Pintu ditukar dengan Finishing Pintu; jumlah & sill dibuang)
   { key: 'bahanPintu',  label: 'Bahan Pintu',   en: 'Door Material',  kel: 'Pintu', jenis: 'teks', sembunyi: true },
   { key: 'jumlahPintu', label: 'Jumlah Pintu per Lantai', en: 'Doors per Floor', kel: 'Pintu', jenis: 'teks', sembunyi: true },
@@ -205,32 +214,35 @@ export const DT_FIELDS: FieldDef[] = [
   { key: 'tinggiCabin', label: 'Tinggi Cabin',  en: 'Cabin Height', kel: 'Cabin', jenis: 'teks', satuan: 'mm' },
   { key: 'jenisCabin',  label: 'Jenis Cabin',   en: 'Cabin Type',   kel: 'Cabin', jenis: 'pilih',
     opsi: ['Full Stainless', 'Premium', 'Luxury', 'Full Panoramic', 'Semi Panoramic', 'SS Glass Door'] },
-  { key: 'bahanCabin',  label: 'Bahan Cabin',   en: 'Cabin Material', kel: 'Cabin', jenis: 'pilih',
-    opsi: ['Stainless', 'Aluminium'] },
+  { key: 'bahanCabin',  label: 'Bahan Cabin',   en: 'Cabin Material', kel: 'Cabin', jenis: 'warna',
+    catatan: 'Sesuai warna pilihan.' },
   { key: 'plafonCabin', label: 'Plafon Cabin',  en: 'Cabin Ceiling', kel: 'Cabin', jenis: 'desain',
     kategori: 'Ceiling', catatan: 'Sesuai gambar pilihan.' },
-  { key: 'lantaiCabin', label: 'Lantai Cabin',  en: 'Cabin Floor',   kel: 'Cabin', jenis: 'desain',
-    kategori: 'Floor', catatan: 'Sesuai gambar pilihan.' },
-  { key: 'handrail',    label: 'Handrail',      en: 'Handrail',     kel: 'Cabin', jenis: 'teks' },
+  { key: 'lantaiCabin', label: 'Lantai Cabin',  en: 'Cabin Floor',   kel: 'Cabin', jenis: 'warna',
+    catatan: 'Sesuai warna pilihan.' },
+  { key: 'handrail',    label: 'Handrail',      en: 'Handrail',     kel: 'Cabin', jenis: 'warna',
+    catatan: 'Sesuai warna pilihan.' },
   // Diganti menjadi Bahan Cabin — tetap tercetak untuk dokumen lama
   { key: 'finishCabin', label: 'Finishing Cabin', en: 'Cabin Finishing', kel: 'Cabin', jenis: 'teks', sembunyi: true },
 
-  // ── Finishing (tidak wajib diisi) ────────────────────────
-  { key: 'finishLantai',     label: 'Finishing Lantai',     en: 'Floor Finishing',     kel: 'Finishing', jenis: 'teks' },
-  { key: 'finishDinding',    label: 'Finishing Dinding',    en: 'Wall Finishing',      kel: 'Finishing', jenis: 'teks' },
-  { key: 'finishPlafon',     label: 'Finishing Plafon',     en: 'Ceiling Finishing',   kel: 'Finishing', jenis: 'teks' },
-  { key: 'finishPintuLantai',label: 'Finishing Pintu per Lantai', en: 'Landing Door Finishing', kel: 'Finishing', jenis: 'teks' },
-  { key: 'warnaStruktur',    label: 'Warna Struktur',       en: 'Structure Colour',    kel: 'Finishing', jenis: 'teks' },
-  { key: 'finishingStruktur',label: 'Finishing Struktur',   en: 'Structure Finishing', kel: 'Finishing', jenis: 'teks' },
+  // ── Finishing (tidak wajib diisi, semua opsi warna dari Master Data) ──
+  { key: 'finishLantai',     label: 'Finishing Lantai',     en: 'Floor Finishing',     kel: 'Finishing', jenis: 'warna' },
+  { key: 'finishDinding',    label: 'Finishing Dinding',    en: 'Wall Finishing',      kel: 'Finishing', jenis: 'warna' },
+  { key: 'finishPlafon',     label: 'Finishing Plafon',     en: 'Ceiling Finishing',   kel: 'Finishing', jenis: 'warna' },
+  { key: 'finishPintuLantai',label: 'Finishing Pintu per Lantai', en: 'Landing Door Finishing', kel: 'Finishing', jenis: 'warna',
+    sembunyi: true }, // digantikan `finishLandingDoor` di section Pintu
+  { key: 'warnaStruktur',    label: 'Warna Struktur',       en: 'Structure Colour',    kel: 'Finishing', jenis: 'warna' },
+  { key: 'finishingStruktur',label: 'Finishing Struktur',   en: 'Structure Finishing', kel: 'Finishing', jenis: 'warna' },
 
   // ── Mesin & Kelistrikan ──────────────────────────────────
-  { key: 'dayaMesin',    label: 'Daya Mesin',    en: 'Motor Power',    kel: 'Mesin & Kelistrikan', jenis: 'teks', satuan: 'kW' },
+  // Daya Mesin, Merk Mesin, Posisi Mesin DIHAPUS klien (20 Nov 2026).
+  { key: 'dayaMesin',    label: 'Daya Mesin',    en: 'Motor Power',    kel: 'Mesin & Kelistrikan', jenis: 'teks', satuan: 'kW', sembunyi: true },
   { key: 'traksi',       label: 'Traction Ratio', en: 'Traction Ratio', kel: 'Mesin & Kelistrikan', jenis: 'teks' },
-  { key: 'power',        label: 'Power Supply',  en: 'Power Supply',   kel: 'Mesin & Kelistrikan', jenis: 'teks',
-    hint: 'mis. 220V 1Ph / 380V 3Ph' },
-  { key: 'mesinMerk',    label: 'Merk Mesin',    en: 'Machine Brand',  kel: 'Mesin & Kelistrikan', jenis: 'teks' },
+  { key: 'power',        label: 'Power Supply',  en: 'Power Supply',   kel: 'Mesin & Kelistrikan', jenis: 'pilih',
+    opsi: ['220 1ph', '380 3ph'] },
+  { key: 'mesinMerk',    label: 'Merk Mesin',    en: 'Machine Brand',  kel: 'Mesin & Kelistrikan', jenis: 'teks', sembunyi: true },
   { key: 'posisiMesin',  label: 'Posisi Mesin',  en: 'Machine Position', kel: 'Mesin & Kelistrikan', jenis: 'pilih',
-    opsi: ['Atas (Machine Room)', 'Atas (MRL / Machine Room Less)', 'Bawah', 'Samping'] },
+    opsi: ['Atas (Machine Room)', 'Atas (MRL / Machine Room Less)', 'Bawah', 'Samping'], sembunyi: true },
   { key: 'panelLokasi',  label: 'Lokasi Panel',  en: 'Panel Location', kel: 'Mesin & Kelistrikan', jenis: 'teks' },
   { key: 'kabelMeter',   label: 'Kebutuhan Kabel', en: 'Cable Requirement', kel: 'Mesin & Kelistrikan', jenis: 'teks', satuan: 'm' },
   { key: 'grounding',    label: 'Grounding',     en: 'Grounding',      kel: 'Mesin & Kelistrikan', jenis: 'pilih',
@@ -395,7 +407,7 @@ export const FIELD_WAJIB_KUNCI: string[] = [
   'shaftSize', 'pitDepth', 'overhead',
   'tipePintu', 'bukaanPintu',
   'cabinSize', 'bahanCabin',
-  'dayaMesin', 'power',
+  'power',
 ];
 
 // ── Tipe baris DB ─────────────────────────────────────────────

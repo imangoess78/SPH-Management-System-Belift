@@ -10,7 +10,11 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 // ── Design Items ─────────────────────────────────────────────
-const DESIGN_CATEGORIES = ['Cabin', 'Floor', 'Ceiling', 'Door', 'COP', 'LOP', 'Struktur', 'Add On'];
+// 'Warna' dipakai field warna pada Final Survey (Bahan Cabin, Lantai Cabin,
+// Handrail, Finishing Car/Landing Door, semua field Finishing). Nama item
+// pada kategori ini yang muncul sebagai opsi dropdown — cukup isi nama,
+// gambar tidak wajib.
+const DESIGN_CATEGORIES = ['Cabin', 'Floor', 'Ceiling', 'Door', 'COP', 'LOP', 'Struktur', 'Add On', 'Warna'];
 
 interface DesignItem {
   id: string;

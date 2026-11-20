@@ -228,6 +228,8 @@ describe('Tabel Lantai tanpa kolom No & gambar spesifikasi', () => {
 
   it('kolom No tidak dicetak pada Tabel Lantai', () => {
     const h = htmlSurvey(dasar());
+    // Final Survey tetap berbahasa Indonesia — hanya dokumen PO yang
+    // diterjemahkan penuh ke Inggris (permintaan klien 20 Nov 2026).
     const iJudul = h.indexOf('<h2>Tabel Lantai</h2>');
     expect(iJudul).toBeGreaterThan(-1);
     const tabel = h.slice(iJudul, h.indexOf('</table>', iJudul));

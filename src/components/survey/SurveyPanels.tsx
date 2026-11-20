@@ -93,6 +93,7 @@ export const MAKS_FOTO_DOKUMENTASI = 5;
 interface OpsiDesain { id: string; nama: string; img: string; kategori: string }
 
 let cacheDesain: Record<string, OpsiDesain[]> | null = null;
+let cacheWarna: string[] | null = null;
 
 function useDesainKatalog(): { peta: Record<string, OpsiDesain[]>; galat: string } {
   const [peta, setPeta] = useState<Record<string, OpsiDesain[]>>(cacheDesain || {});
@@ -130,6 +131,54 @@ function useDesainKatalog(): { peta: Record<string, OpsiDesain[]>; galat: string
   }, []);
 
   return { peta, galat };
+}
+
+//  KATALOG WARNA
+//  Opsi warna TIDAK ditanam di kode — diambil dari Master Data
+//  (design_items.category = 'Warna') supaya admin bisa menambah/mengubah
+//  warna tanpa deploy ulang.
+//
+//  Dua hal penting:
+//  1. Baris Master Data kategori lain yang tidak punya image_url tetap
+//     harus terbaca sebagai warna — karena itu pemetaan warna punya
+//     pembaca sendiri (`useKatalogWarna`), tidak menumpang useDesainKatalog
+//     yang mewajibkan ada gambar.
+//  2. Nilai yang tersimpan adalah NAMA warna. Nama yang sudah dipakai
+//     dokumen lama tetapi sudah dihapus dari Master Data tetap ditampilkan
+//     (ditandai) — kalau tidak, nilai lama tampak kosong di form padahal
+//     masih tercetak di PO.
+// ============================================================
+export const KATEGORI_WARNA = 'Warna';
+
+function useKatalogWarna(): { warna: string[]; galat: string } {
+  const [warna, setWarna] = useState<string[]>(cacheWarna || []);
+  const [galat, setGalat] = useState('');
+
+  useEffect(() => {
+    if (cacheWarna) return;
+    let aktif = true;
+    fetch('/api/data?table=design_items')
+      .then(async r => {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((j as { error?: string }).error || `HTTP ${r.status}`);
+        return j as { data?: Array<Record<string, unknown>> };
+      })
+      .then(j => {
+        if (!aktif) return;
+        const nama = (j.data || [])
+          .filter(row => String(row.category || '').trim().toLowerCase() === KATEGORI_WARNA.toLowerCase())
+          .map(row => String(row.name || row.sku || '').trim())
+          .filter(Boolean);
+        // buang duplikat, pertahankan urutan Master Data
+        const unik = Array.from(new Set(nama));
+        cacheWarna = unik;
+        setWarna(unik);
+      })
+      .catch(e => { if (aktif) setGalat(e instanceof Error ? e.message : 'Gagal memuat daftar warna'); });
+    return () => { aktif = false; };
+  }, []);
+
+  return { warna, galat };
 }
 
 /** Pemilih gambar dari Database Desain (Plafon / Lantai Cabin). */
@@ -310,6 +359,7 @@ export function DataTeknisPanel({
 }) {
   const set = (k: string, v: string | FotoDok[]) => { if (!bacaSaja) ubah(k, v); };
   const { peta, galat } = useDesainKatalog();
+  const { warna, galat: galatWarna } = useKatalogWarna();
 
   // Seluruh gambar Master Data, apa pun kategorinya — dipakai tombol
   // "Master Data" pada lampiran tiap spec dan Remarks.
@@ -340,6 +390,11 @@ export function DataTeknisPanel({
 
   return (
     <div className="space-y-7">
+      {galatWarna && (
+        <p className="text-xs text-destructive">
+          Daftar warna Master Data tidak bisa dimuat: {galatWarna} — field warna akan kosong.
+        </p>
+      )}
       {KELOMPOK_FIELD.map(kel => {
         const field = DT_FIELDS_TAMPIL.filter(f => f.kel === kel);
         if (!field.length) return null;
@@ -379,6 +434,27 @@ export function DataTeknisPanel({
                               <SelectItem value={KOSONG}>—</SelectItem>
                               {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
                               {opsi.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()
+                    ) : f.jenis === 'warna' ? (
+                      // Opsi dari Master Data (design_items.category = 'Warna').
+                      // Nilai lama yang sudah tidak ada di Master Data tetap
+                      // ditampilkan bertanda "(lama)" — kalau dihilangkan,
+                      // Select tampak kosong padahal dokumen lama masih
+                      // mencetak nilainya.
+                      (() => {
+                        const asing = !!nilai && !warna.includes(nilai);
+                        return (
+                          <Select value={nilai || KOSONG} onValueChange={v => set(f.key, v === KOSONG ? '' : v)} disabled={bacaSaja}>
+                            <SelectTrigger className={kurang ? 'border-amber-400' : ''}>
+                              <SelectValue placeholder={warna.length ? '—' : 'Master Data kosong'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={KOSONG}>—</SelectItem>
+                              {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
+                              {warna.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         );

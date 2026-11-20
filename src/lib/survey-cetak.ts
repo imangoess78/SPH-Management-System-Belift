@@ -292,28 +292,45 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
   return html;
 }
 
-function tabelLantai(lantai: Lantai[] | undefined): string {
+// Dipakai bersama oleh Final Survey dan PO, tetapi LABELNYA dibedakan:
+//   · Final Survey = dokumen internal berbahasa Indonesia → label Indonesia
+//   · PO            = dokumen ke pabrik, klien minta penuh Inggris
+//     (permintaan 20 Nov 2026)
+// Dulu satu fungsi dipakai keduanya, sehingga menerjemahkan label PO
+// diam-diam ikut mengubah Final Survey. Parameter `inggris` memisahkannya.
+function tabelLantai(lantai: Lantai[] | undefined, inggris = false): string {
   if (!lantai?.length) return '';
   // Kolom "No" sengaja tidak dicetak (permintaan klien 6 Nov 2026) — urutan
   // baris sudah menunjukkan nomor lantai.
   const baris = lantai.map(l => '<tr><td>' + isi(l.lantai) + '</td><td>'
     + isi(l.tinggi) + '</td><td>' + isi(l.door) + '</td><td>' + isi(l.finishing) + '</td></tr>').join('');
-  return '<h2>Tabel Lantai</h2><table>' + kolom('20%', '24%', '28%', '28%')
-    + '<tr><td><strong>Lantai</strong></td><td><strong>Tinggi (mm)</strong></td>'
-    + '<td><strong>Bukaan Pintu</strong></td><td><strong>Finishing</strong></td></tr>'
+  const judul = inggris ? 'Floor Table' : 'Tabel Lantai';
+  const k1 = inggris ? 'Floor' : 'Lantai';
+  const k2 = inggris ? 'Height (mm)' : 'Tinggi (mm)';
+  const k3 = inggris ? 'Door Opening' : 'Bukaan Pintu';
+  const k4 = 'Finishing';
+  return '<h2>' + judul + '</h2><table>' + kolom('20%', '24%', '28%', '28%')
+    + '<tr><td><strong>' + k1 + '</strong></td><td><strong>' + k2 + '</strong></td>'
+    + '<td><strong>' + k3 + '</strong></td><td><strong>' + k4 + '</strong></td></tr>'
     + baris + '</table>';
 }
 
-function tabelAddon(addon: AddOn[] | undefined): string {
+// Sama seperti tabelLantai: dipakai Final Survey & PO, label dibedakan
+// lewat `inggris`. Nilai "Ya"/"Yes" ikut mengikuti bahasa dokumen.
+function tabelAddon(addon: AddOn[] | undefined, inggris = false): string {
   const ada = (addon || []).filter(a => a.on || a.ada);
   if (!ada.length) return '';
+  const ya = inggris ? 'Yes' : 'Ya';
   const baris = ada.map(a => '<tr><td>' + isi(a.kode) + '</td><td>' + esc(a.nama) + '</td>'
-    + '<td>' + (a.on ? 'Ya' : '—') + '</td><td>' + (a.ada ? 'Ya' : '—') + '</td><td>'
+    + '<td>' + (a.on ? ya : '—') + '</td><td>' + (a.ada ? ya : '—') + '</td><td>'
     + (a.fotoLink ? esc(a.fotoLink) : '<span class="kosong">—</span>') + '</td></tr>').join('');
+  const k = inggris
+    ? ['Code', 'Name', 'Ordered', 'Available', 'Photo']
+    : ['Kode', 'Nama', 'Dipesan', 'Sudah Ada', 'Foto'];
   return '<h2>Add-on</h2><table>' + kolom('12%', '28%', '11%', '11%', '38%')
-    + '<tr><td><strong>Kode</strong></td><td><strong>Nama</strong></td>'
-    + '<td><strong>Dipesan</strong></td><td><strong>Sudah Ada</strong></td>'
-    + '<td><strong>Foto</strong></td></tr>' + baris + '</table>';
+    + '<tr><td><strong>' + k[0] + '</strong></td><td><strong>' + k[1] + '</strong></td>'
+    + '<td><strong>' + k[2] + '</strong></td><td><strong>' + k[3] + '</strong></td>'
+    + '<td><strong>' + k[4] + '</strong></td></tr>' + baris + '</table>';
 }
 
 function isiGaleri(dok: BarisDokumentasi[]): string {
@@ -471,12 +488,12 @@ export function teksRingkasSurvey(b: {
     '',
     'Jenis lift: ' + f('jenisLift') + '   Model: ' + f('model'),
     'Kapasitas: ' + f('kapasitas') + ' kg   Penumpang: ' + f('penumpang'),
-    'Kecepatan: ' + f('kecepatan') + '   SFD: ' + f('sfd'),
-    'Tipe mesin: ' + f('tipeMesin') + '   Penggerak: ' + f('drive'),
+    'Kecepatan: ' + f('kecepatan') + '   Floors/Stops/Doors: ' + f('sfd'),
+    'Tipe mesin: ' + f('tipeMesin'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
-    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
-    'Daya mesin: ' + f('dayaMesin') + '   Power: ' + f('power'),
+    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin'),
+    'Power Supply: ' + f('power'),
     'Grounding: ' + f('grounding') + '   ARD: ' + f('ard'),
     'Akses jalan: ' + f('aksesJalan') + '   Ruang kerja: ' + f('ruangKerja'),
   ];
@@ -593,41 +610,41 @@ export function htmlPo(po: BahanCetakPo, revisi: PoRevisiRow[], pabrik?: string,
   const dt = (rev?.dt || null) as DataTeknis | null;
   const pakaiPabrik = pabrik || po.pabrik;
 
-  const kepala = '<h2>Data Pesanan</h2><table>' + kolom('36%', '64%')
-    + '<tr><th>Nomor PO</th><td class="nilai"><strong>' + isi(po.no_po) + '</strong></td></tr>'
-    + '<tr><th>Tanggal PO</th><td class="nilai">' + fmtTgl(po.tgl_po) + '</td></tr>'
-    + '<tr><th>Kode Proyek</th><td class="nilai">' + isi(po.kode_proyek) + '</td></tr>'
-    + '<tr><th>Nama Proyek / Customer</th><td class="nilai">' + isi(po.nama_prospek) + '</td></tr>'
-    + '<tr><th>Pabrik Tujuan</th><td class="nilai">' + isi(pakaiPabrik) + '</td></tr>'
-    + '<tr><th>PIC Pabrik</th><td class="nilai">' + isi(pic || po.pic) + '</td></tr>'
-    + '<tr><th>Revisi Ke</th><td class="nilai">' + (po.rev_terakhir || 0) + (rev?.alasan ? ' — ' + esc(rev.alasan) : '') + '</td></tr>'
-    + (po.catatan ? '<tr><th>Catatan</th><td class="nilai">' + esc(po.catatan) + '</td></tr>' : '')
+  const kepala = '<h2>Order Details</h2><table>' + kolom('36%', '64%')
+    + '<tr><th>PO Number</th><td class="nilai"><strong>' + isi(po.no_po) + '</strong></td></tr>'
+    + '<tr><th>PO Date</th><td class="nilai">' + fmtTgl(po.tgl_po) + '</td></tr>'
+    + '<tr><th>Project Code</th><td class="nilai">' + isi(po.kode_proyek) + '</td></tr>'
+    + '<tr><th>Project / Customer</th><td class="nilai">' + isi(po.nama_prospek) + '</td></tr>'
+    + '<tr><th>Factory</th><td class="nilai">' + isi(pakaiPabrik) + '</td></tr>'
+    + '<tr><th>Factory PIC</th><td class="nilai">' + isi(pic || po.pic) + '</td></tr>'
+    + '<tr><th>Revision</th><td class="nilai">' + (po.rev_terakhir || 0) + (rev?.alasan ? ' — ' + esc(rev.alasan) : '') + '</td></tr>'
+    + (po.catatan ? '<tr><th>Remarks</th><td class="nilai">' + esc(po.catatan) + '</td></tr>' : '')
     + '</table>';
 
   const isiHtml = kepala
-    + '<h2>Data Teknis Acuan Pabrik</h2>'
+    + '<h2>Technical Data — Factory Reference</h2>'
     + (dt
-      ? '<p style="font-size:9.5pt;margin:0 0 2mm">Data ini adalah salinan <strong>Final Survey terkunci</strong>'
-        + (rev && rev.rev > 1 ? ' pada revisi ke-' + rev.rev : '') + '.</p>'
+      ? '<p style="font-size:9.5pt;margin:0 0 2mm">This data is a copy of the <strong>locked Final Survey</strong>'
+        + (rev && rev.rev > 1 ? ', revision ' + rev.rev : '') + '.</p>'
         + tabelDt(dt)
-        + tabelLantai(dt.lantai as unknown as Lantai[])
-        + tabelAddon(dt.addon as unknown as AddOn[])
-      : '<div class="kotak">PO belum diterbitkan — data teknis acuan belum terkunci.</div>')
+        + tabelLantai(dt.lantai as unknown as Lantai[], true)
+        + tabelAddon(dt.addon as unknown as AddOn[], true)
+      : '<div class="kotak">PO not yet issued — technical reference data is not locked.</div>')
     + (revisi.length > 1
-      ? '<h2>Catatan Revisi</h2><table>' + kolom('10%', '20%', '18%', '52%')
+      ? '<h2>Revision History</h2><table>' + kolom('10%', '20%', '18%', '52%')
         + '<tr><td><strong>Rev</strong></td>'
-        + '<td><strong>Tanggal</strong></td><td><strong>Oleh</strong></td>'
-        + '<td><strong>Alasan / Perubahan</strong></td></tr>'
+        + '<td><strong>Date</strong></td><td><strong>By</strong></td>'
+        + '<td><strong>Reason / Change</strong></td></tr>'
         + revisi.map(r => '<tr><td>' + r.rev + '</td><td>' + fmtTgl(r.tgl_revisi) + '</td><td>' + isi(r.oleh)
-          + '</td><td>' + isi(r.alasan) + (r.jml_perubahan ? ' · ' + r.jml_perubahan + ' perubahan' : '') + '</td></tr>').join('')
+          + '</td><td>' + isi(r.alasan) + (r.jml_perubahan ? ' · ' + r.jml_perubahan + ' changes' : '') + '</td></tr>').join('')
         + '</table>'
       : '')
-    + '<h2>Pengesahan</h2><div class="kolom2" style="margin-top:6mm">'
-    + ['Dibuat — Operasional', 'Diperiksa — Manager', 'Disetujui — Direktur'].map(j =>
+    + '<h2>Authorization</h2><div class="kolom2" style="margin-top:6mm">'
+    + ['Prepared — Operations', 'Checked — Manager', 'Approved — Director'].map(j =>
       '<div><div class="sigbox"></div><span class="sig-nm"> </span><div class="sig-jab">' + esc(j) + '</div></div>').join('')
     + '</div>';
 
-  return bingkai('PO Pabrik', 'PO', po.no_po || '—', 'Pesanan ke Pabrik — ' + (po.nama_prospek || ''), isiHtml);
+  return bingkai('Purchase Order', 'PURCHASE ORDER', po.no_po || '—', '', isiHtml);
 }
 
 /** Cetak PO lewat pop-up (perilaku lama dipertahankan). */
@@ -651,11 +668,11 @@ export function teksRingkasPo(po: BahanCetakPo, revisi: PoRevisiRow[]): string {
     '',
     'DATA TEKNIS ACUAN',
     'Jenis lift: ' + f('jenisLift') + '   Kapasitas: ' + f('kapasitas') + ' kg',
-    'Kecepatan: ' + f('kecepatan') + '   SFD: ' + f('sfd'),
+    'Kecepatan: ' + f('kecepatan') + '   Floors/Stops/Doors: ' + f('sfd'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
-    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
-    'Daya mesin: ' + f('dayaMesin') + '   Power: ' + f('power'),
+    'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin'),
+    'Power Supply: ' + f('power'),
   ];
   const addonOn = ((dt.addon as unknown as AddOn[]) || []).filter(a => a.on);
   if (addonOn.length) {
