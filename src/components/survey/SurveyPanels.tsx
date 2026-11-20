@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, AlertTriangle, ImagePlus, X, Check, ImageOff } from 'lucide-react';
 import {
   DT_FIELDS, DT_FIELDS_TAMPIL, KELOMPOK_FIELD, DAFTAR_ADDON, JUDUL_DOKUMENTASI,
@@ -101,7 +101,19 @@ interface OpsiDesain { id: string; nama: string; img: string; kategori: string }
  * `peta` hanya menyimpan baris bergambar. Dulu baris tanpa gambar dibuang
  * seluruhnya, jadi warna dari Master Data tidak akan pernah muncul.
  */
-interface KatalogMaster { peta: Record<string, OpsiDesain[]>; warna: string[] }
+interface KatalogMaster {
+  peta: Record<string, OpsiDesain[]>;
+  /**
+   * Warna dikelompokkan menurut kategori asalnya di Master Data, supaya staff
+   * bisa melihat dari mana sebuah warna berasal. Urutan kategori: 'Warna'
+   * lebih dulu (kategori khusus warna), lalu 'Struktur'.
+   */
+  warna: KelompokWarna[];
+  /** Daftar nama warna datar — dipakai untuk cek nilai lama & validasi. */
+  namaWarnaSemua: string[];
+}
+
+interface KelompokWarna { kategori: string; warna: string[] }
 
 let cacheDesain: KatalogMaster | null = null;
 
@@ -130,8 +142,16 @@ export const namaWarna = (nama: string): string => nama.replace(/^struktur\s+/i,
  */
 export function susunKatalog(rows: Array<Record<string, unknown>>): KatalogMaster {
   const peta: Record<string, OpsiDesain[]> = {};
-  const warna: string[] = [];
-  const tambahWarna = (n: string) => { if (n && !warna.includes(n)) warna.push(n); };
+  const kelompok = new Map<string, string[]>();
+  const tambahWarna = (kategori: string, n: string) => {
+    if (!n) return;
+    const isi = kelompok.get(kategori) || [];
+    // Cegah dobel HANYA di dalam kategori yang sama; warna bernama sama dari
+    // kategori berbeda tetap ditampilkan di kelompoknya masing-masing supaya
+    // asal-usulnya tidak tersembunyi.
+    if (!isi.includes(n)) isi.push(n);
+    kelompok.set(kategori, isi);
+  };
 
   for (const row of rows || []) {
     const kat = String(row.category || '').trim();
@@ -141,7 +161,7 @@ export function susunKatalog(rows: Array<Record<string, unknown>>): KatalogMaste
     const katKecil = kat.toLowerCase();
 
     if (katKecil === KATEGORI_WARNA.toLowerCase()) {
-      tambahWarna(nama);
+      tambahWarna(kat, nama);
       continue; // baris warna murni tidak dipakai sebagai gambar
     }
 
@@ -151,14 +171,29 @@ export function susunKatalog(rows: Array<Record<string, unknown>>): KatalogMaste
 
     // Warna dari katalog Struktur tetap jadi pilihan, dan tetap dipakai
     // sebagai gambar (kategori ini bergambar).
-    if (katKecil === KATEGORI_WARNA_STRUKTUR.toLowerCase()) tambahWarna(namaWarna(nama));
+    if (katKecil === KATEGORI_WARNA_STRUKTUR.toLowerCase()) tambahWarna(kat, namaWarna(nama));
   }
-  warna.sort((a, b) => a.localeCompare(b, 'id'));
-  return { peta, warna };
+
+  // Urutan kelompok tetap: 'Warna' dulu, lalu 'Struktur', lalu kategori lain
+  // (kalau nanti staff memakai kategori tambahan). Nama kategori diambil dari
+  // ejaan asli di database, bukan versi lowercase.
+  const prioritas = (k: string) => {
+    const kecil = k.toLowerCase();
+    if (kecil === KATEGORI_WARNA.toLowerCase()) return 0;
+    if (kecil === KATEGORI_WARNA_STRUKTUR.toLowerCase()) return 1;
+    return 2;
+  };
+  const warna = [...kelompok.entries()]
+    .map(([kategori, isi]) => ({ kategori, warna: [...isi].sort((a, b) => a.localeCompare(b, 'id')) }))
+    .filter(k => k.warna.length > 0)
+    .sort((a, b) => prioritas(a.kategori) - prioritas(b.kategori) || a.kategori.localeCompare(b.kategori, 'id'));
+
+  const namaWarnaSemua = [...new Set(warna.flatMap(k => k.warna))].sort((a, b) => a.localeCompare(b, 'id'));
+  return { peta, warna, namaWarnaSemua };
 }
 
-function useKatalogMaster(): { peta: Record<string, OpsiDesain[]>; warna: string[]; galat: string } {
-  const [katalog, setKatalog] = useState<KatalogMaster>(cacheDesain || { peta: {}, warna: [] });
+function useKatalogMaster(): { peta: Record<string, OpsiDesain[]>; warna: KelompokWarna[]; namaWarnaSemua: string[]; galat: string } {
+  const [katalog, setKatalog] = useState<KatalogMaster>(cacheDesain || { peta: {}, warna: [], namaWarnaSemua: [] });
   const [galat, setGalat] = useState('');
 
   useEffect(() => {
@@ -179,7 +214,7 @@ function useKatalogMaster(): { peta: Record<string, OpsiDesain[]>; warna: string
     return () => { aktif = false; };
   }, []);
 
-  return { peta: katalog.peta, warna: katalog.warna, galat };
+  return { peta: katalog.peta, warna: katalog.warna, namaWarnaSemua: katalog.namaWarnaSemua, galat };
 }
 
 /** Pemilih gambar dari Database Desain (Plafon / Lantai Cabin). */
@@ -359,7 +394,7 @@ export function DataTeknisPanel({
   wajibKosong?: string[];
 }) {
   const set = (k: string, v: string | FotoDok[]) => { if (!bacaSaja) ubah(k, v); };
-  const { peta, warna, galat } = useKatalogMaster();
+  const { peta, warna, namaWarnaSemua, galat } = useKatalogMaster();
 
   // Seluruh gambar Master Data, apa pun kategorinya — dipakai tombol
   // "Master Data" pada lampiran tiap spec dan Remarks.
@@ -446,7 +481,10 @@ export function DataTeknisPanel({
                       // kosong, item "—" tidak dirender supaya placeholder
                       // benar-benar muncul dan menjelaskan cara mengisinya.
                       (() => {
-                        const asing = !!nilai && !warna.includes(nilai);
+                        // Nilai lama yang tidak ada di Master Data tetap bisa
+                        // ditampilkan, tapi hanya dibandingkan dengan daftar
+                        // datar (bukan per kelompok).
+                        const asing = !!nilai && !namaWarnaSemua.includes(nilai);
                         const kosongWarna = warna.length === 0;
                         return (
                           <Select value={nilai || KOSONG} onValueChange={v => set(f.key, v === KOSONG ? '' : v)} disabled={bacaSaja}>
@@ -456,7 +494,17 @@ export function DataTeknisPanel({
                             <SelectContent>
                               {asing && <SelectItem value={nilai}>{nilai} (lama)</SelectItem>}
                               {!kosongWarna && <SelectItem value={KOSONG}>—</SelectItem>}
-                              {warna.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                              {/* Dikelompokkan per kategori asal: "Color dari
+                                  Struktur" dan "Color dari Warna" — staff bisa
+                                  melihat warna itu berasal dari kategori mana. */}
+                              {warna.map(kel => (
+                                <SelectGroup key={kel.kategori}>
+                                  <SelectLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Color dari {kel.kategori}
+                                  </SelectLabel>
+                                  {kel.warna.map(w => <SelectItem key={kel.kategori + '|' + w} value={w}>{w}</SelectItem>)}
+                                </SelectGroup>
+                              ))}
                               {kosongWarna && (
                                 <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
                                   Daftar warna belum diisi. Staff mengisi lewat Master Data → kategori Warna.

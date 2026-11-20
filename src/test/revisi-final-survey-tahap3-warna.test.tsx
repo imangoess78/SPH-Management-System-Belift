@@ -110,7 +110,9 @@ describe('Revisi Final Survey — field Pilih Color dari Master Data', () => {
         { id: '2', category: 'Warna', name: 'Hairline Black', image_url: '' },
         { id: '3', category: 'Warna', name: 'Champagne', image_url: 'https://x/y.png' },
       ]);
-      expect(warna).toEqual(['Champagne', 'Hairline Black', 'Rose Gold']);
+      expect(warna).toEqual([
+        { kategori: 'Warna', warna: ['Champagne', 'Hairline Black', 'Rose Gold'] },
+      ]);
     });
 
     it('kategori lain tanpa gambar tidak ikut jadi pilihan warna', () => {
@@ -118,7 +120,7 @@ describe('Revisi Final Survey — field Pilih Color dari Master Data', () => {
         { id: '1', category: 'Ceiling', name: 'Plafon A', image_url: null },
         { id: '2', category: 'Warna', name: 'Gold' },
       ]);
-      expect(warna).toEqual(['Gold']);
+      expect(warna).toEqual([{ kategori: 'Warna', warna: ['Gold'] }]);
       expect(peta.Ceiling).toBeUndefined();
     });
 
@@ -129,18 +131,39 @@ describe('Revisi Final Survey — field Pilih Color dari Master Data', () => {
         { id: '1', category: 'Struktur', name: 'Struktur Rose Gold', image_url: 'https://x/1.png' },
         { id: '2', category: 'Struktur', name: 'Struktur Black', image_url: 'https://x/2.png' },
       ]);
-      expect(warna).toEqual(['Black', 'Rose Gold']);
+      expect(warna).toEqual([{ kategori: 'Struktur', warna: ['Black', 'Rose Gold'] }]);
       // Tetap tersedia sebagai gambar (dipakai lampiran spec / SPH).
       expect(peta.Struktur).toHaveLength(2);
       expect(namaWarna('Struktur Champagne Gold')).toBe('Champagne Gold');
     });
 
-    it('warna dari kategori Warna dan Struktur tidak dobel', () => {
-      const { warna } = susunKatalog([
+    it('warna dipisah per kategori asal: "Color dari Warna" lalu "Color dari Struktur"', () => {
+      // Permintaan pemilik: dropdown harus menunjukkan asal warna.
+      const { warna, namaWarnaSemua } = susunKatalog([
+        { id: '1', category: 'Struktur', name: 'Struktur Black', image_url: 'https://x/1.png' },
+        { id: '2', category: 'Struktur', name: 'Struktur Grey', image_url: 'https://x/2.png' },
+        { id: '3', category: 'Warna', name: 'Merah' },
+        { id: '4', category: 'Warna', name: 'Hijau' },
+      ]);
+      expect(warna).toEqual([
+        { kategori: 'Warna', warna: ['Hijau', 'Merah'] },
+        { kategori: 'Struktur', warna: ['Black', 'Grey'] },
+      ]);
+      // Daftar datar tetap lengkap untuk cek nilai lama.
+      expect(namaWarnaSemua).toEqual(['Black', 'Grey', 'Hijau', 'Merah']);
+    });
+
+    it('warna bernama sama dari dua kategori muncul di kelompoknya masing-masing', () => {
+      // Dulu digabung jadi satu sehingga asal-usulnya hilang.
+      const { warna, namaWarnaSemua } = susunKatalog([
         { id: '1', category: 'Warna', name: 'Black' },
         { id: '2', category: 'Struktur', name: 'Struktur Black', image_url: 'https://x/1.png' },
       ]);
-      expect(warna).toEqual(['Black']);
+      expect(warna).toEqual([
+        { kategori: 'Warna', warna: ['Black'] },
+        { kategori: 'Struktur', warna: ['Black'] },
+      ]);
+      expect(namaWarnaSemua).toEqual(['Black']);
     });
 
     it('nama warna ganda tidak menghasilkan opsi dobel', () => {
@@ -148,12 +171,12 @@ describe('Revisi Final Survey — field Pilih Color dari Master Data', () => {
         { id: '1', category: 'Warna', name: 'Gold' },
         { id: '2', category: 'Warna', name: 'Gold' },
       ]);
-      expect(warna).toEqual(['Gold']);
+      expect(warna).toEqual([{ kategori: 'Warna', warna: ['Gold'] }]);
     });
 
     it('kategori Warna dikenali tanpa peduli huruf besar/kecil', () => {
       const { warna } = susunKatalog([{ id: '1', category: 'warna', name: 'Silver' }]);
-      expect(warna).toEqual(['Silver']);
+      expect(warna).toEqual([{ kategori: 'warna', warna: ['Silver'] }]);
       expect(KATEGORI_WARNA).toBe('Warna');
     });
   });
