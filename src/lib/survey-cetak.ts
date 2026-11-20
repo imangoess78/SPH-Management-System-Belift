@@ -235,9 +235,15 @@ function tabelDt(dt: DataTeknis, hanyaWajib = false): string {
       if (f.kel !== kel) return false;
       const nilai = dtEf[f.key];
       const ada = !(nilai === null || nilai === undefined || String(nilai).trim() === '');
-      // Field sembunyi hanya dicetak kalau benar-benar berisi nilai — Note
-      // sisa tidak boleh menghidupkan kembali parameter yang sudah dihapus.
-      if (f.sembunyi) return ada;
+      // Field sembunyi hanya dicetak kalau `sembunyiCetak` tidak diset.
+      //   sembunyiCetak: false → field DIHAPUS PERMANEN oleh klien: tidak
+      //     dicetak sama sekali, walau dokumen lama masih menyimpan nilainya.
+      //   sembunyiCetak tidak diisi (default true) → field dihapus tetapi
+      //     nilainya masih bermakna: tercetak bila ada isinya, supaya Final
+      //     Survey/PO lama tidak kehilangan informasi diam-diam.
+      // Sebelumnya perilaku kedua berlaku untuk semua, sehingga "Daya Mesin"
+      // yang sudah dihapus klien tetap muncul di PO dokumen lama.
+      if (f.sembunyi) return f.sembunyiCetak === false ? false : ada;
       const note = dtEf['note:' + f.key];
       const img = dtEf['imgdesain:' + f.key];
       return ada || !!String(note ?? '').trim() || !!String(img ?? '').trim();
@@ -471,12 +477,12 @@ export function teksRingkasSurvey(b: {
     '',
     'Jenis lift: ' + f('jenisLift') + '   Model: ' + f('model'),
     'Kapasitas: ' + f('kapasitas') + ' kg   Penumpang: ' + f('penumpang'),
-    'Kecepatan: ' + f('kecepatan') + '   SFD: ' + f('sfd'),
-    'Tipe mesin: ' + f('tipeMesin') + '   Penggerak: ' + f('drive'),
+    'Kecepatan: ' + f('kecepatan') + '   Floors/Stops/Doors: ' + f('sfd'),
+    'Tipe mesin: ' + f('tipeMesin'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
     'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
-    'Daya mesin: ' + f('dayaMesin') + '   Power: ' + f('power'),
+    'Power: ' + f('power'),
     'Grounding: ' + f('grounding') + '   ARD: ' + f('ard'),
     'Akses jalan: ' + f('aksesJalan') + '   Ruang kerja: ' + f('ruangKerja'),
   ];
@@ -651,11 +657,11 @@ export function teksRingkasPo(po: BahanCetakPo, revisi: PoRevisiRow[]): string {
     '',
     'DATA TEKNIS ACUAN',
     'Jenis lift: ' + f('jenisLift') + '   Kapasitas: ' + f('kapasitas') + ' kg',
-    'Kecepatan: ' + f('kecepatan') + '   SFD: ' + f('sfd'),
+    'Kecepatan: ' + f('kecepatan') + '   Floors/Stops/Doors: ' + f('sfd'),
     'Ukuran shaft: ' + f('shaftSize') + '   Pit: ' + f('pitDepth') + '   Overhead: ' + f('overhead'),
     'Pintu: ' + f('tipePintu') + ' ' + f('bukaanPintu') + '   Sill: ' + f('sillPintu'),
     'Cabin: ' + f('cabinSize') + '   Bahan: ' + f('bahanCabin') + '   Finishing: ' + f('finishCabin'),
-    'Daya mesin: ' + f('dayaMesin') + '   Power: ' + f('power'),
+    'Power: ' + f('power'),
   ];
   const addonOn = ((dt.addon as unknown as AddOn[]) || []).filter(a => a.on);
   if (addonOn.length) {

@@ -128,7 +128,11 @@ export interface DataTeknis {
 //  kel      : kelompok pada form
 //  jenis    : 'teks' | 'angka' | 'pilih' | 'desain' | 'hitung'
 //  catatan  : Note baku yang tercetak bila pengisi tidak menulis Note
-//  sembunyi : tidak tampil di form, tetapi tetap tercetak bila ada nilainya
+//  sembunyi : tidak tampil di form
+//  sembunyiCetak : hanya berlaku bila `sembunyi`. `false` = jangan pernah
+//             dicetak (field dihapus permanen oleh klien, mis. Daya Mesin).
+//             Default (tidak diisi) = tetap dicetak bila ada isinya, supaya
+//             dokumen lama tidak kehilangan informasi.
 export interface FieldDef {
   key: string;
   label: string;
@@ -140,6 +144,7 @@ export interface FieldDef {
   hint?: string;
   catatan?: string;
   sembunyi?: boolean;
+  sembunyiCetak?: boolean;
   /** Hanya untuk jenis 'desain': kategori di tabel design_items. */
   kategori?: 'Ceiling' | 'Floor';
 }
@@ -160,13 +165,16 @@ export const DT_FIELDS: FieldDef[] = [
     opsi: OPSI_KAPASITAS, satuan: 'kg', catatan: 'Rated load.' },
   { key: 'penumpang',  label: 'Penumpang',    en: 'Passengers',     kel: 'Spesifikasi Utama', jenis: 'angka', satuan: 'orang' },
   { key: 'kecepatan',  label: 'Kecepatan',    en: 'Speed',          kel: 'Spesifikasi Utama', jenis: 'teks', satuan: 'm/min' },
-  { key: 'sfd',        label: 'Stops / Floors / Doors', en: 'Stops / Floors / Doors', kel: 'Spesifikasi Utama', jenis: 'teks',
+  // Urutan klien: Floors / Stops / Doors (bukan Stops / Floors / Doors).
+  { key: 'sfd',        label: 'Floors / Stops / Doors', en: 'Floors / Stops / Doors', kel: 'Spesifikasi Utama', jenis: 'teks',
     hint: 'mis. 4 / 4 / 4' },
   { key: 'tipeMesin',  label: 'Tipe Lift (MR / MRL)', en: 'Machine Type', kel: 'Spesifikasi Utama', jenis: 'pilih',
     opsi: ['MR', 'MRL'],
     catatan: 'MR = Machine Room; MRL = Machine Room Less.' },
+  // Sistem Penggerak dihapus klien. Tetap tercetak bila dokumen lama
+  // menyimpan nilainya — tanpa ini Final Survey/PO lama kehilangan isi.
   { key: 'drive',      label: 'Sistem Penggerak', en: 'Drive System', kel: 'Spesifikasi Utama', jenis: 'pilih',
-    opsi: ['VVVF', 'AC-2', 'Hydraulic'] },
+    opsi: ['VVVF', 'AC-2', 'Hydraulic'], sembunyi: true, sembunyiCetak: false },
 
   // ── Shaft ────────────────────────────────────────────────
   { key: 'shaftSize',    label: 'Ukuran Shaft',  en: 'Shaft Size',   kel: 'Shaft', jenis: 'teks', satuan: 'mm', hint: 'P × L',
@@ -224,13 +232,15 @@ export const DT_FIELDS: FieldDef[] = [
   { key: 'finishingStruktur',label: 'Finishing Struktur',   en: 'Structure Finishing', kel: 'Finishing', jenis: 'teks' },
 
   // ── Mesin & Kelistrikan ──────────────────────────────────
-  { key: 'dayaMesin',    label: 'Daya Mesin',    en: 'Motor Power',    kel: 'Mesin & Kelistrikan', jenis: 'teks', satuan: 'kW' },
+  // Daya Mesin, Merk Mesin, Posisi Mesin dihapus klien. Ditandai `sembunyi`
+  // supaya tidak hilang dari dokumen lama, tetapi tidak tampil di form.
+  { key: 'dayaMesin',    label: 'Daya Mesin',    en: 'Motor Power',    kel: 'Mesin & Kelistrikan', jenis: 'teks', satuan: 'kW', sembunyi: true, sembunyiCetak: false },
   { key: 'traksi',       label: 'Traction Ratio', en: 'Traction Ratio', kel: 'Mesin & Kelistrikan', jenis: 'teks' },
-  { key: 'power',        label: 'Power Supply',  en: 'Power Supply',   kel: 'Mesin & Kelistrikan', jenis: 'teks',
-    hint: 'mis. 220V 1Ph / 380V 3Ph' },
-  { key: 'mesinMerk',    label: 'Merk Mesin',    en: 'Machine Brand',  kel: 'Mesin & Kelistrikan', jenis: 'teks' },
+  { key: 'power',        label: 'Power Supply',  en: 'Power Supply',   kel: 'Mesin & Kelistrikan', jenis: 'pilih',
+    opsi: ['220 1ph', '380 3ph'] },
+  { key: 'mesinMerk',    label: 'Merk Mesin',    en: 'Machine Brand',  kel: 'Mesin & Kelistrikan', jenis: 'teks', sembunyi: true, sembunyiCetak: false },
   { key: 'posisiMesin',  label: 'Posisi Mesin',  en: 'Machine Position', kel: 'Mesin & Kelistrikan', jenis: 'pilih',
-    opsi: ['Atas (Machine Room)', 'Atas (MRL / Machine Room Less)', 'Bawah', 'Samping'] },
+    opsi: ['Atas (Machine Room)', 'Atas (MRL / Machine Room Less)', 'Bawah', 'Samping'], sembunyi: true, sembunyiCetak: false },
   { key: 'panelLokasi',  label: 'Lokasi Panel',  en: 'Panel Location', kel: 'Mesin & Kelistrikan', jenis: 'teks' },
   { key: 'kabelMeter',   label: 'Kebutuhan Kabel', en: 'Cable Requirement', kel: 'Mesin & Kelistrikan', jenis: 'teks', satuan: 'm' },
   { key: 'grounding',    label: 'Grounding',     en: 'Grounding',      kel: 'Mesin & Kelistrikan', jenis: 'pilih',
@@ -395,7 +405,10 @@ export const FIELD_WAJIB_KUNCI: string[] = [
   'shaftSize', 'pitDepth', 'overhead',
   'tipePintu', 'bukaanPintu',
   'cabinSize', 'bahanCabin',
-  'dayaMesin', 'power',
+  // 'dayaMesin' dihapus klien — field-nya tidak tampil lagi, jadi tidak boleh
+  // tetap wajib. Kalau tetap di sini, Final Survey tidak akan pernah bisa
+  // dikunci karena ada field tersembunyi yang selalu kosong.
+  'power',
 ];
 
 // ── Tipe baris DB ─────────────────────────────────────────────

@@ -159,7 +159,7 @@ async function nomorPo(tgl: string, env: Env) {
 // memakai nama kuncinya sendiri.
 const LABEL: Record<string, string> = {
   jenisLift: 'Jenis Lift', model: 'Model', kapasitas: 'Kapasitas', penumpang: 'Penumpang',
-  kecepatan: 'Kecepatan', sfd: 'Stops/Floors/Doors', tipeMesin: 'Tipe Mesin', drive: 'Sistem Penggerak',
+  kecepatan: 'Kecepatan', sfd: 'Floors/Stops/Doors', tipeMesin: 'Tipe Mesin', drive: 'Sistem Penggerak',
   shaftSize: 'Ukuran Shaft', pitDepth: 'Kedalaman Pit', overhead: 'Overhead', travelling: 'Travelling Height',
   bahanShaft: 'Bahan Konstruksi Shaft', tebalDinding: 'Tebal Dinding', posisiHoistway: 'Posisi Hoistway',
   dindingFinish: 'Finishing Dinding Shaft', tipePintu: 'Tipe Pintu', bukaanPintu: 'Bukaan Pintu',
